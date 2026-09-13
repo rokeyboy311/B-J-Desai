@@ -1,565 +1,461 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
-import { Modal } from "../components/ui/Modal";
-import { ArrowLeft, Plus, ArrowUpRight, ArrowDownRight, Trash2, Edit2, Download, Search, Filter } from "lucide-react";
+import { auth } from "../lib/firebase";
+import { 
+  ArrowLeft, Download, Landmark, TrendingDown,
+  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { PurchaseIcon } from "../components/icons/PurchaseIcon";
 
-interface RecordMetrics {
-  totalIncome: number;
-  totalExpense: number;
-  netBalance: number;
-}
-
-interface HisabRecord {
-  id: number;
-  type: 'INCOME' | 'EXPENSE';
-  amount: string;
-  date: string;
-  partyName: string;
-  category: string | null;
-  description: string | null;
-}
+import InvestmentTab, { InvestmentSubCategory } from "../components/categories/InvestmentTab";
+import ExpenseTab, { ExpenseSubCategory } from "../components/categories/ExpenseTab";
+import SupervisorCostTab from "../components/categories/SupervisorCostTab";
 
 export default function LocationDetailsPage() {
   const { id: locationId } = useParams();
   const navigate = useNavigate();
   
-  const [metrics, setMetrics] = useState<RecordMetrics>({ totalIncome: 0, totalExpense: 0, netBalance: 0 });
-  const [records, setRecords] = useState<HisabRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Quick Add Form state
-  const [newRecordData, setNewRecordData] = useState({
-    type: "INCOME" as "INCOME" | "EXPENSE",
-    amount: "",
-    date: new Date().toISOString().split('T')[0],
-    partyName: "",
-    category: "",
-    description: "",
-  });
-  const [quickAddError, setQuickAddError] = useState("");
+  // Primary Categories: 1st is Investment, 2nd is Expense, 3rd is Supervisor Cost
+  const [activeCategory, setActiveCategory] = useState<"investment" | "expense" | "supervisor">("investment");
+  const [investmentSubCategory, setInvestmentSubCategory] = useState<InvestmentSubCategory>("INVESTMENT");
+  const [expenseSubCategory, setExpenseSubCategory] = useState<ExpenseSubCategory>("material-purchase");
 
-  // Edit Modal state
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<HisabRecord | null>(null);
-  const [editFormError, setEditFormError] = useState("");
+  const [locationName, setLocationName] = useState("Loading...");
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
-  const [editFormData, setEditFormData] = useState({
-    type: "INCOME",
-    amount: "",
-    date: new Date().toISOString().split('T')[0],
-    partyName: "",
-    category: "",
-    description: "",
-  });
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [metricsData, recordsData] = await Promise.all([
-        apiFetch(`/records/metrics?locationId=${locationId}`),
-        apiFetch(`/records?locationId=${locationId}`)
-      ]);
-      setMetrics(metricsData);
-      setRecords(recordsData);
-    } catch (error) {
-      console.error("Failed to load location data");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (locationId) fetchData();
+    loadLocationDetails();
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [locationId]);
 
-  const openEditModal = (record: HisabRecord) => {
-    setSelectedRecord(record);
-    setEditFormData({
-      type: record.type,
-      amount: record.amount,
-      date: record.date,
-      partyName: record.partyName,
-      category: record.category || "",
-      description: record.description || "",
-    });
-    setEditFormError("");
-    setIsEditModalOpen(true);
-  };
-
-  const handleQuickAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRecordData.amount || isNaN(Number(newRecordData.amount)) || Number(newRecordData.amount) <= 0) {
-      setQuickAddError("Please enter a valid positive amount");
-      return;
-    }
-    if (!newRecordData.partyName.trim()) {
-      setQuickAddError("Party name is required");
-      return;
-    }
-
+  const loadLocationDetails = async () => {
     try {
-      setQuickAddError("");
-      const payload = { 
-        ...newRecordData, 
-        partyName: newRecordData.partyName.trim(),
-        category: newRecordData.category.trim(),
-        description: newRecordData.description.trim(),
-        locationId: Number(locationId) 
-      };
-      
-      await apiFetch(`/records`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      
-      // Reset form on success
-      setNewRecordData({
-        type: "INCOME",
-        amount: "",
-        date: new Date().toISOString().split('T')[0],
-        partyName: "",
-        category: "",
-        description: "",
-      });
-      
-      fetchData();
-    } catch (error: any) {
-      setQuickAddError(error.message);
-    }
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editFormData.amount || isNaN(Number(editFormData.amount)) || Number(editFormData.amount) <= 0) {
-      setEditFormError("Please enter a valid positive amount");
-      return;
-    }
-    if (!editFormData.partyName.trim()) {
-      setEditFormError("Party name is required");
-      return;
-    }
-
-    try {
-      const payload = { 
-        ...editFormData, 
-        partyName: editFormData.partyName.trim(),
-        category: editFormData.category.trim(),
-        description: editFormData.description.trim(),
-        locationId: Number(locationId) 
-      };
-      
-      if (selectedRecord) {
-        await apiFetch(`/records/${selectedRecord.id}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-      }
-      setIsEditModalOpen(false);
-      fetchData();
-    } catch (error: any) {
-      setEditFormError(error.message);
-    }
-  };
-
-  const handleDelete = async (recordId: number) => {
-    if (!window.confirm("Are you sure you want to delete this record?")) return;
-    try {
-      await apiFetch(`/records/${recordId}`, { method: "DELETE" });
-      fetchData();
+      const res = await apiFetch(`/locations`);
+      const loc = res.find((l: any) => l.id === Number(locationId));
+      if (loc) setLocationName(loc.name);
     } catch (error) {
-      console.error("Failed to delete record");
+      console.error(error);
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (tabId: string, tabLabel: string) => {
+    setIsExporting(true);
+    setShowExportMenu(false);
     try {
-      const response = await fetch(`/api/reports/export-location/${locationId}`, {
-        headers: {
-          'Authorization': `Bearer ${await (await import('../lib/firebase')).auth.currentUser?.getIdToken()}`
-        }
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/reports/export-location/${locationId}?tab=${tabId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      if (!response.ok) throw new Error('Export failed');
+      if (!res.ok) throw new Error("Export failed");
       
-      const blob = await response.blob();
+      const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      // Get filename from header if possible, else fallback
-      const contentDisposition = response.headers.get('content-disposition');
-      let filename = 'Hisab-Kitab-Export.xlsx';
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="(.+)"/);
-        if (match) filename = match[1];
-      }
-      a.download = filename;
+      a.download = `Export_${locationName.replace(/\s+/g, '_')}_${tabLabel.replace(/\s+/g, '_')}.xlsx`;
       document.body.appendChild(a);
       a.click();
+      a.remove();
       window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
     } catch (error) {
-      console.error('Export failed:', error);
-      alert('Failed to generate export file.');
+      console.error(error);
+      alert("Failed to export Excel file.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const [searchTerm, setSearchTerm] = useState("");
-  
-  const filteredRecords = records.filter(r => 
-    r.partyName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    r.category?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    r.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate('/locations')}
-            className="p-2 -ml-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          <button type="button"
+            onClick={() => navigate("/locations")}
+            className="p-2 hover:bg-white rounded-full transition-colors border border-transparent hover:border-gray-200 hover:shadow-sm"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Hisab-Kitab</h1>
-            <p className="text-sm text-gray-500 mt-1">Manage income and expenses</p>
+            <h1 className="text-2xl font-bold text-gray-900">{locationName}</h1>
+            
           </div>
         </div>
-      </header>
-
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-sm font-medium text-gray-500 mb-2">Total Income</div>
-          <div className="text-2xl font-bold text-emerald-600">{formatCurrency(metrics.totalIncome)}</div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-sm font-medium text-gray-500 mb-2">Total Expense</div>
-          <div className="text-2xl font-bold text-rose-600">{formatCurrency(metrics.totalExpense)}</div>
-        </div>
-        <div className={`bg-white p-6 rounded-xl border border-gray-200 shadow-sm`}>
-          <div className="text-sm font-medium text-gray-500 mb-2">Net Balance</div>
-          <div className={`text-2xl font-bold ${metrics.netBalance >= 0 ? 'text-gray-900' : 'text-rose-600'}`}>
-            {formatCurrency(metrics.netBalance)}
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Add Form */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Add Entry</h2>
-        <form onSubmit={handleQuickAdd} className="space-y-4">
-          {quickAddError && (
-            <div className="p-3 bg-rose-50 text-rose-700 text-sm rounded-lg border border-rose-100">
-              {quickAddError}
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label htmlFor="quickType" className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-              <select
-                id="quickType"
-                value={newRecordData.type}
-                onChange={(e) => setNewRecordData({ ...newRecordData, type: e.target.value as 'INCOME' | 'EXPENSE' })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none bg-gray-50"
-              >
-                <option value="INCOME">Income (+)</option>
-                <option value="EXPENSE">Expense (-)</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="quickDate" className="block text-xs font-medium text-gray-700 mb-1">Date</label>
-              <input
-                id="quickDate"
-                type="date"
-                required
-                value={newRecordData.date}
-                onChange={(e) => setNewRecordData({ ...newRecordData, date: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-              />
-            </div>
-            <div>
-              <label htmlFor="quickAmount" className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                <input
-                  id="quickAmount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  placeholder="0.00"
-                  value={newRecordData.amount}
-                  onChange={(e) => setNewRecordData({ ...newRecordData, amount: e.target.value })}
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="quickParty" className="block text-xs font-medium text-gray-700 mb-1">Party Name</label>
-              <input
-                id="quickParty"
-                type="text"
-                required
-                placeholder="Person or Business"
-                value={newRecordData.partyName}
-                onChange={(e) => setNewRecordData({ ...newRecordData, partyName: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="quickCategory" className="block text-xs font-medium text-gray-700 mb-1">Category (Optional)</label>
-              <input
-                id="quickCategory"
-                type="text"
-                placeholder="e.g. Salary, Rent, Materials"
-                value={newRecordData.category}
-                onChange={(e) => setNewRecordData({ ...newRecordData, category: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="quickDesc" className="block text-xs font-medium text-gray-700 mb-1">Description (Optional)</label>
-              <div className="flex gap-2">
-                <input
-                  id="quickDesc"
-                  type="text"
-                  placeholder="Additional details..."
-                  value={newRecordData.description}
-                  onChange={(e) => setNewRecordData({ ...newRecordData, description: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-                />
-                <button
-                  type="submit"
-                  className="shrink-0 inline-flex items-center justify-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium text-sm hover:bg-indigo-700 transition-colors shadow-sm"
-                >
-                  <Plus size={16} />
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-gray-200">
-        <div className="flex items-center gap-4 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Search party or description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent outline-none"
-            />
-          </div>
-          <button className="p-2 text-gray-500 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50">
-            <Filter size={18} />
+        
+        {/* Export Excel Dropdown */}
+        <div className="relative" ref={menuRef}>
+          <button type="button"
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">{isExporting ? "Exporting..." : "Export Excel"}</span>
+            <ChevronDown className="w-4 h-4 ml-1" />
           </button>
-        </div>
-        <button 
-          onClick={handleExport}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm"
-        >
-          <Download size={16} />
-          Export
-        </button>
-      </div>
-
-      {/* Records Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-200">
-                <th className="px-6 py-4 font-medium">Date</th>
-                <th className="px-6 py-4 font-medium">Party Name</th>
-                <th className="px-6 py-4 font-medium">Category</th>
-                <th className="px-6 py-4 font-medium text-right">Amount</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 text-sm">
-              {filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                    No records found.
-                  </td>
-                </tr>
-              ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-900">{record.date}</td>
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{record.partyName}</div>
-                      {record.description && <div className="text-xs text-gray-500 mt-1">{record.description}</div>}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                        {record.category || 'Uncategorized'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <span className={`font-medium ${record.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {record.type === 'INCOME' ? '+' : '-'}{formatCurrency(Number(record.amount))}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">
-                      <button 
-                        onClick={() => openEditModal(record)}
-                        className="p-1 hover:text-indigo-600 transition-colors"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(record.id)}
-                        className="p-1 hover:text-rose-600 transition-colors ml-2"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Edit Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Record"
-      >
-        <form onSubmit={handleSaveEdit} className="space-y-4">
-          {editFormError && (
-            <div className="p-3 bg-rose-50 text-rose-700 text-sm rounded-lg border border-rose-100">
-              {editFormError}
-            </div>
-          )}
           
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="editRecordType" className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select
-                id="editRecordType"
-                name="recordType"
-                value={editFormData.type}
-                onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
+          <AnimatePresence>
+            {showExportMenu && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute right-0 mt-2 w-64 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden"
               >
-                <option value="INCOME">Income</option>
-                <option value="EXPENSE">Expense</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="editRecordDate" className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <input
-                id="editRecordDate"
-                name="recordDate"
-                type="date"
-                value={editFormData.date}
-                onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-                required
-              />
-            </div>
-          </div>
+                <div className="py-1">
+                  <button type="button"
+                    onClick={() => handleExport('all', 'All_Categories')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-50 font-bold border-b border-gray-100"
+                  >
+                    Export All Records (Full Ledger)
+                  </button>
 
-          <div>
-            <label htmlFor="editRecordAmount" className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
-              <input
-                id="editRecordAmount"
-                name="recordAmount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={editFormData.amount}
-                onChange={(e) => setEditFormData({ ...editFormData, amount: e.target.value })}
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-                placeholder="0.00"
-                required
-              />
-            </div>
-          </div>
+                  <div className="px-4 py-1.5 text-[11px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-50/60">
+                    1st Category: Investment
+                  </div>
+                  <button type="button"
+                    onClick={() => handleExport('investment', 'Investment_Records')}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <Landmark className="w-3.5 h-3.5 text-emerald-600" />
+                    Investment & Upad Records
+                  </button>
 
-          <div>
-            <label htmlFor="editRecordParty" className="block text-sm font-medium text-gray-700 mb-1">Party Name</label>
-            <input
-              id="editRecordParty"
-              name="recordParty"
-              type="text"
-              value={editFormData.partyName}
-              onChange={(e) => setEditFormData({ ...editFormData, partyName: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-              placeholder="Who is this transaction with?"
-              required
-            />
-          </div>
+                  <div className="px-4 py-1.5 text-[11px] font-bold text-rose-800 uppercase tracking-wider bg-rose-50/60">
+                    2nd Category: Expense
+                  </div>
+                  <button type="button"
+                    onClick={() => handleExport('expense', 'All_Expenses')}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-rose-50 hover:text-rose-800 font-medium"
+                  >
+                    <TrendingDown className="w-3.5 h-3.5 text-rose-600" />
+                    All Expense Sub-Categories
+                  </button>
+                  <button type="button"
+                    onClick={() => handleExport('material-purchase', 'Material_Purchases')}
+                    className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-gray-600 hover:bg-rose-50 hover:text-rose-800 pl-7"
+                  >
+                    <PurchaseIcon className="w-3 h-3 text-gray-400" />
+                    Material Purchases
+                  </button>
+                  <button type="button"
+                    onClick={() => handleExport('material-supply', 'Material_Supplies')}
+                    className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-gray-600 hover:bg-rose-50 hover:text-rose-800 pl-7"
+                  >
+                    <Truck className="w-3 h-3 text-gray-400" />
+                    Material Supplies
+                  </button>
+                  <button type="button"
+                    onClick={() => handleExport('material-labour-supply', 'Site_Supplies')}
+                    className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-gray-600 hover:bg-rose-50 hover:text-rose-800 pl-7"
+                  >
+                    <Wrench className="w-3 h-3 text-gray-400" />
+                    Site Supplies
+                  </button>
+                  <button type="button"
+                    onClick={() => handleExport('labour-salary', 'Labour_Salaries')}
+                    className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-gray-600 hover:bg-rose-50 hover:text-rose-800 pl-7"
+                  >
+                    <HardHat className="w-3 h-3 text-gray-400" />
+                    Labour Salaries
+                  </button>
+                  <button type="button"
+                    onClick={() => handleExport('income-expense', 'Site_Expenses')}
+                    className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-gray-600 hover:bg-rose-50 hover:text-rose-800 pl-7"
+                  >
+                    <Wallet className="w-3 h-3 text-gray-400" />
+                    Site / General Expenses
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
 
-          <div>
-            <label htmlFor="editRecordCategory" className="block text-sm font-medium text-gray-700 mb-1">Category (Optional)</label>
-            <input
-              id="editRecordCategory"
-              name="recordCategory"
-              type="text"
-              value={editFormData.category}
-              onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none"
-              placeholder="e.g., Materials, Salary, Sales"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="editRecordDescription" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-            <textarea
-              id="editRecordDescription"
-              name="recordDescription"
-              value={editFormData.description}
-              onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none resize-none"
-              placeholder="Additional details..."
-              rows={2}
-            />
-          </div>
-
-          <div className="pt-4 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setIsEditModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+      {/* Main Two-Category Layout */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Navigation Sidebar: 1st Investment & 2nd Expense */}
+        <div className="flex overflow-x-auto lg:flex-col gap-3 lg:w-72 flex-shrink-0 no-scrollbar pb-2 lg:pb-0">
+          
+          {/* 1st Category: INVESTMENT */}
+          <div className="flex flex-col gap-1.5 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm min-w-[240px] lg:min-w-0">
+            <button type="button"
+              id="main-cat-investment"
+              onClick={() => setActiveCategory("investment")}
+              className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 text-left ${
+                activeCategory === "investment"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}
             >
-              Cancel
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${activeCategory === "investment" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"}`}>
+                  <Landmark className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm">1. Investment</div>
+                  <div className={`text-xs ${activeCategory === "investment" ? "text-emerald-100" : "text-gray-400"}`}>
+                    Capital & Upad
+                  </div>
+                </div>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                activeCategory === "investment" ? "bg-emerald-700 text-white" : "bg-emerald-50 text-emerald-700"
+              }`}>
+                1st Cat
+              </span>
             </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors"
+
+            {/* Investment Sub-Categories */}
+            <div className={`flex flex-col gap-1 pl-3 pr-1 py-1 border-l-2 ml-4 ${
+              activeCategory === "investment" ? "border-emerald-500" : "border-gray-200"
+            }`}>
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("investment");
+                  setInvestmentSubCategory("INVESTMENT");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "investment" && investmentSubCategory === "INVESTMENT"
+                    ? "bg-emerald-100 text-emerald-800 font-bold"
+                    : "text-gray-600 hover:text-emerald-700 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  activeCategory === "investment" && investmentSubCategory === "INVESTMENT" ? "bg-emerald-600" : "bg-gray-300"
+                }`}></span>
+                1. Investment
+              </button>
+
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("investment");
+                  setInvestmentSubCategory("UPAD");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "investment" && investmentSubCategory === "UPAD"
+                    ? "bg-amber-100 text-amber-900 font-bold"
+                    : "text-gray-600 hover:text-amber-700 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  activeCategory === "investment" && investmentSubCategory === "UPAD" ? "bg-amber-600" : "bg-gray-300"
+                }`}></span>
+                2. Upad
+              </button>
+
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("investment");
+                  setInvestmentSubCategory("PARTIES");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "investment" && investmentSubCategory === "PARTIES"
+                    ? "bg-blue-100 text-blue-900 font-bold"
+                    : "text-gray-600 hover:text-blue-700 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  activeCategory === "investment" && investmentSubCategory === "PARTIES" ? "bg-blue-600" : "bg-gray-300"
+                }`}></span>
+                Party Ledger
+              </button>
+            </div>
+          </div>
+
+          {/* 2nd Category: EXPENSE */}
+          <div className="flex flex-col gap-1.5 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm min-w-[240px] lg:min-w-0">
+            <button type="button"
+              id="main-cat-expense"
+              onClick={() => setActiveCategory("expense")}
+              className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 text-left ${
+                activeCategory === "expense"
+                  ? "bg-rose-600 text-white shadow-md shadow-rose-500/20"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}
             >
-              Save Changes
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${activeCategory === "expense" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"}`}>
+                  <TrendingDown className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm">2. Expense</div>
+                  <div className={`text-xs ${activeCategory === "expense" ? "text-rose-100" : "text-gray-400"}`}>
+                    Materials & Labour
+                  </div>
+                </div>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                activeCategory === "expense" ? "bg-rose-700 text-white" : "bg-rose-50 text-rose-700"
+              }`}>
+                2nd Cat
+              </span>
+            </button>
+
+            {/* Expense Sub-Categories */}
+            <div className={`flex flex-col gap-1 pl-3 pr-1 py-1 border-l-2 ml-4 ${
+              activeCategory === "expense" ? "border-rose-500" : "border-gray-200"
+            }`}>
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("expense");
+                  setExpenseSubCategory("material-purchase");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "expense" && expenseSubCategory === "material-purchase"
+                    ? "bg-rose-100 text-rose-900 font-bold"
+                    : "text-gray-600 hover:text-rose-700 hover:bg-gray-50"
+                }`}
+              >
+                <PurchaseIcon className="w-3 h-3 text-gray-400" />
+                1. Material Purchase
+              </button>
+
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("expense");
+                  setExpenseSubCategory("material-supply");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "expense" && expenseSubCategory === "material-supply"
+                    ? "bg-rose-100 text-rose-900 font-bold"
+                    : "text-gray-600 hover:text-rose-700 hover:bg-gray-50"
+                }`}
+              >
+                <Truck className="w-3 h-3 text-gray-400" />
+                2. Material Supply
+              </button>
+
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("expense");
+                  setExpenseSubCategory("material-labour-supply");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "expense" && expenseSubCategory === "material-labour-supply"
+                    ? "bg-rose-100 text-rose-900 font-bold"
+                    : "text-gray-600 hover:text-rose-700 hover:bg-gray-50"
+                }`}
+              >
+                <Wrench className="w-3 h-3 text-gray-400" />
+                3. Site Supply
+              </button>
+
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("expense");
+                  setExpenseSubCategory("labour-salary");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "expense" && expenseSubCategory === "labour-salary"
+                    ? "bg-rose-100 text-rose-900 font-bold"
+                    : "text-gray-600 hover:text-rose-700 hover:bg-gray-50"
+                }`}
+              >
+                <HardHat className="w-3 h-3 text-gray-400" />
+                4. Labour Salary
+              </button>
+
+              <button type="button"
+                onClick={() => {
+                  setActiveCategory("expense");
+                  setExpenseSubCategory("site-expenses");
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-left ${
+                  activeCategory === "expense" && expenseSubCategory === "site-expenses"
+                    ? "bg-rose-100 text-rose-900 font-bold"
+                    : "text-gray-600 hover:text-rose-700 hover:bg-gray-50"
+                }`}
+              >
+                <Wallet className="w-3 h-3 text-gray-400" />
+                5. Site Expenses
+              </button>
+            </div>
+          </div>
+          {/* 3rd Category: SUPERVISOR COST */}
+          <div className="flex flex-col gap-1.5 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm min-w-[240px] lg:min-w-0">
+            <button type="button"
+              id="main-cat-supervisor"
+              onClick={() => setActiveCategory("supervisor")}
+              className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 text-left ${
+                activeCategory === "supervisor"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                  : "hover:bg-gray-50 text-gray-700"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${activeCategory === "supervisor" ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-700"}`}>
+                  <HardHat className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm">3. Supervisor</div>
+                  <div className={`text-xs ${activeCategory === "supervisor" ? "text-indigo-100" : "text-gray-400"}`}>
+                    Site Supervisor Cost
+                  </div>
+                </div>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                activeCategory === "supervisor" ? "bg-indigo-700 text-white" : "bg-indigo-50 text-indigo-700"
+              }`}>
+                3rd Cat
+              </span>
             </button>
           </div>
-        </form>
-      </Modal>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 lg:p-8 min-h-[600px] overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeCategory}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+            >
+              {/* Category 1: Investment */}
+              {activeCategory === "investment" && (
+                <InvestmentTab 
+                  locationId={Number(locationId)} 
+                  activeSubCategory={investmentSubCategory}
+                  onSubCategoryChange={setInvestmentSubCategory}
+                />
+              )}
+
+              {/* Category 2: Expense */}
+              {activeCategory === "expense" && (
+                <ExpenseTab 
+                  locationId={Number(locationId)} 
+                  activeSubCategory={expenseSubCategory}
+                  onSubCategoryChange={setExpenseSubCategory}
+                />
+              )}
+
+              {/* Category 3: Supervisor Cost */}
+              {activeCategory === "supervisor" && (
+                <SupervisorCostTab 
+                  locationId={Number(locationId)} 
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 }
+

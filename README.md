@@ -1,4 +1,4 @@
-# Hisab-Kitab Accounting Management
+# Bina Enterprise Accounting Management
 
 A professional full-stack web application for managing accounting records organized by location.
 

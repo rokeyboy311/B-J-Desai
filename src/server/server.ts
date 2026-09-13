@@ -8,6 +8,10 @@ import locationRouter from "./routes/location.routes.ts";
 import recordRouter from "./routes/record.routes.ts";
 import reportRouter from "./routes/report.routes.ts";
 import auditRouter from "./routes/audit.routes.ts";
+import investmentRouter from "./routes/investment.routes.ts";
+import materialRouter from "./routes/material.routes.ts";
+import labourRouter from "./routes/labour.routes.ts";
+import supervisorRouter from "./routes/supervisor.routes.ts";
 
 async function startServer() {
   const app = express();
@@ -28,6 +32,10 @@ async function startServer() {
   app.use("/api/records", recordRouter);
   app.use("/api/reports", reportRouter);
   app.use("/api/audit-logs", auditRouter);
+  app.use("/api/investments", investmentRouter);
+  app.use("/api/materials", materialRouter);
+  app.use("/api/labour", labourRouter);
+  app.use("/api/supervisor-costs", supervisorRouter);
   
   // Register global error handler (must be after routes)
   app.use(errorHandler);
@@ -43,7 +51,7 @@ async function startServer() {
     // Production static serving
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

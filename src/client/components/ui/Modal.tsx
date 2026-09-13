@@ -6,10 +6,19 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  maxWidth?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, maxWidth = "md" }: ModalProps) {
   if (!isOpen) return null;
+
+  const maxWidthClass = 
+    maxWidth === "3xl" ? "max-w-3xl" :
+    maxWidth === "2xl" ? "max-w-2xl" :
+    maxWidth === "xl" ? "max-w-xl" :
+    maxWidth === "lg" ? "max-w-lg" :
+    maxWidth === "sm" ? "max-w-sm" :
+    "max-w-md";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
@@ -17,10 +26,10 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className={`relative bg-white rounded-xl shadow-xl w-full ${maxWidthClass} overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <button 
+          <button type="button" 
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors rounded-lg p-1 hover:bg-gray-100"
           >

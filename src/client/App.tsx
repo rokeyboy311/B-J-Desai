@@ -15,6 +15,7 @@ import LocationDetailsPage from './pages/LocationDetailsPage';
 import GlobalRecordsPage from './pages/GlobalRecordsPage';
 import ReportsPage from './pages/ReportsPage';
 import ActivityLogPage from './pages/ActivityLogPage';
+import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="/records" element={<GlobalRecordsPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/activity" element={<ActivityLogPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Route>

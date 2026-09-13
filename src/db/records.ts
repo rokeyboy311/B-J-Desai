@@ -18,10 +18,14 @@ export async function getAllRecords(userId: number, filters?: { startDate?: stri
     amount: records.amount,
     date: records.date,
     partyName: records.partyName,
+    teamName: records.teamName,
     category: records.category,
     description: records.description,
     locationId: records.locationId,
     locationName: locations.name,
+    refundableAmount: records.refundableAmount,
+    refundedAmount: records.refundedAmount,
+    refundStatus: records.refundStatus,
     createdAt: records.createdAt
   })
   .from(records)
@@ -56,7 +60,9 @@ export async function getRecords(userId: number, locationId: number, filters?: {
 export async function getRecordMetrics(userId: number, locationId: number) {
   const result = await db.select({
     type: records.type,
-    total: sql<string>`sum(${records.amount})`
+    total: sql<string>`sum(${records.amount})`,
+    totalRefundable: sql<string>`sum(${records.refundableAmount})`,
+    totalRefunded: sql<string>`sum(${records.refundedAmount})`,
   })
   .from(records)
   .where(and(
@@ -67,17 +73,29 @@ export async function getRecordMetrics(userId: number, locationId: number) {
   .groupBy(records.type);
 
   let totalIncome = 0;
-  let totalExpense = 0;
+  let grossExpense = 0;
+  let totalRefundable = 0;
+  let totalRefunded = 0;
 
   result.forEach(row => {
-    if (row.type === 'INCOME') totalIncome += parseFloat(row.total || '0');
-    if (row.type === 'EXPENSE') totalExpense += parseFloat(row.total || '0');
+    if (row.type === 'INCOME') {
+      totalIncome += parseFloat(row.total || '0');
+    }
+    if (row.type === 'EXPENSE') {
+      grossExpense += parseFloat(row.total || '0');
+      totalRefundable += parseFloat(row.totalRefundable || '0');
+      totalRefunded += parseFloat(row.totalRefunded || '0');
+    }
   });
+
+  const actualExpense = grossExpense - totalRefundable;
 
   return {
     totalIncome,
-    totalExpense,
-    netBalance: totalIncome - totalExpense
+    totalExpense: actualExpense, // Returning the actual non-refundable expense
+    totalRefundable,
+    totalRefunded,
+    netBalance: totalIncome - actualExpense
   };
 }
 
@@ -86,6 +104,8 @@ export async function createRecord(userId: number, data: any) {
     userId,
     ...data,
     amount: data.amount.toString(),
+    refundableAmount: data.refundableAmount ? data.refundableAmount.toString() : '0',
+    refundedAmount: data.refundedAmount ? data.refundedAmount.toString() : '0',
   }).returning();
 
   await db.insert(auditLogs).values({
@@ -104,6 +124,8 @@ export async function updateRecord(userId: number, recordId: number, data: any) 
     .set({
       ...data,
       amount: data.amount.toString(),
+      refundableAmount: data.refundableAmount ? data.refundableAmount.toString() : undefined,
+      refundedAmount: data.refundedAmount ? data.refundedAmount.toString() : undefined,
       updatedAt: new Date()
     })
     .where(and(eq(records.id, recordId), eq(records.userId, userId)))

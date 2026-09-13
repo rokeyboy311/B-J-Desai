@@ -52,7 +52,7 @@ export default function ActivityLogPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-gray-900">Activity Log</h1>
-        <p className="text-sm text-gray-500 mt-1">Audit trail of all actions performed in your Hisab-Kitab.</p>
+        <p className="text-sm text-gray-500 mt-1">Audit trail of all actions performed in Bina Enterprise.</p>
       </header>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

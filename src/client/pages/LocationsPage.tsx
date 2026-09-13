@@ -115,7 +115,7 @@ export default function LocationsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Locations</h1>
           <p className="text-sm text-gray-500 mt-1">Manage all your operating regions and folders.</p>
         </div>
-        <button 
+        <button type="button" 
           onClick={openCreateModal}
           className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium text-sm hover:bg-indigo-700 transition-colors shadow-sm"
         >
@@ -133,7 +133,7 @@ export default function LocationsPage() {
           <p className="text-gray-500 mb-6 max-w-sm mx-auto">
             Create your first location to start managing records and organizing your accounting data.
           </p>
-          <button 
+          <button type="button" 
             onClick={openCreateModal}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg font-medium text-sm hover:bg-indigo-100 transition-colors"
           >
@@ -153,14 +153,14 @@ export default function LocationsPage() {
                 <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                   <MapPin size={20} />
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
+                <div className="flex items-center gap-1">
+                  <button type="button" 
                     onClick={(e) => openEditModal(loc, e)}
                     className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                   >
                     <Edit2 size={16} />
                   </button>
-                  <button 
+                  <button type="button" 
                     onClick={(e) => openDeleteModal(loc, e)}
                     className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                   >
@@ -176,10 +176,7 @@ export default function LocationsPage() {
                 )}
               </div>
               
-              <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-sm">
-                <span className="text-gray-500">Records</span>
-                <span className="font-semibold text-gray-900">{loc.recordCount}</span>
-              </div>
+
             </div>
           ))}
         </div>
@@ -273,7 +270,7 @@ export default function LocationsPage() {
             >
               Cancel
             </button>
-            <button
+            <button type="button"
               onClick={handleDelete}
               className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors flex items-center gap-2"
             >
