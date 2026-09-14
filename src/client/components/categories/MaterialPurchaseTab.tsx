@@ -184,9 +184,9 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Purchase Value</span>
-            <div className="text-xl font-bold text-gray-900 mt-1">₹{totalAmountSum.toLocaleString()}</div>
-            <p className="text-xs text-gray-400 mt-0.5">{records.length} recorded purchases</p>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Purchase Value</span>
+            <div className="text-xl font-bold text-slate-900 mt-1">₹{totalAmountSum.toLocaleString()}</div>
+            <p className="text-xs text-slate-400 mt-0.5">{records.length} recorded purchases</p>
           </div>
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl" title="Purchase Icon by UIX Library on Icon-Icons.com">
             <PurchaseIcon className="w-5 h-5" />
@@ -195,9 +195,9 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Transport Incurred</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Transport Incurred</span>
             <div className="text-xl font-bold text-indigo-600 mt-1">₹{totalTransportSum.toLocaleString()}</div>
-            <p className="text-xs text-gray-400 mt-0.5">Freight & logistics charges</p>
+            <p className="text-xs text-slate-400 mt-0.5">Freight & logistics charges</p>
           </div>
           <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
             <Truck className="w-5 h-5" />
@@ -206,11 +206,11 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Base Material Subtotal</span>
-            <div className="text-xl font-bold text-gray-700 mt-1">₹{totalSubtotalSum.toLocaleString()}</div>
-            <p className="text-xs text-gray-400 mt-0.5">Excluding transport & tax</p>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Base Material Subtotal</span>
+            <div className="text-xl font-bold text-slate-700 mt-1">₹{totalSubtotalSum.toLocaleString()}</div>
+            <p className="text-xs text-slate-400 mt-0.5">Excluding transport & tax</p>
           </div>
-          <div className="p-3 bg-gray-50 text-gray-600 rounded-xl">
+          <div className="p-3 bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider rounded-xl">
             <Calculator className="w-5 h-5" />
           </div>
         </div>
@@ -219,8 +219,8 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       {/* Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
         <div>
-          <h3 className="font-bold text-gray-900">Material Purchase Log</h3>
-          <p className="text-xs text-gray-500">Unit rate calculation with dedicated transport & freight costs</p>
+          <h3 className="font-bold text-slate-900">Material Purchase Log</h3>
+          <p className="text-xs text-slate-500">Unit rate calculation with dedicated transport & freight costs</p>
         </div>
         <button type="button"
           onClick={() => { resetForm(); setIsModalOpen(true); }}
@@ -234,7 +234,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50/80 text-gray-600 border-b border-gray-100">
+            <thead className="bg-slate-50/80 text-slate-600 border-b border-gray-100">
               <tr>
                 <th className="p-3.5 font-semibold text-xs uppercase tracking-wider">Date</th>
                 <th className="p-3.5 font-semibold text-xs uppercase tracking-wider">Supplier / Material</th>
@@ -247,14 +247,14 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                 <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-400">Loading purchase records...</td>
+                  <td colSpan={9} className="p-8 text-center text-slate-400">Loading purchase records...</td>
                 </tr>
               ) : records.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-400">
+                  <td colSpan={9} className="p-8 text-center text-slate-400">
                     No material purchases logged yet. Click &quot;Add Material Purchase&quot; above to begin.
                   </td>
                 </tr>
@@ -268,25 +268,25 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
                   return (
                     <tr key={r.id} className="hover:bg-blue-50/20 transition-colors">
-                      <td className="p-3.5 text-gray-700 whitespace-nowrap">
+                      <td className="p-3.5 text-slate-700 whitespace-nowrap">
                         {new Date(r.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </td>
                       <td className="p-3.5">
-                        <div className="font-semibold text-gray-900">{r.partyName}</div>
-                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                        <div className="font-semibold text-slate-900">{r.partyName}</div>
+                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                           <span className="font-medium text-blue-600">{r.materialName}</span>
                           {r.referenceNumber && (
-                            <span className="text-gray-400">· Ref: #{r.referenceNumber}</span>
+                            <span className="text-slate-400">· Ref: #{r.referenceNumber}</span>
                           )}
                         </div>
                       </td>
-                      <td className="p-3.5 text-right font-medium text-gray-900 whitespace-nowrap">
-                        {qty.toLocaleString()} <span className="text-xs text-gray-500 font-normal">{r.unit}</span>
+                      <td className="p-3.5 text-right font-medium text-slate-900 whitespace-nowrap">
+                        {qty.toLocaleString()} <span className="text-xs text-slate-500 font-normal">{r.unit}</span>
                       </td>
-                      <td className="p-3.5 text-right text-gray-700 whitespace-nowrap">
-                        ₹{rate.toLocaleString()} <span className="text-xs text-gray-400">/{r.unit}</span>
+                      <td className="p-3.5 text-right text-slate-700 whitespace-nowrap">
+                        ₹{rate.toLocaleString()} <span className="text-xs text-slate-400">/{r.unit}</span>
                       </td>
-                      <td className="p-3.5 text-right text-gray-600 whitespace-nowrap">
+                      <td className="p-3.5 text-right text-slate-600 whitespace-nowrap">
                         ₹{subtotal.toLocaleString()}
                       </td>
                       <td className="p-3.5 text-right whitespace-nowrap">
@@ -299,9 +299,9 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                         )}
                       </td>
                       <td className="p-3.5 text-right whitespace-nowrap">
-                        <span className="font-bold text-gray-900">₹{total.toLocaleString()}</span>
+                        <span className="font-bold text-slate-900">₹{total.toLocaleString()}</span>
                         {qty > 0 && (
-                          <div className="text-[10px] text-gray-400 font-normal">
+                          <div className="text-[10px] text-slate-400 font-normal">
                             eff: ₹{(total / qty).toFixed(2)}/{r.unit}
                           </div>
                         )}
@@ -320,21 +320,21 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                         <div className="flex items-center justify-center gap-1">
                           <button type="button"
                             onClick={() => { setSelectedRecord(r); setIsDetailsOpen(true); }}
-                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             title="View Full Breakdown"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
                           <button type="button"
                             onClick={() => handleEdit(r)}
-                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                             title="Edit Record"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button type="button"
                             onClick={() => handleDelete(r.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700 transition-colors"
                             title="Delete Record"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -355,7 +355,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Purchase Date *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Purchase Date *</label>
               <input
                 type="date"
                 value={formData.date}
@@ -365,7 +365,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Payment Status *</label>
               <select
                 value={formData.paymentStatus}
                 onChange={e => setFormData({ ...formData, paymentStatus: e.target.value })}
@@ -377,7 +377,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Supplier / Vendor Name *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Supplier / Vendor Name *</label>
               <input
                 type="text"
                 value={formData.partyName}
@@ -389,7 +389,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Material Name *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Material Name *</label>
               <input
                 type="text"
                 value={formData.materialName}
@@ -402,7 +402,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
             {/* Unit & Calculation Controls */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Quantity *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Quantity *</label>
               <input
                 type="number" inputMode="decimal"
                 step="0.01"
@@ -416,7 +416,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Unit of Measurement *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Unit of Measurement *</label>
               <select
                 value={unitMode}
                 onChange={e => setUnitMode(e.target.value)}
@@ -430,7 +430,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
             {unitMode === "Custom" && (
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Specify Custom Unit *</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Specify Custom Unit *</label>
                 <input
                   type="text"
                   value={customUnit}
@@ -443,11 +443,11 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             )}
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-slate-700 mb-1">
                 Rate (₹ per {effectiveUnit}) *
               </label>
               <div className="relative">
-                <IndianRupee className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <IndianRupee className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="number" inputMode="decimal"
                   step="0.01"
@@ -481,7 +481,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Discount (₹) (-)</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Discount (₹) (-)</label>
               <input
                 type="number" inputMode="decimal"
                 step="0.01"
@@ -494,7 +494,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Tax / GST (%) (+)</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Tax / GST (%) (+)</label>
               <input
                 type="number" inputMode="decimal"
                 step="0.01"
@@ -507,7 +507,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Payment Method</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Payment Method</label>
               <select
                 value={formData.paymentMethod}
                 onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}
@@ -521,7 +521,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Bill / Challan / Ref No.</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Bill / Challan / Ref No.</label>
               <input
                 type="text"
                 value={formData.referenceNumber}
@@ -532,7 +532,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Notes / Description</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Notes / Description</label>
               <input
                 type="text"
                 value={formData.description}
@@ -615,7 +615,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
           <div className="space-y-4 text-sm">
             <div className="flex justify-between items-center pb-2 border-b">
               <div>
-                <h4 className="font-bold text-gray-900 text-base">{selectedRecord.partyName}</h4>
+                <h4 className="font-bold text-slate-900 text-base">{selectedRecord.partyName}</h4>
                 <p className="text-xs text-blue-600 font-medium">{selectedRecord.materialName}</p>
               </div>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -626,34 +626,34 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-gray-50 p-2.5 rounded-lg">
-                <span className="text-gray-500 block">Date:</span>
-                <span className="font-semibold text-gray-900">{selectedRecord.date}</span>
+              <div className="bg-slate-50 p-2.5 rounded-lg">
+                <span className="text-slate-500 block">Date:</span>
+                <span className="font-semibold text-slate-900">{selectedRecord.date}</span>
               </div>
-              <div className="bg-gray-50 p-2.5 rounded-lg">
-                <span className="text-gray-500 block">Payment Method:</span>
-                <span className="font-semibold text-gray-900">{selectedRecord.paymentMethod || "N/A"}</span>
+              <div className="bg-slate-50 p-2.5 rounded-lg">
+                <span className="text-slate-500 block">Payment Method:</span>
+                <span className="font-semibold text-slate-900">{selectedRecord.paymentMethod || "N/A"}</span>
               </div>
-              <div className="bg-gray-50 p-2.5 rounded-lg">
-                <span className="text-gray-500 block">Reference / Bill #:</span>
-                <span className="font-semibold text-gray-900">{selectedRecord.referenceNumber || "N/A"}</span>
+              <div className="bg-slate-50 p-2.5 rounded-lg">
+                <span className="text-slate-500 block">Reference / Bill #:</span>
+                <span className="font-semibold text-slate-900">{selectedRecord.referenceNumber || "N/A"}</span>
               </div>
-              <div className="bg-gray-50 p-2.5 rounded-lg">
-                <span className="text-gray-500 block">Unit:</span>
-                <span className="font-semibold text-gray-900">{selectedRecord.unit}</span>
+              <div className="bg-slate-50 p-2.5 rounded-lg">
+                <span className="text-slate-500 block">Unit:</span>
+                <span className="font-semibold text-slate-900">{selectedRecord.unit}</span>
               </div>
             </div>
 
             <div className="bg-slate-50 p-3 rounded-lg space-y-1.5 text-xs">
               <div className="flex justify-between">
-                <span className="text-gray-600">Quantity × Rate:</span>
-                <span className="font-medium text-gray-900">
+                <span className="text-slate-600">Quantity × Rate:</span>
+                <span className="font-medium text-slate-900">
                   {selectedRecord.quantity} {selectedRecord.unit} × ₹{Number(selectedRecord.rate).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Base Subtotal:</span>
-                <span className="font-semibold text-gray-900">₹{Number(selectedRecord.subtotal).toLocaleString()}</span>
+                <span className="text-slate-600">Base Subtotal:</span>
+                <span className="font-semibold text-slate-900">₹{Number(selectedRecord.subtotal).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-indigo-700">
                 <span className="flex items-center gap-1 font-medium"><Truck className="w-3.5 h-3.5" /> Transport Cost:</span>
@@ -663,11 +663,11 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                 <span>Discount:</span>
                 <span className="font-semibold">- ₹{Number(selectedRecord.discount || 0).toLocaleString()}</span>
               </div>
-              <div className="flex justify-between text-gray-700">
+              <div className="flex justify-between text-slate-700">
                 <span>Tax / GST ({Number(selectedRecord.taxPercentage || 0)}%):</span>
                 <span className="font-semibold">+ ₹{Number(selectedRecord.tax || 0).toLocaleString()}</span>
               </div>
-              <div className="pt-2 border-t flex justify-between font-bold text-sm text-gray-900">
+              <div className="pt-2 border-t flex justify-between font-bold text-sm text-slate-900">
                 <span>Total Amount:</span>
                 <span className="text-blue-600">₹{Number(selectedRecord.totalAmount).toLocaleString()}</span>
               </div>
@@ -680,8 +680,8 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
 
             {selectedRecord.description && (
-              <div className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg">
-                <span className="font-medium text-gray-700 block mb-0.5">Notes:</span>
+              <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg">
+                <span className="font-medium text-slate-700 block mb-0.5">Notes:</span>
                 {selectedRecord.description}
               </div>
             )}

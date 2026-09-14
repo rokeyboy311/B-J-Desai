@@ -289,7 +289,7 @@ export default function InvestmentTab({
   return (
     <div className="space-y-6" id="investment-category-container">
       {/* Sub-Category Navigation Bar: 1st is Investment, 2nd is Upad */}
-      <div className="bg-gray-50/80 p-1.5 rounded-2xl border border-gray-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-inner">
+      <div className="bg-slate-50/80 p-1.5 rounded-2xl border border-gray-200/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-inner">
         <div className="flex items-center gap-1.5 overflow-x-auto p-0.5 no-scrollbar">
           {/* 1st Sub-Category: Investment */}
           <button type="button"
@@ -298,7 +298,7 @@ export default function InvestmentTab({
             className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
               subCategory === "INVESTMENT"
                 ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20 scale-[1.01]"
-                : "text-gray-600 hover:text-gray-900 hover:bg-white/80"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
             }`}
           >
             <div className={`p-1 rounded-lg ${subCategory === "INVESTMENT" ? "bg-white/20" : "bg-emerald-100/70 text-emerald-700"}`}>
@@ -319,7 +319,7 @@ export default function InvestmentTab({
             className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
               subCategory === "UPAD"
                 ? "bg-amber-600 text-white shadow-md shadow-amber-500/20 scale-[1.01]"
-                : "text-gray-600 hover:text-gray-900 hover:bg-white/80"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
             }`}
           >
             <div className={`p-1 rounded-lg ${subCategory === "UPAD" ? "bg-white/20" : "bg-amber-100/70 text-amber-700"}`}>
@@ -340,7 +340,7 @@ export default function InvestmentTab({
             className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
               subCategory === "PARTIES"
                 ? "bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-[1.01]"
-                : "text-gray-600 hover:text-gray-900 hover:bg-white/80"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
             }`}
           >
             <div className={`p-1 rounded-lg ${subCategory === "PARTIES" ? "bg-white/20" : "bg-blue-100/70 text-blue-700"}`}>
@@ -348,7 +348,7 @@ export default function InvestmentTab({
             </div>
             <span>Party Ledger</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-              subCategory === "PARTIES" ? "bg-blue-700/80 text-white" : "bg-gray-200 text-gray-700"
+              subCategory === "PARTIES" ? "bg-blue-700/80 text-white" : "bg-slate-200 text-slate-700"
             }`}>
               {metrics.totalParties} Parties
             </span>
@@ -406,26 +406,26 @@ export default function InvestmentTab({
             <p className="mt-1 text-xs text-emerald-600">Capital infused into this project</p>
           </div>
 
-          <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
+          <div className="bg-slate-50 border border-gray-100 p-4 rounded-2xl">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Investment Entries</span>
-              <div className="p-1.5 bg-gray-200 text-gray-700 rounded-lg">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Investment Entries</span>
+              <div className="p-1.5 bg-slate-200 text-slate-700 rounded-lg">
                 <FileText className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">{metrics.totalInvEntries}</div>
-            <p className="mt-1 text-xs text-gray-500">Recorded investment transactions</p>
+            <div className="mt-2 text-2xl font-bold text-slate-900">{metrics.totalInvEntries}</div>
+            <p className="mt-1 text-xs text-slate-500">Recorded investment transactions</p>
           </div>
 
-          <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
+          <div className="bg-slate-50 border border-gray-100 p-4 rounded-2xl">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Balance</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Balance</span>
               <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
                 <Landmark className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">₹{metrics.netBalance.toLocaleString()}</div>
-            <p className="mt-1 text-xs text-gray-500">Total Investment minus Total Upad</p>
+            <div className="mt-2 text-2xl font-bold text-slate-900">₹{metrics.netBalance.toLocaleString()}</div>
+            <p className="mt-1 text-xs text-slate-500">Total Investment minus Total Upad</p>
           </div>
         </div>
       )}
@@ -443,26 +443,26 @@ export default function InvestmentTab({
             <p className="mt-1 text-xs text-amber-600">Personal withdrawal / drawings by partners</p>
           </div>
 
-          <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
+          <div className="bg-slate-50 border border-gray-100 p-4 rounded-2xl">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Upad Entries</span>
-              <div className="p-1.5 bg-gray-200 text-gray-700 rounded-lg">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Upad Entries</span>
+              <div className="p-1.5 bg-slate-200 text-slate-700 rounded-lg">
                 <FileText className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">{metrics.totalUpadEntries}</div>
-            <p className="mt-1 text-xs text-gray-500">Recorded upad withdrawals</p>
+            <div className="mt-2 text-2xl font-bold text-slate-900">{metrics.totalUpadEntries}</div>
+            <p className="mt-1 text-xs text-slate-500">Recorded upad withdrawals</p>
           </div>
 
-          <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
+          <div className="bg-slate-50 border border-gray-100 p-4 rounded-2xl">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Balance</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Balance</span>
               <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
                 <Landmark className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">₹{metrics.netBalance.toLocaleString()}</div>
-            <p className="mt-1 text-xs text-gray-500">Total Investment minus Total Upad</p>
+            <div className="mt-2 text-2xl font-bold text-slate-900">₹{metrics.netBalance.toLocaleString()}</div>
+            <p className="mt-1 text-xs text-slate-500">Total Investment minus Total Upad</p>
           </div>
         </div>
       )}
@@ -484,12 +484,12 @@ export default function InvestmentTab({
             <div className="mt-2 text-2xl font-bold text-amber-900">₹{metrics.totalUpad.toLocaleString()}</div>
             <p className="mt-1 text-xs text-amber-600">Total withdrawn</p>
           </div>
-          <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
-            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Net Balance</div>
-            <div className={`mt-2 text-2xl font-bold ${metrics.netBalance >= 0 ? "text-gray-900" : "text-rose-600"}`}>
+          <div className="bg-slate-50 border border-gray-100 p-4 rounded-2xl">
+            <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Net Balance</div>
+            <div className={`mt-2 text-2xl font-bold ${metrics.netBalance >= 0 ? "text-slate-900" : "text-rose-600"}`}>
               ₹{metrics.netBalance.toLocaleString()}
             </div>
-            <p className="mt-1 text-xs text-gray-500">Outstanding capital</p>
+            <p className="mt-1 text-xs text-slate-500">Outstanding capital</p>
           </div>
         </div>
       )}
@@ -497,18 +497,18 @@ export default function InvestmentTab({
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder={subCategory === "PARTIES" ? "Search party name..." : `Search ${subCategory.toLowerCase()} by party, description, or amount...`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50/70 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50/70 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           />
           {searchTerm && (
             <button type="button" 
               onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -517,11 +517,11 @@ export default function InvestmentTab({
 
         {subCategory !== "PARTIES" && parties.length > 0 && (
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-400 hidden sm:inline" />
+            <Filter className="w-4 h-4 text-slate-400 hidden sm:inline" />
             <select
               value={selectedPartyFilter}
               onChange={(e) => setSelectedPartyFilter(e.target.value)}
-              className="px-3 py-2 text-sm bg-gray-50/70 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="px-3 py-2 text-sm bg-slate-50/70 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
               <option value="ALL">All Parties</option>
               {parties.map(p => (
@@ -534,7 +534,7 @@ export default function InvestmentTab({
         <button type="button"
           onClick={loadAllData}
           title="Refresh Data"
-          className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors self-end sm:self-auto"
+          className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors self-end sm:self-auto"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -545,11 +545,11 @@ export default function InvestmentTab({
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-emerald-50/30">
             <div>
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="font-semibold text-slate-900 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 1st Sub-Category: Investment Records
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">List of all incoming capital contributions by partners/investors</p>
+              <p className="text-xs text-slate-500 mt-0.5">List of all incoming capital contributions by partners/investors</p>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full">
               {currentCategoryTransactions.length} {currentCategoryTransactions.length === 1 ? "Record" : "Records"}
@@ -558,7 +558,7 @@ export default function InvestmentTab({
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50/80 text-gray-600 font-medium text-xs uppercase tracking-wider border-b border-gray-100">
+              <thead className="bg-slate-50/80 text-slate-600 font-medium text-xs uppercase tracking-wider border-b border-gray-100">
                 <tr>
                   <th className="p-4">Date</th>
                   <th className="p-4">Party Name</th>
@@ -569,10 +569,10 @@ export default function InvestmentTab({
                   <th className="p-4 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {currentCategoryTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-400">
+                    <td colSpan={7} className="p-8 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <TrendingUp className="w-8 h-8 text-gray-300" />
                         <p className="text-sm">No investment entries found.</p>
@@ -588,37 +588,37 @@ export default function InvestmentTab({
                 ) : (
                   currentCategoryTransactions.map((tx) => (
                     <tr key={tx.id} className="hover:bg-emerald-50/20 transition-colors">
-                      <td className="p-4 whitespace-nowrap text-gray-600 font-medium">
+                      <td className="p-4 whitespace-nowrap text-slate-600 font-medium">
                         {new Date(tx.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </td>
-                      <td className="p-4 font-semibold text-gray-900">
+                      <td className="p-4 font-semibold text-slate-900">
                         {tx.partyName}
                       </td>
-                      <td className="p-4">
+                      <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
                           <ArrowDownLeft className="w-3 h-3" />
                           Investment
                         </span>
                       </td>
-                      <td className="p-4 text-gray-600">
-                        <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                      <td className="p-4 text-slate-600">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-medium">
                           {tx.paymentMethod || "Cash"}
                         </span>
                       </td>
-                      <td className="p-4 text-gray-500 max-w-xs truncate">
+                      <td className="p-4 text-slate-500 max-w-xs truncate">
                         <div>{tx.description || "-"}</div>
                         {tx.referenceNumber && (
-                          <div className="text-xs text-gray-400">Ref: {tx.referenceNumber}</div>
+                          <div className="text-xs text-slate-400">Ref: {tx.referenceNumber}</div>
                         )}
                       </td>
                       <td className="p-4 text-right font-bold text-emerald-700 text-base">
                         ₹{parseFloat(tx.amount).toLocaleString()}
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="px-6 py-4 whitespace-nowrap text-center font-medium">
                         <button type="button"
                           onClick={() => handleDeleteTx(tx.id)}
                           title="Delete Transaction"
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -636,11 +636,11 @@ export default function InvestmentTab({
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-amber-50/30">
             <div>
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="font-semibold text-slate-900 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 2nd Sub-Category: Upad Records
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">List of all withdrawals/drawings taken by partners/investors</p>
+              <p className="text-xs text-slate-500 mt-0.5">List of all withdrawals/drawings taken by partners/investors</p>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full">
               {currentCategoryTransactions.length} {currentCategoryTransactions.length === 1 ? "Record" : "Records"}
@@ -649,7 +649,7 @@ export default function InvestmentTab({
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50/80 text-gray-600 font-medium text-xs uppercase tracking-wider border-b border-gray-100">
+              <thead className="bg-slate-50/80 text-slate-600 font-medium text-xs uppercase tracking-wider border-b border-gray-100">
                 <tr>
                   <th className="p-4">Date</th>
                   <th className="p-4">Party Name</th>
@@ -660,10 +660,10 @@ export default function InvestmentTab({
                   <th className="p-4 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {currentCategoryTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-400">
+                    <td colSpan={7} className="p-8 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <TrendingDown className="w-8 h-8 text-gray-300" />
                         <p className="text-sm">No upad entries found.</p>
@@ -679,37 +679,37 @@ export default function InvestmentTab({
                 ) : (
                   currentCategoryTransactions.map((tx) => (
                     <tr key={tx.id} className="hover:bg-amber-50/20 transition-colors">
-                      <td className="p-4 whitespace-nowrap text-gray-600 font-medium">
+                      <td className="p-4 whitespace-nowrap text-slate-600 font-medium">
                         {new Date(tx.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </td>
-                      <td className="p-4 font-semibold text-gray-900">
+                      <td className="p-4 font-semibold text-slate-900">
                         {tx.partyName}
                       </td>
-                      <td className="p-4">
+                      <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
                           <ArrowUpRight className="w-3 h-3" />
                           Upad
                         </span>
                       </td>
-                      <td className="p-4 text-gray-600">
-                        <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                      <td className="p-4 text-slate-600">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-medium">
                           {tx.paymentMethod || "Cash"}
                         </span>
                       </td>
-                      <td className="p-4 text-gray-500 max-w-xs truncate">
+                      <td className="p-4 text-slate-500 max-w-xs truncate">
                         <div>{tx.description || "-"}</div>
                         {tx.referenceNumber && (
-                          <div className="text-xs text-gray-400">Ref: {tx.referenceNumber}</div>
+                          <div className="text-xs text-slate-400">Ref: {tx.referenceNumber}</div>
                         )}
                       </td>
                       <td className="p-4 text-right font-bold text-amber-700 text-base">
                         ₹{parseFloat(tx.amount).toLocaleString()}
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="px-6 py-4 whitespace-nowrap text-center font-medium">
                         <button type="button"
                           onClick={() => handleDeleteTx(tx.id)}
                           title="Delete Transaction"
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -727,11 +727,11 @@ export default function InvestmentTab({
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-blue-50/30">
             <div>
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="font-semibold text-slate-900 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                 Party-wise Investment & Upad Ledger Summary
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">Overview of Total Investment, Total Upad, and Net Balance per party</p>
+              <p className="text-xs text-slate-500 mt-0.5">Overview of Total Investment, Total Upad, and Net Balance per party</p>
             </div>
             <button type="button"
               onClick={() => setIsPartyModalOpen(true)}
@@ -744,7 +744,7 @@ export default function InvestmentTab({
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50/80 text-gray-600 font-medium text-xs uppercase tracking-wider border-b border-gray-100">
+              <thead className="bg-slate-50/80 text-slate-600 font-medium text-xs uppercase tracking-wider border-b border-gray-100">
                 <tr>
                   <th className="p-4">Party / Investor Name</th>
                   <th className="p-4 text-right">1. Total Investment</th>
@@ -753,10 +753,10 @@ export default function InvestmentTab({
                   <th className="p-4 text-center">Quick Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {filteredParties.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-400">
+                    <td colSpan={5} className="p-8 text-center text-slate-400">
                       <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                       <p className="text-sm">No investment parties registered yet.</p>
                       <button type="button"
@@ -771,8 +771,8 @@ export default function InvestmentTab({
                   filteredParties.map((p) => {
                     const balance = p.totalInvestment - p.totalUpad;
                     return (
-                      <tr key={p.id} className="hover:bg-gray-50/80 transition-colors">
-                        <td className="p-4 font-semibold text-gray-900">
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors/80 transition-colors">
+                        <td className="p-4 font-semibold text-slate-900">
                           {p.partyName}
                         </td>
                         <td className="p-4 text-right font-bold text-emerald-600">
@@ -781,10 +781,10 @@ export default function InvestmentTab({
                         <td className="p-4 text-right font-bold text-amber-600">
                           ₹{p.totalUpad.toLocaleString()}
                         </td>
-                        <td className={`p-4 text-right font-bold text-base ${balance >= 0 ? "text-gray-900" : "text-rose-600"}`}>
+                        <td className={`p-4 text-right font-bold text-base ${balance >= 0 ? "text-slate-900" : "text-rose-600"}`}>
                           ₹{balance.toLocaleString()}
                         </td>
-                        <td className="p-4">
+                        <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
                           <div className="flex items-center justify-center gap-1.5">
                             <button type="button"
                               onClick={() => handleOpenAddTx("INVESTMENT", p.id)}
@@ -802,14 +802,14 @@ export default function InvestmentTab({
                             </button>
                             <button type="button"
                               onClick={() => handleOpenStatement(p)}
-                              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                               title="View Statement / History"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button type="button"
                               onClick={() => handleDeleteParty(p.id, p.partyName)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700 transition-colors"
                               title="Delete Party"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -835,10 +835,10 @@ export default function InvestmentTab({
         <form onSubmit={handleCreateTx} className="space-y-4">
           {/* Sub-Category Investment Type Selector: 1st is Investment, 2nd is Upad */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
               Investment Sub-Category (Type)
             </label>
-            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
               <button
                 type="button"
                 id="modal-type-investment"
@@ -846,7 +846,7 @@ export default function InvestmentTab({
                 className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
                   txData.type === "INVESTMENT"
                     ? "bg-white text-emerald-700 shadow-sm border border-emerald-200/80"
-                    : "text-gray-600 hover:text-gray-900"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -860,14 +860,14 @@ export default function InvestmentTab({
                 className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
                   txData.type === "UPAD"
                     ? "bg-white text-amber-700 shadow-sm border border-amber-200/80"
-                    : "text-gray-600 hover:text-gray-900"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <TrendingDown className="w-4 h-4 text-amber-600" />
                 <span>2. Upad</span>
               </button>
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-slate-500">
               {txData.type === "INVESTMENT" 
                 ? "Funds invested into project (+) increases balance" 
                 : "Personal drawings / withdrawal (-) reduces balance"}
@@ -877,7 +877,7 @@ export default function InvestmentTab({
           {/* Party Selection */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-slate-700">
                 Party / Investor Name <span className="text-red-500">*</span>
               </label>
               <button
@@ -921,11 +921,11 @@ export default function InvestmentTab({
           {/* Amount & Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Amount (₹) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
                 <input
                   type="number" inputMode="decimal"
                   step="0.01"
@@ -933,14 +933,14 @@ export default function InvestmentTab({
                   placeholder="0.00"
                   value={txData.amount}
                   onChange={(e) => setTxData({ ...txData, amount: e.target.value })}
-                  className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -956,7 +956,7 @@ export default function InvestmentTab({
           {/* Payment Method & Reference Number */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Payment Method
               </label>
               <select
@@ -973,7 +973,7 @@ export default function InvestmentTab({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Reference / Cheque No.
               </label>
               <input
@@ -988,7 +988,7 @@ export default function InvestmentTab({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               Description / Remarks
             </label>
             <input
@@ -1004,7 +1004,7 @@ export default function InvestmentTab({
             <button
               type="button"
               onClick={() => setIsTxModalOpen(false)}
-              className="px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
@@ -1030,7 +1030,7 @@ export default function InvestmentTab({
       >
         <form onSubmit={handleCreateParty} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               Party / Partner Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -1042,7 +1042,7 @@ export default function InvestmentTab({
               required
               autoFocus
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-slate-500">
               Once added, you can record both 1st: Investment and 2nd: Upad against this party.
             </p>
           </div>
@@ -1051,7 +1051,7 @@ export default function InvestmentTab({
             <button
               type="button"
               onClick={() => setIsPartyModalOpen(false)}
-              className="px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
@@ -1074,7 +1074,7 @@ export default function InvestmentTab({
         {statementParty && (
           <div className="space-y-4 max-h-[75vh] overflow-y-auto">
             {/* Party Summary Header */}
-            <div className="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-xl text-center">
+            <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl text-center">
               <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
                 <span className="text-xs text-emerald-800 font-medium">1. Total Investment</span>
                 <div className="text-base font-bold text-emerald-700">₹{statementParty.totalInvestment.toLocaleString()}</div>
@@ -1116,29 +1116,29 @@ export default function InvestmentTab({
             {/* Transactions List */}
             <div className="border border-gray-100 rounded-xl overflow-hidden">
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-100/70 text-gray-600 font-semibold uppercase">
+                <thead className="bg-slate-100/70 text-slate-600 font-semibold uppercase">
                   <tr>
-                    <th className="p-3">Date</th>
-                    <th className="p-3">Type</th>
-                    <th className="p-3">Method / Ref</th>
-                    <th className="p-3">Description</th>
-                    <th className="p-3 text-right">Amount (₹)</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500">Date</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500">Type</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500">Method / Ref</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500">Description</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500 text-right">Amount (₹)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-slate-100">
                   {partyStatementTxs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-6 text-center text-gray-400">
+                      <td colSpan={5} className="p-6 text-center text-slate-400">
                         No transactions recorded for this party yet.
                       </td>
                     </tr>
                   ) : (
                     partyStatementTxs.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-gray-50">
-                        <td className="p-3 whitespace-nowrap text-gray-600 font-medium">
+                      <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 whitespace-nowrap text-slate-600 font-medium">
                           {new Date(tx.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                         </td>
-                        <td className="p-3">
+                        <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
                           {tx.type === "INVESTMENT" ? (
                             <span className="px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-800">
                               Investment
@@ -1149,11 +1149,11 @@ export default function InvestmentTab({
                             </span>
                           )}
                         </td>
-                        <td className="p-3 text-gray-600">
+                        <td className="p-3 text-slate-600">
                           {tx.paymentMethod || "Cash"}
-                          {tx.referenceNumber && <span className="text-gray-400"> ({tx.referenceNumber})</span>}
+                          {tx.referenceNumber && <span className="text-slate-400"> ({tx.referenceNumber})</span>}
                         </td>
-                        <td className="p-3 text-gray-500">{tx.description || "-"}</td>
+                        <td className="p-3 text-slate-500">{tx.description || "-"}</td>
                         <td className={`p-3 text-right font-bold ${tx.type === "INVESTMENT" ? "text-emerald-700" : "text-amber-700"}`}>
                           {tx.type === "INVESTMENT" ? "+" : "-"}₹{parseFloat(tx.amount).toLocaleString()}
                         </td>

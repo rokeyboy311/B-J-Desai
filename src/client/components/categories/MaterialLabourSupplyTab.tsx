@@ -40,15 +40,30 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
 
   const [materials, setMaterials] = useState([{ name: "", quantity: "" }]);
 
-  useEffect(() => { 
+  useEffect(() => {
     loadData();
-    const savedTeams = localStorage.getItem(`managed_teams_${locationId}`);
-    if (savedTeams) {
-      setTeamOptions(JSON.parse(savedTeams));
-    } else {
-      setTeamOptions(PRESET_TEAMS);
-    }
+    loadMasterData();
   }, [locationId]);
+
+  const loadMasterData = async () => {
+    try {
+      const parties = await apiFetch(`/master/parties?locationId=${locationId}`);
+      if (parties && parties.length > 0) {
+        
+      } else {
+        
+      }
+      
+      const teams = await apiFetch(`/master/teams?locationId=${locationId}`);
+      if (teams && teams.length > 0) {
+        setTeamOptions(teams.map((t: any) => t.name));
+      } else {
+        
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -149,8 +164,8 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
         <div>
-          <h3 className="font-bold text-gray-900">Site Supplies</h3>
-          <p className="text-xs text-gray-500">Track materials and teams assigned to sites</p>
+          <h3 className="font-bold text-slate-900">Site Supplies</h3>
+          <p className="text-xs text-slate-500">Track materials and teams assigned to sites</p>
         </div>
         <button type="button" onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 transition-colors text-white rounded-lg text-sm font-medium">
           <Plus className="w-4 h-4" /> Add Site Supply
@@ -160,7 +175,7 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50/80 text-gray-600 border-b border-gray-100">
+            <thead className="bg-slate-50/80 text-slate-600 border-b border-gray-100">
               <tr>
                 <th className="p-4 font-semibold text-xs uppercase tracking-wider">Date</th>
                 <th className="p-4 font-semibold text-xs uppercase tracking-wider">Site Location</th>
@@ -170,35 +185,35 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
                 <th className="p-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-400">
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
                     <PackageOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     No site supplies recorded yet.
                   </td>
                 </tr>
               ) : records.map(r => (
                 <tr key={r.id} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="p-4 whitespace-nowrap text-gray-700">
+                  <td className="p-4 whitespace-nowrap text-slate-700">
                     {new Date(r.date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
                   </td>
-                  <td className="p-4 font-medium text-gray-900">
+                  <td className="p-4 font-medium text-slate-900">
                     {r.siteLocationName || r.workDescription || '-'}
                   </td>
-                  <td className="p-4 text-gray-700">
+                  <td className="p-4 text-slate-700">
                     {r.teamName || r.partyName || '-'}
                   </td>
-                  <td className="p-4">
+                  <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
                     <span className="inline-flex px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-semibold">
                       {r.materialName || '-'}
                     </span>
                   </td>
-                  <td className="p-4 text-right font-medium text-gray-900">
+                  <td className="p-4 text-right font-medium text-slate-900">
                     {Number(r.materialQuantity || 0).toLocaleString()}
                   </td>
-                  <td className="p-4 text-center">
-                    <button type="button" onClick={() => handleDelete(r.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-center font-medium">
+                    <button type="button" onClick={() => handleDelete(r.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700 transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -213,18 +228,18 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Date *</label>
               <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500" required />
             </div>
             
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Site Location Name *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Site Location Name *</label>
               <input type="text" placeholder="e.g. Tower B, Floor 3" value={formData.siteLocationName} onChange={e => setFormData({...formData, siteLocationName: e.target.value})} className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500" required />
             </div>
 
             <div className="sm:col-span-2">
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-medium text-gray-700">Team Name *</label>
+                <label className="block text-xs font-medium text-slate-700">Team Name *</label>
                 <button 
                   type="button" 
                   onClick={() => setIsManageTeamsOpen(true)}
@@ -248,7 +263,7 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
           </div>
 
           <div className="pt-4 border-t mt-4 space-y-3">
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Material List *</label>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Material List *</label>
             {materials.map((mat, index) => (
               <div key={index} className="flex gap-2 items-start">
                 <div className="flex-1">
@@ -258,7 +273,7 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
                     placeholder="Select or enter material..." 
                     value={mat.name} 
                     onChange={e => updateMaterial(index, "name", e.target.value)} 
-                    className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" 
+                    className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-slate-50" 
                     required 
                   />
                 </div>
@@ -269,12 +284,12 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
                     placeholder="Qty" 
                     value={mat.quantity} 
                     onChange={e => updateMaterial(index, "quantity", e.target.value)} 
-                    className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" 
+                    className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-slate-50" 
                     required 
                   />
                 </div>
                 {materials.length > 1 && (
-                  <button type="button"  onClick={() => removeMaterial(index)} className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                  <button type="button"  onClick={() => removeMaterial(index)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 )}
@@ -304,13 +319,13 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
               placeholder="Enter new team name" 
               value={newTeamName} 
               onChange={e => setNewTeamName(e.target.value)} 
-              className="flex-1 p-2 border rounded-lg text-sm"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
               onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTeam())}
             />
             <button 
               type="button" 
               onClick={handleAddTeam}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
             >
               Add
             </button>
@@ -319,15 +334,15 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
           <div className="border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
             <ul className="divide-y">
               {teamOptions.length === 0 ? (
-                <li className="p-4 text-center text-sm text-gray-500">No teams added.</li>
+                <li className="p-4 text-center text-sm text-slate-500">No teams added.</li>
               ) : (
                 teamOptions.map(team => (
-                  <li key={team} className="flex justify-between items-center p-3 hover:bg-gray-50">
-                    <span className="text-sm font-medium text-gray-800">{team}</span>
+                  <li key={team} className="flex justify-between items-center p-3 hover:bg-slate-50 transition-colors">
+                    <span className="text-sm font-medium text-slate-800">{team}</span>
                     <button 
                       type="button" 
                       onClick={() => handleRemoveTeam(team)}
-                      className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                      className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg hover:text-rose-700 transition-colors"
                       title="Remove team"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -337,7 +352,7 @@ export default function MaterialLabourSupplyTab({ locationId }: { locationId: nu
               )}
             </ul>
           </div>
-          <button type="button"  onClick={() => setIsManageTeamsOpen(false)} className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+          <button type="button"  onClick={() => setIsManageTeamsOpen(false)} className="w-full py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium">
             Done
           </button>
         </div>

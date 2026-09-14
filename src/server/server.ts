@@ -12,6 +12,7 @@ import investmentRouter from "./routes/investment.routes.ts";
 import materialRouter from "./routes/material.routes.ts";
 import labourRouter from "./routes/labour.routes.ts";
 import supervisorRouter from "./routes/supervisor.routes.ts";
+import masterRouter from "./routes/master.routes.ts";
 
 async function startServer() {
   const app = express();

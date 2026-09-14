@@ -30,20 +30,29 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
 
   useEffect(() => {
     loadData();
-    const savedParties = localStorage.getItem(`managed_parties_${locationId}`);
-    if (savedParties) {
-      setPartyOptions(JSON.parse(savedParties));
-    } else {
-      setPartyOptions(PRESET_PARTIES);
-    }
+    loadMasterData();
+  }, [locationId]);
 
-    const savedTeams = localStorage.getItem(`managed_teams_${locationId}`);
-    if (savedTeams) {
-      setTeamOptions(JSON.parse(savedTeams));
-    } else {
+  const loadMasterData = async () => {
+    try {
+      const parties = await apiFetch(`/master/parties?locationId=${locationId}`);
+      if (parties && parties.length > 0) {
+        setPartyOptions(parties.map((p: any) => p.name));
+      } else {
+        setPartyOptions(PRESET_PARTIES);
+      }
+      const teams = await apiFetch(`/master/teams?locationId=${locationId}`);
+      if (teams && teams.length > 0) {
+        setTeamOptions(teams.map((t: any) => t.name));
+      } else {
+        setTeamOptions(PRESET_TEAMS);
+      }
+    } catch (e) {
+      console.error(e);
+      setPartyOptions(PRESET_PARTIES);
       setTeamOptions(PRESET_TEAMS);
     }
-  }, [locationId]);
+  };
 
   const loadData = async () => {
     try {
@@ -134,21 +143,21 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
           <div className="text-red-600 text-sm font-medium">Actual Expense</div>
           <div className="text-2xl font-bold text-red-700">₹{metrics.totalExpense.toLocaleString()}</div>
         </div>
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <div className="text-gray-600 text-sm font-medium">Refundable</div>
-          <div className="text-2xl font-bold text-gray-900">₹{metrics.totalRefundable.toLocaleString()}</div>
+        <div className="bg-slate-50 p-4 rounded-xl border border-gray-200">
+          <div className="text-slate-600 text-sm font-medium">Refundable</div>
+          <div className="text-2xl font-bold text-slate-900">₹{metrics.totalRefundable.toLocaleString()}</div>
         </div>
       </div>
 
       <div className="flex justify-end">
-        <button type="button" onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button type="button" onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 transition-colors">
           <Plus className="w-4 h-4" /> Add Expenses
         </button>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
               <th className="p-4 rounded-tl-xl font-medium">Date</th>
               <th className="p-4 font-medium">Party Name</th>
@@ -158,18 +167,18 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
               <th className="p-4 rounded-tr-xl font-medium text-center">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {records.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="p-4">{new Date(r.date).toLocaleDateString()}</td>
+              <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">{new Date(r.date).toLocaleDateString()}</td>
                 <td className="p-4 font-medium">{r.partyName}</td>
-                <td className="p-4">{r.teamName || '-'}</td>
-                <td className="p-4 text-gray-600 max-w-[200px] truncate" title={r.description}>{r.description || '-'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">{r.teamName || '-'}</td>
+                <td className="p-4 text-slate-600 max-w-[200px] truncate" title={r.description}>{r.description || '-'}</td>
                 <td className="p-4 text-right font-medium text-red-600">
                   ₹{Number(r.amount).toLocaleString()}
                 </td>
-                <td className="p-4 text-center">
-                  <button type="button" onClick={() => handleDelete(r.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                <td className="px-6 py-4 whitespace-nowrap text-center font-medium">
+                  <button type="button" onClick={() => handleDelete(r.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700"><Trash2 className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -181,13 +190,13 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Date *</label>
-              <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2 border rounded-lg" required />
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Date *</label>
+              <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" required />
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium">Select Party *</label>
+                <label className="block text-sm font-semibold text-slate-700">Select Party *</label>
                 <button 
                   type="button" 
                   onClick={() => setIsManagePartiesOpen(true)}
@@ -199,7 +208,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
               <select 
                 value={formData.partyName} 
                 onChange={e => setFormData({...formData, partyName: e.target.value})} 
-                className="w-full p-2 border rounded-lg bg-white" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all bg-white" 
                 required 
               >
                 <option value="" disabled>Select a party...</option>
@@ -211,7 +220,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium">Select Team</label>
+                <label className="block text-sm font-semibold text-slate-700">Select Team</label>
                 <button 
                   type="button" 
                   onClick={() => setIsManageTeamsOpen(true)}
@@ -223,7 +232,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
               <select 
                 value={formData.teamName} 
                 onChange={e => setFormData({...formData, teamName: e.target.value})} 
-                className="w-full p-2 border rounded-lg bg-white" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all bg-white" 
               >
                 <option value="">No team / None</option>
                 {teamOptions.map(team => (
@@ -233,16 +242,16 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Amount *</label>
-              <input type="number" inputMode="decimal" step="0.01" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="w-full p-2 border rounded-lg" required />
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Amount *</label>
+              <input type="number" inputMode="decimal" step="0.01" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" required />
             </div>
 
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-sm font-medium mb-1">Details (Description)</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Details (Description)</label>
               <textarea 
                 value={formData.description} 
                 onChange={e => setFormData({...formData, description: e.target.value})} 
-                className="w-full p-2 border rounded-lg" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" 
                 rows={3} 
                 placeholder="Enter expense details..."
               ></textarea>
@@ -250,8 +259,8 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
           </div>
           
           <div className="flex justify-end gap-2 pt-4">
-            <button type="button"  onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg">Cancel</button>
-            <button type="submit"  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Expense</button>
+            <button type="button"  onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 rounded-lg">Cancel</button>
+            <button type="submit"  className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 transition-colors">Save Expense</button>
           </div>
         </form>
       </Modal>
@@ -265,13 +274,13 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
               placeholder="Enter new party name" 
               value={newPartyName} 
               onChange={e => setNewPartyName(e.target.value)} 
-              className="flex-1 p-2 border rounded-lg text-sm"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
               onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddParty())}
             />
             <button 
               type="button" 
               onClick={handleAddParty}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
             >
               Add
             </button>
@@ -280,15 +289,15 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
           <div className="border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
             <ul className="divide-y">
               {partyOptions.length === 0 ? (
-                <li className="p-4 text-center text-sm text-gray-500">No parties added.</li>
+                <li className="p-4 text-center text-sm text-slate-500">No parties added.</li>
               ) : (
                 partyOptions.map(party => (
-                  <li key={party} className="flex justify-between items-center p-3 hover:bg-gray-50">
-                    <span className="text-sm font-medium text-gray-800">{party}</span>
+                  <li key={party} className="flex justify-between items-center p-3 hover:bg-slate-50 transition-colors">
+                    <span className="text-sm font-medium text-slate-800">{party}</span>
                     <button 
                       type="button" 
                       onClick={() => handleRemoveParty(party)}
-                      className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                      className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg hover:text-rose-700 transition-colors"
                       title="Remove party"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -298,7 +307,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
               )}
             </ul>
           </div>
-          <button type="button"  onClick={() => setIsManagePartiesOpen(false)} className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+          <button type="button"  onClick={() => setIsManagePartiesOpen(false)} className="w-full py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium">
             Done
           </button>
         </div>
@@ -313,13 +322,13 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
               placeholder="Enter new team name" 
               value={newTeamName} 
               onChange={e => setNewTeamName(e.target.value)} 
-              className="flex-1 p-2 border rounded-lg text-sm"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
               onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTeam())}
             />
             <button 
               type="button" 
               onClick={handleAddTeam}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
             >
               Add
             </button>
@@ -328,15 +337,15 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
           <div className="border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
             <ul className="divide-y">
               {teamOptions.length === 0 ? (
-                <li className="p-4 text-center text-sm text-gray-500">No teams added.</li>
+                <li className="p-4 text-center text-sm text-slate-500">No teams added.</li>
               ) : (
                 teamOptions.map(team => (
-                  <li key={team} className="flex justify-between items-center p-3 hover:bg-gray-50">
-                    <span className="text-sm font-medium text-gray-800">{team}</span>
+                  <li key={team} className="flex justify-between items-center p-3 hover:bg-slate-50 transition-colors">
+                    <span className="text-sm font-medium text-slate-800">{team}</span>
                     <button 
                       type="button" 
                       onClick={() => handleRemoveTeam(team)}
-                      className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                      className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg hover:text-rose-700 transition-colors"
                       title="Remove team"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -346,7 +355,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
               )}
             </ul>
           </div>
-          <button type="button"  onClick={() => setIsManageTeamsOpen(false)} className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+          <button type="button"  onClick={() => setIsManageTeamsOpen(false)} className="w-full py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium">
             Done
           </button>
         </div>

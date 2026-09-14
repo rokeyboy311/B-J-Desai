@@ -91,6 +91,13 @@ export const materialStockAdjustments = pgTable('material_stock_adjustments', {
 
 // Category 3: Material Purchases
 export const materialPurchases = pgTable('material_purchases', {
+  address: text('address'),
+  gst: text('gst'),
+  materialCategory: text('material_category'),
+  invoiceNumber: text('invoice_number'),
+  notes: text('notes'),
+  paidAmount: numeric('paid_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  outstandingAmount: numeric('outstanding_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   id: serial('id').primaryKey(),
   locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -116,6 +123,13 @@ export const materialPurchases = pgTable('material_purchases', {
 
 // Category 4: Material Supplies
 export const materialSupplies = pgTable('material_supplies', {
+  address: text('address'),
+  gst: text('gst'),
+  materialCategory: text('material_category'),
+  invoiceNumber: text('invoice_number'),
+  notes: text('notes'),
+  paidAmount: numeric('paid_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  outstandingAmount: numeric('outstanding_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   id: serial('id').primaryKey(),
   locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -141,6 +155,18 @@ export const materialSupplies = pgTable('material_supplies', {
 
 // Category 5: Material Labour Supplies
 export const materialLabourSupplies = pgTable('material_labour_supplies', {
+  address: text('address'),
+  gst: text('gst'),
+  materialUnit: text('material_unit'),
+  labourType: text('labour_type'),
+  labourQuantity: numeric('labour_quantity', { precision: 12, scale: 2 }).default('0'),
+  labourUnit: text('labour_unit'),
+  materialRate: numeric('material_rate', { precision: 12, scale: 2 }).default('0'),
+  labourRate: numeric('labour_rate', { precision: 12, scale: 2 }).default('0'),
+  paidAmount: numeric('paid_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  outstandingAmount: numeric('outstanding_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  invoiceNumber: text('invoice_number'),
+  notes: text('notes'),
   id: serial('id').primaryKey(),
   locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -166,6 +192,14 @@ export const materialLabourSupplies = pgTable('material_labour_supplies', {
 
 // Category 6: Labour Salaries & Upad
 export const labourSalaries = pgTable('labour_salaries', {
+  labourId: text('labour_id'),
+  address: text('address'),
+  periodFrom: text('period_from'),
+  periodTo: text('period_to'),
+  workType: text('work_type'),
+  tcQuantity: numeric('tc_quantity', { precision: 12, scale: 2 }).default('0').notNull(),
+  tcRate: numeric('tc_rate', { precision: 12, scale: 2 }).default('0').notNull(),
+  outstandingAmount: numeric('outstanding_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   id: serial('id').primaryKey(),
   locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -220,6 +254,29 @@ export const supervisorCosts = pgTable('supervisor_costs', {
   isDeleted: integer('is_deleted').default(0).notNull(),
 });
 
+
+// --- Master Data Tables ---
+export const parties = pgTable('parties', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  address: text('address'),
+  gst: text('gst'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+export const labourTeams = pgTable('labour_teams', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
 // --- Relationships ---
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -265,6 +322,28 @@ export const investmentTransactionsRelations = relations(investmentTransactions,
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   author: one(users, {
     fields: [auditLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+export const partiesRelations = relations(parties, ({ one }) => ({
+  location: one(locations, {
+    fields: [parties.locationId],
+    references: [locations.id],
+  }),
+  author: one(users, {
+    fields: [parties.userId],
+    references: [users.id],
+  }),
+}));
+
+export const labourTeamsRelations = relations(labourTeams, ({ one }) => ({
+  location: one(locations, {
+    fields: [labourTeams.locationId],
+    references: [locations.id],
+  }),
+  author: one(users, {
+    fields: [labourTeams.userId],
     references: [users.id],
   }),
 }));

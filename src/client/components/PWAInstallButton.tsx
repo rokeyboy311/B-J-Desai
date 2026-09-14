@@ -1,61 +1,66 @@
-import React, { useState } from 'react';
-import { usePWAInstall } from '../hooks/usePWAInstall';
-import { Download } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { Download, MonitorSmartphone } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { motion, AnimatePresence } from "motion/react";
 
-export const PWAInstallButton: React.FC = () => {
-  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
-  const [showIOSGuide, setShowIOSGuide] = useState(false);
+export function PWAInstallButton() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const { user } = useAuth();
 
-  // If already running as an installed PWA, hide the button
-  if (isInstalled) {
-    return null;
-  }
+  useEffect(() => {
+    // Check if app is already installed
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+    }
 
-  // Chromium / Android / Desktop flow
-  if (isInstallable) {
-    return (
-      <button type="button"
-        onClick={install}
-        className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition"
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstallable(false);
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setDeferredPrompt(null);
+      setIsInstallable(false);
+    }
+  };
+
+  if (isInstalled || !isInstallable) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.button 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        onClick={handleInstallClick}
+        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl font-medium text-sm transition-all shadow-sm shadow-indigo-500/20 active:scale-95"
       >
-        <Download className="w-4 h-4" />
-        Install App
-      </button>
-    );
-  }
-
-  // iOS Safari flow (beforeinstallprompt is not supported by WebKit)
-  if (isIOS) {
-    return (
-      <>
-        <button type="button"
-          onClick={() => setShowIOSGuide(true)}
-          className="flex items-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 bg-white shadow-sm transition"
-        >
-          <Download className="w-4 h-4" />
-          Install on iOS
-        </button>
-
-        {showIOSGuide && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-semibold text-gray-900">Install on iPhone / iPad</h3>
-              <p className="mt-2 text-sm text-gray-600">
-                1. Tap the <strong>Share</strong> button in Safari toolbar.<br /><br />
-                2. Scroll down and tap <strong>Add to Home Screen</strong>.
-              </p>
-              <button type="button"
-                onClick={() => setShowIOSGuide(false)}
-                className="mt-6 w-full rounded-xl bg-gray-100 py-3 text-sm font-medium text-gray-800 hover:bg-gray-200"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  }
-
-  return null;
-};
+        <MonitorSmartphone size={16} className="hidden sm:inline" />
+        <Download size={16} className="sm:hidden" />
+        <span className="hidden sm:inline">Install App</span>
+      </motion.button>
+    </AnimatePresence>
+  );
+}

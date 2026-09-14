@@ -157,16 +157,16 @@ export default function ExpenseTab({
               <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
                 2nd Category
               </span>
-              <h2 className="text-lg font-bold text-gray-900">Expense Management</h2>
+              <h2 className="text-lg font-bold text-slate-900">Expense Management</h2>
             </div>
-            <p className="text-xs text-gray-600 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               Sub-categories: Material Purchase, Material Supply, Site Supply, Labour Salary & Site Expenses
             </p>
           </div>
         </div>
 
         <div className="flex items-baseline gap-2 bg-white/80 border border-rose-100 px-4 py-2 rounded-xl self-start sm:self-auto shadow-sm">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Expenses:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Expenses:</span>
           <span className="text-xl font-bold text-rose-600">
             ₹{totalAllExpenses.toLocaleString()}
           </span>
@@ -174,7 +174,7 @@ export default function ExpenseTab({
       </div>
 
       {/* Sub-Category Navigation Bar */}
-      <div className="bg-gray-50/90 p-1.5 rounded-2xl border border-gray-200/80 shadow-inner">
+      <div className="bg-slate-50/90 p-1.5 rounded-2xl border border-gray-200/80 shadow-inner">
         <div className="flex items-center gap-1.5 overflow-x-auto p-0.5 no-scrollbar">
           {expenseSubCategories.map((cat) => {
             const Icon = cat.icon;
@@ -187,16 +187,16 @@ export default function ExpenseTab({
                 className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
                   isActive
                     ? "bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-[1.01]"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-white/80"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                 }`}
               >
-                <div className={`p-1 rounded-lg ${isActive ? "bg-white/20 text-white" : "bg-gray-200/70 text-gray-700"}`}>
+                <div className={`p-1 rounded-lg ${isActive ? "bg-white/20 text-white" : "bg-slate-200/70 text-slate-700"}`}>
                   <Icon className="w-3.5 h-3.5" />
                 </div>
                 <span>{cat.number}. {cat.shortLabel}</span>
                 {cat.total > 0 && (
                   <span className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isActive ? "bg-blue-700/80 text-white" : "bg-gray-200 text-gray-700"
+                    isActive ? "bg-blue-700/80 text-white" : "bg-slate-200 text-slate-700"
                   }`}>
                     ₹{cat.total >= 100000 ? `${(cat.total / 100000).toFixed(1)}L` : cat.total.toLocaleString()}
                   </span>
