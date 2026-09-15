@@ -6,7 +6,7 @@ import {
 import { PurchaseIcon } from "../icons/PurchaseIcon";
 import MaterialPurchaseTab from "./MaterialPurchaseTab";
 import MaterialSupplyTab from "./MaterialSupplyTab";
-import MaterialLabourSupplyTab from "./MaterialLabourSupplyTab";
+import SiteSupplyTab from "./SiteSupplyTab";
 import LabourSalaryTab from "./LabourSalaryTab";
 import IncomeExpenseTab from "./IncomeExpenseTab";
 import { apiFetch } from "../../lib/api";
@@ -216,7 +216,7 @@ export default function ExpenseTab({
           <MaterialSupplyTab locationId={locationId} />
         )}
         {subCategory === "material-labour-supply" && (
-          <MaterialLabourSupplyTab locationId={locationId} />
+          <SiteSupplyTab locationId={locationId} />
         )}
         {subCategory === "labour-salary" && (
           <LabourSalaryTab locationId={locationId} />

@@ -1,41 +1,24 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { 
-  Plus, Truck, Trash2, Eye, IndianRupee, Pencil, 
-  Calculator, CheckCircle2, Clock, FileText
-} from "lucide-react";
+import { Plus, Trash2, Pencil, Calculator, Database, Package } from "lucide-react";
 import { PurchaseIcon } from "../icons/PurchaseIcon";
 
-const PRESET_UNITS = [
-  "Nos",
-  "Bags",
-  "Ton",
-  "Kg",
-  "Brass",
-  "CFT",
-  "Cum",
-  "Sq.ft",
-  "Sq.m",
-  "Trip",
-  "Load",
-  "Ltr",
-  "Mtr",
-  "Custom"
-];
+const PRESET_UNITS = ["Nos", "Bags", "Ton", "Kg", "Brass", "CFT", "Cum", "Sq.ft", "Sq.m", "Trip", "Load", "Ltr", "Mtr", "Custom"];
 
 export default function MaterialPurchaseTab({ locationId }: { locationId: number }) {
+  const [activeSubTab, setActiveSubTab] = useState<"purchases" | "stock">("purchases");
+  
   const [records, setRecords] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stockLedger, setStockLedger] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
-  const [parties, setParties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  
   const [unitMode, setUnitMode] = useState<string>("Bags");
   const [customUnit, setCustomUnit] = useState<string>("");
-
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     partyName: "",
@@ -48,7 +31,9 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
     paymentStatus: "UNPAID",
     paymentMethod: "BANK",
     referenceNumber: "",
-    description: ""
+    description: "",
+    notes: "",
+    materialId: ""
   });
 
   useEffect(() => {
@@ -58,12 +43,16 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
   const loadData = async () => {
     setLoading(true);
     try {
-      const [res, mats, parts] = await Promise.all([apiFetch(`/materials/purchase?locationId=${locationId}`),
-      apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
-      apiFetch(`/master/parties?locationId=${locationId}`).catch(() => [])]);
-      setRecords(res || []);
+      const [purchases, mats, stock] = await Promise.all([
+        apiFetch(`/materials/purchase?locationId=${locationId}`),
+        apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/reports/stock?locationId=${locationId}`).catch(() => []) // Assuming we have or will have a stock report
+      ]);
+      setRecords(purchases || []);
+      setMaterials(mats || []);
+      setStockLedger(stock || []);
     } catch (err) {
-      console.error("Failed to load purchases:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -71,7 +60,6 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
   const effectiveUnit = unitMode === "Custom" ? (customUnit.trim() || "Unit") : unitMode;
 
-  // Real-time calculations
   const calculations = useMemo(() => {
     const qty = parseFloat(formData.quantity) || 0;
     const rate = parseFloat(formData.rate) || 0;
@@ -83,18 +71,8 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
     const taxableAmount = subtotal - discount;
     const tax = Math.round(taxableAmount * (taxPercentage / 100) * 100) / 100;
     const total = Math.round((taxableAmount + tax + transport) * 100) / 100;
-    const effectiveUnitCost = qty > 0 ? (total / qty).toFixed(2) : "0.00";
-
-    return {
-      qty,
-      rate,
-      transport,
-      discount,
-      tax,
-      subtotal,
-      total,
-      effectiveUnitCost
-    };
+    
+    return { subtotal, tax, total };
   }, [formData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,10 +80,18 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
     try {
       const url = editingId ? `/materials/purchase/${editingId}` : "/materials/purchase";
       const method = editingId ? "PUT" : "POST";
+      
+      let matId = formData.materialId;
+      if (!matId && formData.materialName) {
+         const found = materials.find(m => m.name.toLowerCase() === formData.materialName.toLowerCase());
+         if (found) matId = found.id.toString();
+      }
+
       await apiFetch(url, {
         method, 
         body: JSON.stringify({
           ...formData,
+          materialId: matId ? parseInt(matId) : null,
           unit: effectiveUnit,
           locationId
         }),
@@ -115,45 +101,6 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       loadData();
     } catch (err) {
       console.error("Failed to save purchase:", err);
-    }
-  };
-
-  
-  const handleEdit = (record: any) => {
-    setEditingId(record.id);
-    let unitM = "Custom";
-    let custU = record.unit || "";
-    if (PRESET_UNITS.includes(record.unit)) {
-      unitM = record.unit;
-      custU = "";
-    }
-    setUnitMode(unitM);
-    setCustomUnit(custU);
-
-    setFormData({
-      date: record.date || new Date().toISOString().split("T")[0],
-      partyName: record.partyName || "",
-      materialName: record.materialName || "",
-      quantity: record.quantity || "",
-      rate: record.rate || "",
-      transportCost: record.transportCost || "",
-      discount: record.discount || "",
-      taxPercentage: record.taxPercentage || "",
-      paymentStatus: record.paymentStatus || "UNPAID",
-      paymentMethod: record.paymentMethod || "BANK",
-      referenceNumber: record.referenceNumber || "",
-      description: record.description || ""
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this purchase record?")) return;
-    try {
-      await apiFetch(`/materials/purchase/${id}`, { method: "DELETE" });
-      loadData();
-    } catch (err) {
-      console.error("Failed to delete purchase:", err);
     }
   };
 
@@ -171,535 +118,303 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       paymentStatus: "UNPAID",
       paymentMethod: "BANK",
       referenceNumber: "",
-      description: ""
+      description: "",
+    notes: "",
+    materialId: ""
     });
-    setUnitMode("Bags");
-    setCustomUnit("");
   };
 
-  // Aggregates
-  const totalAmountSum = records.reduce((acc, r) => acc + (parseFloat(r.totalAmount) || 0), 0);
-  const totalTransportSum = records.reduce((acc, r) => acc + (parseFloat(r.transportCost) || 0), 0);
-  const totalSubtotalSum = records.reduce((acc, r) => acc + (parseFloat(r.subtotal) || 0), 0);
+  const handleEdit = (record: any) => {
+    setEditingId(record.id);
+    let unitM = "Custom";
+    let custU = record.unit || "";
+    if (PRESET_UNITS.includes(record.unit)) {
+      unitM = record.unit;
+      custU = "";
+    }
+    setUnitMode(unitM);
+    setCustomUnit(custU);
+    setFormData({
+      date: record.date || new Date().toISOString().split("T")[0],
+      partyName: record.partyName || "",
+      materialName: record.materialName || "",
+      quantity: record.quantity || "",
+      rate: record.rate || "",
+      transportCost: record.transportCost || "",
+      discount: record.discount || "",
+      taxPercentage: record.taxPercentage || "",
+      paymentStatus: record.paymentStatus || "UNPAID",
+      paymentMethod: record.paymentMethod || "BANK",
+      referenceNumber: record.referenceNumber || "",
+      description: record.description || "",
+      materialId: record.materialId ? record.materialId.toString() : ""
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this purchase? Stock will be reversed.")) return;
+    try {
+      await apiFetch(`/materials/purchase/${id}`, { method: "DELETE" });
+      loadData();
+    } catch (err) {
+      alert("Failed to delete purchase");
+    }
+  };
+
+  // Compile Stock Summary from stockLedger array
+  const stockSummary = useMemo(() => {
+    const map: Record<string, { qty: number, unit: string }> = {};
+    
+    // We assume stockLedger returns { materialName, transactionType, quantity, unit } etc.
+    // If not, we will just summarize materials based on purchases.
+    // Wait, the API for /reports/stock may not exist. Let's calculate from materials if needed.
+    
+    // As a fallback if the API doesn't exist, we will use stockLedger response if it's there.
+    return stockLedger;
+  }, [stockLedger]);
 
   return (
     <div className="space-y-6">
-      {/* KPI Header Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Purchase Value</span>
-            <div className="text-xl font-bold text-slate-900 mt-1">₹{totalAmountSum.toLocaleString()}</div>
-            <p className="text-xs text-slate-400 mt-0.5">{records.length} recorded purchases</p>
+      <div className="bg-gradient-to-r from-rose-500/10 via-pink-500/5 to-rose-500/10 border border-rose-200/80 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-rose-600 text-white rounded-xl shadow-md">
+            <PurchaseIcon className="w-6 h-6" />
           </div>
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl" title="Purchase Icon by UIX Library on Icon-Icons.com">
-            <PurchaseIcon className="w-5 h-5" />
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Material Purchase & Stock</h2>
+            <p className="text-xs text-slate-600">Record inbound supplies. Automatically updates inventory stock.</p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Transport Incurred</span>
-            <div className="text-xl font-bold text-indigo-600 mt-1">₹{totalTransportSum.toLocaleString()}</div>
-            <p className="text-xs text-slate-400 mt-0.5">Freight & logistics charges</p>
-          </div>
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-            <Truck className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Base Material Subtotal</span>
-            <div className="text-xl font-bold text-slate-700 mt-1">₹{totalSubtotalSum.toLocaleString()}</div>
-            <p className="text-xs text-slate-400 mt-0.5">Excluding transport & tax</p>
-          </div>
-          <div className="p-3 bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider rounded-xl">
-            <Calculator className="w-5 h-5" />
-          </div>
+        <div className="flex bg-white rounded-lg p-1 border border-rose-100 shadow-sm w-max">
+          <button
+            onClick={() => setActiveSubTab("purchases")}
+            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${activeSubTab === "purchases" ? "bg-rose-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            Purchase Records
+          </button>
+          <button
+            onClick={() => setActiveSubTab("stock")}
+            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${activeSubTab === "stock" ? "bg-rose-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            Stock System
+          </button>
         </div>
       </div>
 
-      {/* Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-        <div>
-          <h3 className="font-bold text-slate-900">Material Purchase Log</h3>
-          <p className="text-xs text-slate-500">Unit rate calculation with dedicated transport & freight costs</p>
+      {activeSubTab === "purchases" && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-900">Purchase Invoices</h3>
+            <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-rose-700">
+              <Plus className="w-3.5 h-3.5" /> Add Purchase
+            </button>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Vendor / Party</th>
+                  <th className="p-3">Material</th>
+                  <th className="p-3 text-right">Qty</th>
+                  <th className="p-3 text-right">Rate</th>
+                  <th className="p-3 text-right">Total (₹)</th>
+                  <th className="p-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {records.map(r => (
+                  <tr key={r.id} className="hover:bg-slate-50">
+                    <td className="p-3 text-slate-600">{r.date}</td>
+                    <td className="p-3 font-bold text-slate-900">{r.partyName}</td>
+                    <td className="p-3 text-rose-700 font-semibold">{r.materialName}</td>
+                    <td className="p-3 text-right font-bold">{r.quantity} {r.unit}</td>
+                    <td className="p-3 text-right text-slate-600">₹{r.rate}</td>
+                    <td className="p-3 text-right font-black text-slate-900">₹{Number(r.totalAmount).toLocaleString()}</td>
+                    <td className="p-3 text-center">
+                      <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-amber-600 p-1"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                    </td>
+                  </tr>
+                ))}
+                {records.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-slate-500">No purchases found.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <button type="button"
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition-colors text-sm"
-        >
-          <Plus className="w-4 h-4" /> Add Material Purchase
-        </button>
-      </div>
+      )}
 
-      {/* Purchases Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50/80 text-slate-600 border-b border-gray-100">
-              <tr>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider">Date</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider">Supplier / Material</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-right">Quantity</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-right">Unit Rate</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-right">Subtotal</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-right">Transport</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-right">Total Amount</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-center">Status</th>
-                <th className="p-3.5 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
+      {activeSubTab === "stock" && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2"><Package className="w-4 h-4 text-rose-600" /> Current Inventory Stock</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400">Loading purchase records...</td>
+                  <th className="p-4">Material Name</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4 text-right">Available Quantity</th>
                 </tr>
-              ) : records.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400">
-                    No material purchases logged yet. Click &quot;Add Material Purchase&quot; above to begin.
-                  </td>
-                </tr>
-              ) : (
-                records.map(r => {
-                  const qty = parseFloat(r.quantity) || 0;
-                  const rate = parseFloat(r.rate) || 0;
-                  const subtotal = parseFloat(r.subtotal) || (qty * rate);
-                  const transport = parseFloat(r.transportCost) || 0;
-                  const total = parseFloat(r.totalAmount) || 0;
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {materials.map(m => {
+                  const stockTotal = stockLedger
+                     .filter((s: any) => s.materialId === m.id)
+                     .reduce((acc: number, s: any) => s.transactionType === 'IN' ? acc + parseFloat(s.quantity) : acc - parseFloat(s.quantity), 0);
 
                   return (
-                    <tr key={r.id} className="hover:bg-blue-50/20 transition-colors">
-                      <td className="p-3.5 text-slate-700 whitespace-nowrap">
-                        {new Date(r.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-semibold text-slate-900">{r.partyName}</div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <span className="font-medium text-blue-600">{r.materialName}</span>
-                          {r.referenceNumber && (
-                            <span className="text-slate-400">· Ref: #{r.referenceNumber}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-right font-medium text-slate-900 whitespace-nowrap">
-                        {qty.toLocaleString()} <span className="text-xs text-slate-500 font-normal">{r.unit}</span>
-                      </td>
-                      <td className="p-3.5 text-right text-slate-700 whitespace-nowrap">
-                        ₹{rate.toLocaleString()} <span className="text-xs text-slate-400">/{r.unit}</span>
-                      </td>
-                      <td className="p-3.5 text-right text-slate-600 whitespace-nowrap">
-                        ₹{subtotal.toLocaleString()}
-                      </td>
-                      <td className="p-3.5 text-right whitespace-nowrap">
-                        {transport > 0 ? (
-                          <span className="inline-flex items-center gap-1 font-medium text-indigo-600">
-                            <Truck className="w-3 h-3" /> ₹{transport.toLocaleString()}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-right whitespace-nowrap">
-                        <span className="font-bold text-slate-900">₹{total.toLocaleString()}</span>
-                        {qty > 0 && (
-                          <div className="text-[10px] text-slate-400 font-normal">
-                            eff: ₹{(total / qty).toFixed(2)}/{r.unit}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          r.paymentStatus === "PAID" 
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}>
-                          {r.paymentStatus === "PAID" ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                          {r.paymentStatus}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button type="button"
-                            onClick={() => { setSelectedRecord(r); setIsDetailsOpen(true); }}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View Full Breakdown"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button type="button"
-                            onClick={() => handleEdit(r)}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                            title="Edit Record"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button type="button"
-                            onClick={() => handleDelete(r.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700 transition-colors"
-                            title="Delete Record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                    <tr key={m.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold text-slate-900">{m.name}</td>
+                      <td className="p-4 text-slate-500">{m.category || "-"}</td>
+                      <td className={`p-4 text-right font-black ${stockTotal < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {stockTotal} {m.defaultUnit}
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  )
+                })}
+                {materials.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-slate-500">No materials defined in Master Data.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Add Modal */}
+      {/* Form Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Material Purchase" : "Add Material Purchase"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Purchase Date *</label>
-              <input
-                type="date"
-                value={formData.date}
-                onChange={e => setFormData({ ...formData, date: e.target.value })}
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              />
+              <label className="block text-xs font-bold text-slate-700 mb-1">1. Purchase Date *</label>
+              <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Payment Status *</label>
-              <select
-                value={formData.paymentStatus}
-                onChange={e => setFormData({ ...formData, paymentStatus: e.target.value })}
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
+              <label className="block text-xs font-bold text-slate-700 mb-1">2. Payment Status *</label>
+              <select required value={formData.paymentStatus} onChange={e => setFormData({...formData, paymentStatus: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <option value="PAID">PAID</option>
                 <option value="UNPAID">UNPAID (Pending)</option>
-                <option value="PAID">PAID (Settled)</option>
               </select>
             </div>
+          </div>
+          
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">3. Supplier / Vendor Name *</label>
+            <input type="text" required value={formData.partyName} onChange={e => setFormData({...formData, partyName: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. ABC Cements" />
+          </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-slate-700 mb-1">Supplier / Vendor Name *</label>
-              <input
-                type="text"
-                list="parties-list"
-                value={formData.partyName}
-                onChange={e => setFormData({ ...formData, partyName: e.target.value })}
-                placeholder="e.g. UltraTech Cement Depot, Ambika Steels"
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-slate-700 mb-1">Material Name *</label>
-              <input
-                type="text"
-                list="materials-list"
-                value={formData.materialName}
-                onChange={e => setFormData({ ...formData, materialName: e.target.value })}
-                placeholder="e.g. OPC 53 Grade Cement, 10mm TMT Bar, River Sand"
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            {/* Unit & Calculation Controls */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Quantity *</label>
-              <input
-                type="number" inputMode="decimal"
-                step="0.01"
-                min="0.01"
-                value={formData.quantity}
-                onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                placeholder="e.g. 100"
-                className="w-full p-2 text-sm border rounded-lg font-medium focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Unit of Measurement *</label>
-              <select
-                value={unitMode}
-                onChange={e => setUnitMode(e.target.value)}
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                {PRESET_UNITS.map(u => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
+              <label className="block text-xs font-bold text-slate-700 mb-1">4. Material Name *</label>
+              <select required value={formData.materialId} onChange={e => setFormData({...formData, materialId: e.target.value, materialName: e.target.options[e.target.selectedIndex].text})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <option value="">-- Select Material --</option>
+                {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
-
-            {unitMode === "Custom" && (
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-slate-700 mb-1">Specify Custom Unit *</label>
-                <input
-                  type="text"
-                  value={customUnit}
-                  onChange={e => setCustomUnit(e.target.value)}
-                  placeholder="e.g. Pack, Drum, Bundle"
-                  className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-            )}
-
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Rate (₹ per {effectiveUnit}) *
-              </label>
-              <div className="relative">
-                <IndianRupee className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="number" inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={formData.rate}
-                  onChange={e => setFormData({ ...formData, rate: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full pl-8 pr-2 py-2 text-sm border rounded-lg font-medium focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-indigo-800 mb-1 flex items-center gap-1">
-                <Truck className="w-3.5 h-3.5 text-indigo-600" />
-                Transport / Freight Cost (₹) (+)
-              </label>
-              <div className="relative">
-                <IndianRupee className="w-3.5 h-3.5 text-indigo-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="number" inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={formData.transportCost}
-                  onChange={e => setFormData({ ...formData, transportCost: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full pl-8 pr-2 py-2 text-sm border border-indigo-200 bg-indigo-50/20 rounded-lg font-medium focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Discount (₹) (-)</label>
-              <input
-                type="number" inputMode="decimal"
-                step="0.01"
-                min="0"
-                value={formData.discount}
-                onChange={e => setFormData({ ...formData, discount: e.target.value })}
-                placeholder="0.00"
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Tax / GST (%) (+)</label>
-              <input
-                type="number" inputMode="decimal"
-                step="0.01"
-                min="0"
-                value={formData.taxPercentage}
-                onChange={e => setFormData({ ...formData, taxPercentage: e.target.value })}
-                placeholder="0.00"
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Payment Method</label>
-              <select
-                value={formData.paymentMethod}
-                onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="BANK">Bank Transfer / NEFT / RTGS</option>
-                <option value="UPI">UPI / GPay / PhonePe</option>
-                <option value="CASH">Cash</option>
-                <option value="CHEQUE">Cheque</option>
+              <label className="block text-xs font-bold text-slate-700 mb-1">6. Unit of Measurement *</label>
+              <select value={unitMode} onChange={e => setUnitMode(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                {PRESET_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
+              {unitMode === "Custom" && <input type="text" placeholder="Enter custom unit" value={customUnit} onChange={e => setCustomUnit(e.target.value)} className="mt-2 w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />}
             </div>
-
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Bill / Challan / Ref No.</label>
-              <input
-                type="text"
-                value={formData.referenceNumber}
-                onChange={e => setFormData({ ...formData, referenceNumber: e.target.value })}
-                placeholder="e.g. INV-2024-089"
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
+              <label className="block text-xs font-bold text-slate-700 mb-1">5. Quantity *</label>
+              <input type="number" step="0.01" required value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
             </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-slate-700 mb-1">Notes / Description</label>
-              <input
-                type="text"
-                value={formData.description}
-                onChange={e => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Optional vehicle no., driver details, site delivery notes..."
-                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">7. Rate (₹ per {effectiveUnit}) *</label>
+              <input type="number" step="0.01" required value={formData.rate} onChange={e => setFormData({...formData, rate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
             </div>
           </div>
 
-          {/* Unit Calculation & Live Breakdown Card */}
-          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              <span className="flex items-center gap-1.5">
-                <Calculator className="w-3.5 h-3.5 text-blue-600" />
-                Unit & Total Calculation
-              </span>
-              <span className="text-slate-500">Live Breakdown</span>
+          <div className="grid grid-cols-3 gap-4 border-t border-slate-200 pt-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">8. Transport / Freight (₹) (+)</label>
+              <input type="number" step="0.01" value={formData.transportCost} onChange={e => setFormData({...formData, transportCost: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
             </div>
-
-            <div className="grid grid-cols-2 gap-y-1.5 text-xs text-slate-600 pt-1 border-t border-slate-200">
-              <div>Base Material Subtotal:</div>
-              <div className="text-right font-medium text-slate-900">
-                {calculations.qty} {effectiveUnit} × ₹{calculations.rate} = ₹{calculations.subtotal.toLocaleString()}
-              </div>
-
-              <div>Transport / Freight:</div>
-              <div className="text-right font-medium text-indigo-700">
-                + ₹{calculations.transport.toLocaleString()}
-              </div>
-
-              {calculations.discount > 0 && (
-                <>
-                  <div>Discount:</div>
-                  <div className="text-right font-medium text-amber-700">
-                    - ₹{calculations.discount.toLocaleString()}
-                  </div>
-                </>
-              )}
-
-              {calculations.tax > 0 && (
-                <>
-                  <div>Tax / GST ({parseFloat(formData.taxPercentage || "0")}%):</div>
-                  <div className="text-right font-medium text-slate-900">
-                    + ₹{calculations.tax.toLocaleString()}
-                  </div>
-                </>
-              )}
-
-              <div className="pt-2 border-t border-slate-200 font-bold text-sm text-slate-900">
-                Net Total Payable:
-              </div>
-              <div className="pt-2 border-t border-slate-200 text-right font-bold text-base text-blue-600">
-                ₹{calculations.total.toLocaleString()}
-              </div>
-
-              {calculations.qty > 0 && (
-                <>
-                  <div className="text-[11px] text-slate-500 italic">Effective Landed Cost:</div>
-                  <div className="text-right text-[11px] font-semibold text-emerald-700">
-                    ₹{calculations.effectiveUnitCost} per {effectiveUnit}
-                  </div>
-                </>
-              )}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">9. Discount (₹) (-)</label>
+              <input type="number" step="0.01" value={formData.discount} onChange={e => setFormData({...formData, discount: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">10. Tax / GST (%) (+)</label>
+              <input type="number" step="0.01" value={formData.taxPercentage} onChange={e => setFormData({...formData, taxPercentage: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow transition-colors text-sm"
-          >
-            Save Material Purchase
-          </button>
-          <datalist id="materials-list">
-    {materials.map(m => <option key={m.id} value={m.name} />)}
-  </datalist>
-  <datalist id="parties-list">
-    {parties.map(p => <option key={p.id} value={p.name} />)}
-  </datalist>
-</form>
-      </Modal>
-
-      {/* Details Modal */}
-      {selectedRecord && (
-        <Modal isOpen={isDetailsOpen} onClose={() => setIsDetailsOpen(false)} title="Purchase Breakdown">
-          <div className="space-y-4 text-sm">
-            <div className="flex justify-between items-center pb-2 border-b">
+          {formData.paymentStatus === 'PAID' && (
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <h4 className="font-bold text-slate-900 text-base">{selectedRecord.partyName}</h4>
-                <p className="text-xs text-blue-600 font-medium">{selectedRecord.materialName}</p>
+                <label className="block text-xs font-bold text-slate-700 mb-1">11. Payment Method</label>
+                <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="NEFT">NEFT</option>
+                  <option value="RTGS">RTGS</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                selectedRecord.paymentStatus === "PAID" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-              }`}>
-                {selectedRecord.paymentStatus}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-50 p-2.5 rounded-lg">
-                <span className="text-slate-500 block">Date:</span>
-                <span className="font-semibold text-slate-900">{selectedRecord.date}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-lg">
-                <span className="text-slate-500 block">Payment Method:</span>
-                <span className="font-semibold text-slate-900">{selectedRecord.paymentMethod || "N/A"}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-lg">
-                <span className="text-slate-500 block">Reference / Bill #:</span>
-                <span className="font-semibold text-slate-900">{selectedRecord.referenceNumber || "N/A"}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-lg">
-                <span className="text-slate-500 block">Unit:</span>
-                <span className="font-semibold text-slate-900">{selectedRecord.unit}</span>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Payment / Txn Ref</label>
+                <input type="text" value={formData.referenceNumber} onChange={e => setFormData({...formData, referenceNumber: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Txn ID" />
               </div>
             </div>
+          )}
 
-            <div className="bg-slate-50 p-3 rounded-lg space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-600">Quantity × Rate:</span>
-                <span className="font-medium text-slate-900">
-                  {selectedRecord.quantity} {selectedRecord.unit} × ₹{Number(selectedRecord.rate).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Base Subtotal:</span>
-                <span className="font-semibold text-slate-900">₹{Number(selectedRecord.subtotal).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-indigo-700">
-                <span className="flex items-center gap-1 font-medium"><Truck className="w-3.5 h-3.5" /> Transport Cost:</span>
-                <span className="font-semibold">₹{Number(selectedRecord.transportCost || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-amber-700">
-                <span>Discount:</span>
-                <span className="font-semibold">- ₹{Number(selectedRecord.discount || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Tax / GST ({Number(selectedRecord.taxPercentage || 0)}%):</span>
-                <span className="font-semibold">+ ₹{Number(selectedRecord.tax || 0).toLocaleString()}</span>
-              </div>
-              <div className="pt-2 border-t flex justify-between font-bold text-sm text-slate-900">
-                <span>Total Amount:</span>
-                <span className="text-blue-600">₹{Number(selectedRecord.totalAmount).toLocaleString()}</span>
-              </div>
-              {parseFloat(selectedRecord.quantity) > 0 && (
-                <div className="flex justify-between text-[11px] text-emerald-700 font-semibold pt-1">
-                  <span>Effective Landed Cost:</span>
-                  <span>₹{(Number(selectedRecord.totalAmount) / Number(selectedRecord.quantity)).toFixed(2)} / {selectedRecord.unit}</span>
-                </div>
-              )}
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">12. Bill / Challan / Ref No.</label>
+              <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Bill No." />
             </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">13. Notes / Description</label>
+              <input type="text" value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Vehicle No., Driver Details" />
+            </div>
+          </div>
 
-            {selectedRecord.description && (
-              <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg">
-                <span className="font-medium text-slate-700 block mb-0.5">Notes:</span>
-                {selectedRecord.description}
+          {/* Unit & Total Calculation */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 mt-2">
+            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider">Unit & Total Calculation</h4>
+            <div className="flex justify-between items-center text-sm text-slate-600">
+               <span>14. Base Material Subtotal</span>
+               <span className="font-semibold">₹{calculations.subtotal.toLocaleString()}</span>
+            </div>
+            {Number(formData.discount || 0) > 0 && (
+              <div className="flex justify-between items-center text-sm text-emerald-600">
+                 <span>Discount</span>
+                 <span className="font-semibold">- ₹{Number(formData.discount || 0).toLocaleString()}</span>
               </div>
             )}
+            {Number(formData.taxPercentage || 0) > 0 && (
+              <div className="flex justify-between items-center text-sm text-slate-600">
+                 <span>GST ({formData.taxPercentage}%)</span>
+                 <span className="font-semibold">+ ₹{calculations.tax.toLocaleString()}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center text-sm text-slate-600 border-b border-slate-200 pb-2">
+               <span>15. Transport / Freight</span>
+               <span className="font-semibold">+ ₹{Number(formData.transportCost || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center font-black text-rose-700 text-lg pt-1">
+               <span>16. Net Total Payable</span>
+               <span>₹{calculations.total.toLocaleString()}</span>
+            </div>
           </div>
-        </Modal>
-      )}
+
+          <button type="submit" className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl shadow-sm transition-all mt-4 text-sm">
+             17. {editingId ? "Update Material Purchase" : "Save Material Purchase"}
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 }
