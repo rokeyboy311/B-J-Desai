@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "vercel": {
+      "serverUrl": "https://mcp.vercel.com"
+    },
+    "render": {
+      "command": "npx",
+      "args": ["-y", "render-mcp"],
+      "env": {
+        "RENDER_API_KEY": ""
+      }
+    }
+  }
+}
