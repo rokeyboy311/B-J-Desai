@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const createRecordSchema = z.object({
+  businessId: z.number().int().optional(),
   locationId: z.number().int().positive("Location ID is required"),
   type: z.enum(['INCOME', 'EXPENSE']),
   amount: z.union([z.number().positive(), z.string().regex(/^\d+(\.\d{1,2})?$/)]).transform(Number),
@@ -13,10 +14,12 @@ export const createRecordSchema = z.object({
   paymentMethod: z.string().max(50).optional().nullable(),
   referenceNumber: z.string().max(100).optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
+  taxableAmount: z.union([z.number().min(0), z.string()]).transform(Number).optional(),
+  gstRate: z.union([z.number().min(0), z.string()]).transform(Number).optional().default(0),
+  gstAmount: z.union([z.number().min(0), z.string()]).transform(Number).optional().default(0),
   refundableAmount: z.union([z.number().min(0), z.string()]).transform(Number).optional().default(0),
   refundedAmount: z.union([z.number().min(0), z.string()]).transform(Number).optional().default(0),
   refundStatus: z.string().max(50).optional().default('N/A'),
 });
 
 export const updateRecordSchema = createRecordSchema.omit({ locationId: true });
-

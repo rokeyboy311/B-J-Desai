@@ -1,16 +1,15 @@
 import { Router, Response } from 'express';
-import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { requireAuth, AuthRequest, verifyBusinessOwnership } from '../middleware/auth.ts';
 import { createLocationSchema, updateLocationSchema } from '../validators/location.validator.ts';
 import { getLocationsWithRecordCount, createLocation, updateLocation, deleteLocation } from '../../db/locations.ts';
 
 const locationRouter = Router();
-
-// Apply auth middleware to all routes in this router
 locationRouter.use(requireAuth);
 
 locationRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const locations = await getLocationsWithRecordCount(req.dbUser!.id);
+    const businessId = req.businessId;
+    const locations = await getLocationsWithRecordCount(req.dbUser!.id, businessId);
     res.json(locations);
   } catch (error) {
     console.error('Failed to fetch locations:', error);
@@ -21,10 +20,21 @@ locationRouter.get('/', async (req: AuthRequest, res: Response) => {
 locationRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const data = createLocationSchema.parse(req.body);
-    const location = await createLocation(req.dbUser!.id, data.name, data.address);
+    const businessId = data.businessId || req.businessId;
+    if (businessId) {
+      const isOwner = await verifyBusinessOwnership(req.dbUser!.id, businessId);
+      if (!isOwner) {
+        return res.status(403).json({ error: 'Forbidden: You do not own this business' });
+      }
+    }
+
+    const location = await createLocation(req.dbUser!.id, {
+      ...data,
+      businessId,
+    });
     res.status(201).json(location);
   } catch (error: any) {
-    if (error.name === 'ZodError') throw error; // Let the global error handler catch ZodErrors
+    if (error.name === 'ZodError') throw error;
     console.error('Failed to create location:', error);
     res.status(500).json({ error: 'Failed to create location' });
   }
@@ -35,7 +45,7 @@ locationRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const id = parseInt(req.params.id as string, 10);
     const data = updateLocationSchema.parse(req.body);
     
-    const location = await updateLocation(req.dbUser!.id, id, data.name, data.address);
+    const location = await updateLocation(req.dbUser!.id, id, data);
     if (!location) {
       return res.status(404).json({ error: 'Location not found' });
     }
@@ -54,10 +64,10 @@ locationRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (!location) {
       return res.status(404).json({ error: 'Location not found' });
     }
-    res.json({ success: true, message: 'Location deleted' });
-  } catch (error) {
+    res.json({ success: true, message: 'Location archived' });
+  } catch (error: any) {
     console.error('Failed to delete location:', error);
-    res.status(500).json({ error: 'Failed to delete location' });
+    res.status(400).json({ error: error.message || 'Failed to archive location' });
   }
 });
 

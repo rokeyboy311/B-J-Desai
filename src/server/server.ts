@@ -4,6 +4,7 @@ import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { errorHandler } from "./middleware/errorHandler.ts";
 import authRouter from "./routes/auth.routes.ts";
+import businessRouter from "./routes/business.routes.ts";
 import locationRouter from "./routes/location.routes.ts";
 import recordRouter from "./routes/record.routes.ts";
 import reportRouter from "./routes/report.routes.ts";
@@ -19,19 +20,29 @@ import paymentRouter from "./routes/payment.routes.ts";
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Middleware
-  app.use(cors());
-  app.use(express.json());
+  app.use(cors({
+    origin: process.env.CORS_ORIGIN || '*',
+    credentials: true,
+  }));
+  app.use(express.json({ limit: '10mb' }));
 
-  // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+  // API health check
+  app.get("/api/health", (_req, res) => {
+    res.json({
+      status: "ok",
+      system: "B_D Enterprise Accounting ERP",
+      version: "2.0.0",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
   });
 
   // Register domain routers
   app.use("/api/auth", authRouter);
+  app.use("/api/businesses", businessRouter);
   app.use("/api/locations", locationRouter);
   app.use("/api/records", recordRouter);
   app.use("/api/reports", reportRouter);
@@ -48,7 +59,7 @@ async function startServer() {
   // Register global error handler (must be after routes)
   app.use(errorHandler);
 
-  // Vite middleware for development
+  // Vite middleware for development vs static build for production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -59,14 +70,15 @@ async function startServer() {
     // Production static serving
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*all', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`B_D Enterprise ERP Server running on port ${PORT} (0.0.0.0:${PORT})`);
   });
 }
 
 startServer();
+

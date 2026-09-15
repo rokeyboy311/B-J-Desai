@@ -1,27 +1,31 @@
 import React, { useState, useEffect } from "react";
-import { apiFetch } from "../lib/api";
+import { apiFetch, apiDownload } from "../lib/api";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   ResponsiveContainer, PieChart, Pie, Cell 
 } from "recharts";
 import { 
   FileSpreadsheet, Download, Calendar, DollarSign, 
-  Receipt, ShieldCheck, ArrowDownLeft, ArrowUpRight, Filter, Building2
+  Receipt, ShieldCheck, ArrowDownLeft, ArrowUpRight, Filter, Building2,
+  TrendingUp, TrendingDown, Layers
 } from "lucide-react";
+import { useBusiness } from "../contexts/BusinessContext";
 
 export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState<"overview" | "gst">("overview");
+  const { activeLocationId } = useBusiness();
+  const [activeTab, setActiveTab] = useState<"overview" | "pnl" | "gst">("overview");
   const [data, setData] = useState<{
     monthly: any[];
     categories: any[];
   } | null>(null);
   const [gstData, setGstData] = useState<any | null>(null);
+  const [pnlData, setPnlData] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  // Date filters for GST
+  // Date filters for GST and PnL
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
@@ -33,14 +37,17 @@ export default function ReportsPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [analyticsRes, gstRes, locRes] = await Promise.all([
-          apiFetch("/reports/analytics").catch(() => ({ monthly: [], categories: [] })),
-          apiFetch(`/reports/gst-returns?startDate=${startDate}&endDate=${endDate}`).catch(() => null),
+        const locQuery = selectedLocationId !== "all" ? `&locationId=${selectedLocationId}` : "";
+        const [analyticsRes, gstRes, pnlRes, locRes] = await Promise.all([
+          apiFetch(`/reports/analytics?${locQuery}`).catch(() => ({ monthly: [], categories: [] })),
+          apiFetch(`/reports/gst-returns?startDate=${startDate}&endDate=${endDate}${locQuery}`).catch(() => null),
+          apiFetch(`/reports/pnl?startDate=${startDate}&endDate=${endDate}${locQuery}`).catch(() => null),
           apiFetch("/locations").catch(() => [])
         ]);
 
         setData(analyticsRes);
         setGstData(gstRes);
+        setPnlData(pnlRes);
         setLocations(Array.isArray(locRes) ? locRes : []);
       } catch (error) {
         console.error("Failed to load reports data:", error);
@@ -49,24 +56,13 @@ export default function ReportsPage() {
       }
     };
     fetchData();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, selectedLocationId]);
 
   const handleExportExcel = async () => {
     setExporting(true);
     try {
       const query = selectedLocationId !== "all" ? `?locationId=${selectedLocationId}` : "";
-      const res = await fetch(`/api/reports/export-all${query}`);
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Bina_Enterprise_Consolidated_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
+      await apiDownload(`/reports/export/excel${query}`, `B_D_Enterprise_18Sheet_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
     } catch (err) {
       console.error("Export error:", err);
     } finally {
@@ -98,206 +94,332 @@ export default function ReportsPage() {
   }));
 
   const totalAnnualRevenue = (data.monthly || []).reduce((sum, m) => sum + (m.revenue || 0), 0);
-  const totalAnnualCost = (data.monthly || []).reduce((sum, m) => sum + (m.expense || 0), 0);
-  const netAnnualProfit = totalAnnualRevenue - totalAnnualCost;
+  const totalAnnualExpense = (data.monthly || []).reduce((sum, m) => sum + (m.expense || 0), 0);
+  const totalAnnualProfit = totalAnnualRevenue - totalAnnualExpense;
 
   return (
     <div className="space-y-6">
-      {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Top Header & Global Controls */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <FileSpreadsheet className="text-indigo-600" size={26} /> Financial Reports & GST Analytics
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            Accounting, GST & Analytics
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Audited financial health, GST compliance return summaries (GSTR-1 & 3B), and consolidated exports
+          <p className="text-xs text-slate-500 mt-0.5">
+            Financial analytics, GSTR preparation statements, P&L reporting, and 18-sheet audit export
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Location Filter */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700">
+            <Building2 size={14} className="text-slate-400" />
+            <select
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              className="bg-transparent border-none text-slate-800 font-semibold focus:outline-hidden cursor-pointer"
+            >
+              <option value="all">All Locations</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 18-Sheet Consolidated Export Button */}
           <button
             onClick={handleExportExcel}
             disabled={exporting}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-medium text-sm transition-all shadow-md shadow-emerald-600/20 active:scale-95"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50"
           >
-            <Download size={16} />
-            {exporting ? "Generating..." : "Export Consolidated Excel"}
+            <FileSpreadsheet size={15} />
+            <span>{exporting ? "Generating 18 Sheets..." : "Export 18-Sheet Excel"}</span>
           </button>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center border-b border-slate-200 gap-6">
+      <div className="flex items-center gap-2 border-b border-slate-200">
         <button
           onClick={() => setActiveTab("overview")}
-          className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
             activeTab === "overview"
               ? "border-indigo-600 text-indigo-600"
-              : "border-transparent text-slate-500 hover:text-slate-800"
+              : "border-transparent text-slate-500 hover:text-slate-700"
           }`}
         >
-          Financial Overview & Monthly Run-Rate
+          Annual Performance & Trends
+        </button>
+        <button
+          onClick={() => setActiveTab("pnl")}
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+            activeTab === "pnl"
+              ? "border-indigo-600 text-indigo-600"
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Profit & Loss Statement (P&L)
         </button>
         <button
           onClick={() => setActiveTab("gst")}
-          className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
             activeTab === "gst"
               ? "border-indigo-600 text-indigo-600"
-              : "border-transparent text-slate-500 hover:text-slate-800"
+              : "border-transparent text-slate-500 hover:text-slate-700"
           }`}
         >
           GST Returns (GSTR-1 & GSTR-3B)
         </button>
       </div>
 
+      {/* TAB 1: OVERVIEW & TRENDS */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          {/* Executive KPI Summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-xs uppercase font-bold tracking-wider text-emerald-600">Total Business Inflows</span>
-              <p className="text-2xl font-bold text-emerald-700 mt-1">{formatCurrency(totalAnnualRevenue)}</p>
-              <span className="text-xs text-slate-500 mt-1 block">Sales Invoices & Material Supplies</span>
+          {/* Executive KPI Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Trailing 12M Revenue</span>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(totalAnnualRevenue)}</p>
+              <span className="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                <ArrowUpRight size={13} /> GST Invoices + Goods Dispatches
+              </span>
             </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-xs uppercase font-bold tracking-wider text-rose-600">Total Operating Outflows</span>
-              <p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrency(totalAnnualCost)}</p>
-              <span className="text-xs text-slate-500 mt-1 block">Material Purchases & Site Expenses</span>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Trailing 12M Purchases & Costs</span>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(totalAnnualExpense)}</p>
+              <span className="text-xs text-rose-500 font-medium mt-1 flex items-center gap-1">
+                <ArrowDownLeft size={13} /> Material Purchases + Overheads
+              </span>
             </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-xs uppercase font-bold tracking-wider text-indigo-600">Net Operating Position</span>
-              <p className={`text-2xl font-bold mt-1 ${netAnnualProfit >= 0 ? "text-indigo-700" : "text-amber-600"}`}>
-                {formatCurrency(netAnnualProfit)}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Net Operating Margin</span>
+              <p className={`text-2xl font-bold mt-1 ${totalAnnualProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                {formatCurrency(totalAnnualProfit)}
               </p>
-              <span className="text-xs text-slate-500 mt-1 block">Net Operational Surplus / (Deficit)</span>
+              <span className="text-xs text-slate-500 mt-1 block">
+                {totalAnnualRevenue > 0 ? `${Math.round((totalAnnualProfit / totalAnnualRevenue) * 100)}% net margin` : "0%"}
+              </span>
             </div>
           </div>
 
-          {/* Monthly Run-Rate Bar Chart */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Monthly Revenue vs Outflow</h3>
-                <p className="text-xs text-slate-500">12-month consolidated financial movement across all sites</p>
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 12-Month Bar Chart */}
+            <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <h2 className="text-sm font-bold text-slate-900 mb-4">Monthly Revenue vs. Expense Inflow</h2>
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.monthly} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                    <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                    <Tooltip 
+                      formatter={(v: any) => [formatCurrency(Number(v)), '']}
+                      contentStyle={{ backgroundColor: "#0f172a", borderRadius: 8, color: "#fff", border: "none" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                    <Bar dataKey="revenue" name="Revenue" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expense" name="Expenditure" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="h-80 w-full">
-              {data.monthly.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                  No monthly activity recorded yet.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.monthly} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-                    <YAxis 
-                      tickFormatter={(val) => `₹${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`} 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tick={{ fill: "#64748b", fontSize: 12 }} 
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => formatCurrency(value)}
-                      cursor={{ fill: "#f8fafc" }}
-                      contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}
-                    />
-                    <Legend wrapperStyle={{ paddingTop: "12px" }} />
-                    <Bar dataKey="revenue" name="Revenue / Billing (₹)" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={45} />
-                    <Bar dataKey="expense" name="Costs & Outflows (₹)" fill="#f43f5e" radius={[6, 6, 0, 0]} maxBarSize={45} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Category Breakdown */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900 mb-1">Expense Distribution by Category</h3>
-            <p className="text-xs text-slate-500 mb-6">Categorized allocation of site expenses and operational overheads</p>
-
-            <div className="h-80 w-full flex items-center justify-center">
-              {mappedCategories.length === 0 ? (
-                <p className="text-slate-400 text-sm">No categorized expenses found.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={mappedCategories}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={105}
-                      paddingAngle={4}
-                      dataKey="value"
-                      nameKey="name"
-                    >
-                      {mappedCategories.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
+            {/* Operating Expense Breakdown Pie Chart */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <h2 className="text-sm font-bold text-slate-900 mb-4">Operating Expense Distribution</h2>
+              <div className="h-56 w-full">
+                {mappedCategories.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={mappedCategories}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={75}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {mappedCategories.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: any) => [formatCurrency(Number(v)), '']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No operating expense records
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 space-y-1 max-h-32 overflow-y-auto">
+                {mappedCategories.slice(0, 5).map((cat, idx) => (
+                  <div key={cat.name} className="flex items-center justify-between text-xs py-1 border-b border-slate-50">
+                    <span className="flex items-center gap-1.5 text-slate-600 truncate max-w-[140px]">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span>
+                      {cat.name}
+                    </span>
+                    <span className="font-semibold text-slate-900">{formatCurrency(cat.value)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {activeTab === "gst" && (
+      {/* TAB 2: PROFIT & LOSS STATEMENT */}
+      {activeTab === "pnl" && (
         <div className="space-y-6">
-          {/* Date Filter Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Calendar size={18} className="text-slate-400" />
-              <span className="text-sm font-semibold text-slate-700">GST Filing Period:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-slate-50 text-slate-800"
-              />
-              <span className="text-slate-400 text-sm">to</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-slate-50 text-slate-800"
-              />
-            </div>
-
-            <div className="text-xs text-slate-500 font-medium">
-              Applicable for Monthly / Quarterly Return Computation
-            </div>
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+            <span className="text-xs font-semibold text-slate-500">Period:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"
+            />
+            <span className="text-xs text-slate-400">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"
+            />
           </div>
 
-          {/* GSTR-3B Tax Liability & Offset Matrix */}
+          {pnlData ? (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Profit & Loss Account</h3>
+                  <p className="text-xs text-slate-500">From {startDate} to {endDate}</p>
+                </div>
+                <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                  (pnlData.netProfit || 0) >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                }`}>
+                  Net Profit: {formatCurrency(pnlData.netProfit || 0)}
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100 text-sm">
+                {/* 1. Operating Revenue */}
+                <div className="p-5 space-y-2 bg-slate-50/50">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">1. Gross Revenue / Turnover</span>
+                  <div className="flex justify-between py-1 text-slate-700">
+                    <span>Tax Invoices (Sales Billing)</span>
+                    <span className="font-semibold">{formatCurrency(pnlData.revenue?.salesInvoices || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 text-slate-700">
+                    <span>Material Supplies (Dispatches)</span>
+                    <span className="font-semibold">{formatCurrency(pnlData.revenue?.suppliesTotal || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 text-slate-700">
+                    <span>Direct Receipts / Income</span>
+                    <span className="font-semibold">{formatCurrency(pnlData.revenue?.directIncome || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 font-bold text-indigo-950 border-t border-slate-200">
+                    <span>Total Gross Revenue (A)</span>
+                    <span>{formatCurrency(pnlData.revenue?.grossRevenue || 0)}</span>
+                  </div>
+                </div>
+
+                {/* 2. Direct Costs / COGS */}
+                <div className="p-5 space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">2. Direct Procurement / COGS</span>
+                  <div className="flex justify-between py-1 text-slate-700">
+                    <span>Material Purchases (Procurement Bills)</span>
+                    <span className="font-semibold">{formatCurrency(pnlData.directCosts?.purchases || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 font-bold text-slate-900 border-t border-slate-200">
+                    <span>Total Cost of Goods Sold (B)</span>
+                    <span>{formatCurrency(pnlData.directCosts?.cogs || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 font-bold text-emerald-700 bg-emerald-50/50 px-3 rounded-lg">
+                    <span>Gross Profit (A - B)</span>
+                    <span>{formatCurrency(pnlData.directCosts?.grossProfit || 0)}</span>
+                  </div>
+                </div>
+
+                {/* 3. Operating Overheads */}
+                <div className="p-5 space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">3. Operating Overheads & Salaries</span>
+                  <div className="flex justify-between py-1 text-slate-700">
+                    <span>General & Site Operating Expenses</span>
+                    <span className="font-semibold">{formatCurrency(pnlData.operatingExpenses?.generalExpenses || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 text-slate-700">
+                    <span>Labour Wages & Employee Salaries</span>
+                    <span className="font-semibold">{formatCurrency(pnlData.operatingExpenses?.labourWages || 0)}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 font-bold text-slate-900 border-t border-slate-200">
+                    <span>Total Operating Overheads (C)</span>
+                    <span>{formatCurrency(pnlData.operatingExpenses?.totalOverheads || 0)}</span>
+                  </div>
+                </div>
+
+                {/* 4. Net Operating Profit */}
+                <div className="p-5 bg-slate-900 text-white flex justify-between items-center">
+                  <div>
+                    <span className="text-xs uppercase font-bold text-slate-400">Net Operating Profit / (Loss)</span>
+                    <p className="text-xs text-slate-300">Gross Profit minus Operating Overheads</p>
+                  </div>
+                  <span className="text-2xl font-black text-emerald-400">
+                    {formatCurrency(pnlData.netProfit || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-8 text-center text-sm text-slate-400">Loading Profit & Loss statement...</div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: GST RETURNS */}
+      {activeTab === "gst" && (
+        <div className="space-y-6">
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+            <span className="text-xs font-semibold text-slate-500">Filing Period:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"
+            />
+            <span className="text-xs text-slate-400">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5"
+            />
+          </div>
+
           {gstData?.gstr3b && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Outward Taxable Value</span>
-                <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(gstData.gstr3b.outwardTaxable || 0)}</p>
-                <span className="text-xs text-slate-500 mt-1 block">Gross B2B / B2C Supplies</span>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-xs uppercase font-bold tracking-wider text-slate-400">GSTR-1 Outward Taxable</span>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(gstData.gstr1.taxableValue || 0)}</p>
+                <span className="text-xs text-slate-500 mt-1 block">
+                  {gstData.gstr1.totalInvoices || 0} Invoices ({gstData.gstr1.b2bInvoices || 0} B2B, {gstData.gstr1.b2cInvoices || 0} B2C)
+                </span>
               </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs uppercase font-bold tracking-wider text-rose-600">Total Output GST (Liability)</span>
-                <p className="text-2xl font-bold text-rose-700 mt-1">{formatCurrency(gstData.gstr3b.outwardTax || 0)}</p>
-                <span className="text-xs text-slate-500 mt-1 block">CGST + SGST + IGST on Invoices</span>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-xs uppercase font-bold tracking-wider text-slate-400">Output GST Liability</span>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(gstData.gstr3b.outwardTax || 0)}</p>
+                <span className="text-xs text-slate-500 mt-1 block">Tax collected on invoices</span>
               </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs uppercase font-bold tracking-wider text-emerald-600">Eligible ITC (Input Credit)</span>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-xs uppercase font-bold tracking-wider text-emerald-600">Eligible ITC (Purchases)</span>
                 <p className="text-2xl font-bold text-emerald-700 mt-1">{formatCurrency(gstData.gstr3b.eligibleItc || 0)}</p>
-                <span className="text-xs text-slate-500 mt-1 block">GST paid on Material Purchases</span>
+                <span className="text-xs text-slate-500 mt-1 block">Input Tax Credit from bills</span>
               </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
                 <span className="text-xs uppercase font-bold tracking-wider text-indigo-600">Net Tax Payable (Cash)</span>
                 <p className="text-2xl font-bold text-indigo-700 mt-1">{formatCurrency(gstData.gstr3b.netTaxPayable || 0)}</p>
                 <span className="text-xs text-slate-500 mt-1 block">
@@ -309,9 +431,9 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {/* GSTR-1 Tax Component Breakdown Table */}
+          {/* GSTR-1 Outward Supplies Table */}
           {gstData?.gstr1 && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="p-5 border-b border-slate-200">
                 <h3 className="text-base font-bold text-slate-900">GSTR-1 Outward Supplies Summary</h3>
                 <p className="text-xs text-slate-500">Component-wise breakup of tax charged on sales invoices</p>

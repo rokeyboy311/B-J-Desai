@@ -1,16 +1,18 @@
 import express, { Response } from 'express';
 import { db } from '../../db/index.js';
-import { parties, labourTeams, invoices, materialPurchases, materialSupplies, payments, auditLogs } from '../../db/schema.js';
-import { eq, and, desc, sql, or } from 'drizzle-orm';
+import { parties, labourTeams, invoices, materialPurchases, materialSupplies, payments, auditLogs, taxRates, creditDebitNotes } from '../../db/schema.js';
+import { eq, and, desc, sql, or, ilike } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { z } from 'zod';
+import { DecimalMath } from '../../shared/accountingEngine.js';
 
 const masterRouter = express.Router();
 masterRouter.use(requireAuth);
 
 const partySchema = z.object({
-  name: z.string().min(1),
+  businessId: z.number().int().optional().nullable(),
   locationId: z.number().int().optional().nullable(),
+  name: z.string().min(1, 'Party name is required'),
   partyType: z.enum(['CUSTOMER', 'SUPPLIER', 'BOTH']).default('CUSTOMER'),
   phone: z.string().optional().nullable().default(''),
   email: z.string().optional().nullable().default(''),
@@ -21,91 +23,118 @@ const partySchema = z.object({
   gst: z.string().optional().nullable().default(''),
   openingBalance: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)).optional().default(0),
   openingBalanceType: z.enum(['TO_RECEIVE', 'TO_PAY']).default('TO_RECEIVE'),
+  creditLimit: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
+  paymentTermsDays: z.union([z.number(), z.string()]).transform(Number).optional().default(30),
   notes: z.string().optional().nullable().default(''),
 });
 
-// GET /api/master/parties - List parties with computed receivables/payables
+const taxRateSchema = z.object({
+  businessId: z.number().int().optional().nullable(),
+  name: z.string().min(1, 'Tax rate name is required'),
+  gstRate: z.union([z.number(), z.string()]).transform(Number),
+  cgstRate: z.union([z.number(), z.string()]).transform(Number),
+  sgstRate: z.union([z.number(), z.string()]).transform(Number),
+  igstRate: z.union([z.number(), z.string()]).transform(Number),
+  cessRate: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
+  isDefault: z.union([z.number(), z.boolean()]).transform(v => (v ? 1 : 0)).optional().default(0),
+});
+
+// GET /api/master/parties - List parties with optimized single-query balance aggregation
 masterRouter.get('/parties', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.dbUser!.id;
-    const { locationId, partyType, search } = req.query;
+    const businessId = req.query.businessId ? parseInt(String(req.query.businessId), 10) : req.businessId;
+    const locationId = req.query.locationId ? parseInt(String(req.query.locationId), 10) : undefined;
+    const partyType = req.query.partyType ? String(req.query.partyType).trim() : undefined;
+    const search = req.query.search ? String(req.query.search).trim() : undefined;
+
+    const conditions = [
+      eq(parties.userId, userId),
+      eq(parties.isDeleted, 0),
+    ];
+
+    if (businessId) {
+      conditions.push(or(eq(parties.businessId, businessId), sql`${parties.businessId} IS NULL`)!);
+    }
+    if (locationId && !isNaN(locationId)) {
+      conditions.push(eq(parties.locationId, locationId));
+    }
+    if (partyType) {
+      conditions.push(eq(parties.partyType, partyType));
+    }
+    if (search) {
+      conditions.push(ilike(parties.name, `%${search}%`));
+    }
 
     const partyList = await db.select().from(parties).where(
-      and(
-        eq(parties.userId, userId),
-        eq(parties.isDeleted, 0),
-        locationId ? eq(parties.locationId, Number(locationId)) : sql`1=1`,
-        partyType ? eq(parties.partyType, String(partyType)) : sql`1=1`,
-        search ? sql`LOWER(${parties.name}) LIKE LOWER(${'%' + search + '%'})` : sql`1=1`
-      )
+      and(...conditions)
     ).orderBy(desc(parties.createdAt));
 
-    // Calculate outstanding balances for each party
-    const enrichedParties = await Promise.all(partyList.map(async (party) => {
-      // 1. Invoices balance (Receivables)
-      const invQuery = await db.select({
-        total: sql<string>`sum(${invoices.totalAmount})`,
-        paid: sql<string>`sum(${invoices.paidAmount})`,
-        balance: sql<string>`sum(${invoices.balanceAmount})`,
-      }).from(invoices).where(
-        and(
-          eq(invoices.userId, userId),
-          eq(invoices.partyName, party.name),
-          eq(invoices.isDeleted, 0)
-        )
-      );
+    // Batch aggregate calculations in 3 queries instead of 3 * N queries
+    const [invoiceAgg, supplyAgg, purchaseAgg] = await Promise.all([
+      db.select({
+        partyName: invoices.partyName,
+        total: sql<string>`COALESCE(sum(CAST(${invoices.totalAmount} AS NUMERIC)), 0)`,
+        paid: sql<string>`COALESCE(sum(CAST(${invoices.paidAmount} AS NUMERIC)), 0)`,
+        balance: sql<string>`COALESCE(sum(CAST(${invoices.balanceAmount} AS NUMERIC)), 0)`,
+      })
+      .from(invoices)
+      .where(and(eq(invoices.userId, userId), eq(invoices.isDeleted, 0), eq(invoices.isVoid, 0)))
+      .groupBy(invoices.partyName),
 
-      // 2. Material supplies balance (Receivables from location supply tab)
-      const supQuery = await db.select({
-        total: sql<string>`sum(${materialSupplies.totalAmount})`,
-        paid: sql<string>`sum(${materialSupplies.paidAmount})`,
-        out: sql<string>`sum(${materialSupplies.outstandingAmount})`,
-      }).from(materialSupplies).where(
-        and(
-          eq(materialSupplies.userId, userId),
-          eq(materialSupplies.partyName, party.name),
-          eq(materialSupplies.isDeleted, 0)
-        )
-      );
+      db.select({
+        partyName: materialSupplies.partyName,
+        total: sql<string>`COALESCE(sum(CAST(${materialSupplies.totalAmount} AS NUMERIC)), 0)`,
+        paid: sql<string>`COALESCE(sum(CAST(${materialSupplies.paidAmount} AS NUMERIC)), 0)`,
+        balance: sql<string>`COALESCE(sum(CAST(${materialSupplies.outstandingAmount} AS NUMERIC)), 0)`,
+      })
+      .from(materialSupplies)
+      .where(and(eq(materialSupplies.userId, userId), eq(materialSupplies.isDeleted, 0), eq(materialSupplies.isVoid, 0)))
+      .groupBy(materialSupplies.partyName),
 
-      // 3. Material purchases balance (Payables to suppliers)
-      const purQuery = await db.select({
-        total: sql<string>`sum(${materialPurchases.totalAmount})`,
-        paid: sql<string>`sum(${materialPurchases.paidAmount})`,
-        out: sql<string>`sum(${materialPurchases.outstandingAmount})`,
-      }).from(materialPurchases).where(
-        and(
-          eq(materialPurchases.userId, userId),
-          eq(materialPurchases.partyName, party.name),
-          eq(materialPurchases.isDeleted, 0)
-        )
-      );
+      db.select({
+        partyName: materialPurchases.partyName,
+        total: sql<string>`COALESCE(sum(CAST(${materialPurchases.totalAmount} AS NUMERIC)), 0)`,
+        paid: sql<string>`COALESCE(sum(CAST(${materialPurchases.paidAmount} AS NUMERIC)), 0)`,
+        balance: sql<string>`COALESCE(sum(CAST(${materialPurchases.outstandingAmount} AS NUMERIC)), 0)`,
+      })
+      .from(materialPurchases)
+      .where(and(eq(materialPurchases.userId, userId), eq(materialPurchases.isDeleted, 0), eq(materialPurchases.isVoid, 0)))
+      .groupBy(materialPurchases.partyName),
+    ]);
 
-      const invBal = parseFloat(invQuery[0]?.balance || '0');
-      const supOut = parseFloat(supQuery[0]?.out || '0');
-      const purOut = parseFloat(purQuery[0]?.out || '0');
+    const invMap = new Map(invoiceAgg.map(r => [r.partyName?.toLowerCase(), parseFloat(r.balance || '0')]));
+    const supMap = new Map(supplyAgg.map(r => [r.partyName?.toLowerCase(), parseFloat(r.balance || '0')]));
+    const purMap = new Map(purchaseAgg.map(r => [r.partyName?.toLowerCase(), parseFloat(r.balance || '0')]));
+
+    const enrichedParties = partyList.map((party) => {
+      const pKey = party.name.toLowerCase();
+      const invBal = invMap.get(pKey) || 0;
+      const supOut = supMap.get(pKey) || 0;
+      const purOut = purMap.get(pKey) || 0;
+
       const opBal = parseFloat(party.openingBalance || '0');
       const opReceivable = party.openingBalanceType === 'TO_RECEIVE' ? opBal : 0;
       const opPayable = party.openingBalanceType === 'TO_PAY' ? opBal : 0;
 
-      const totalReceivable = invBal + supOut + opReceivable;
-      const totalPayable = purOut + opPayable;
-      const netOutstanding = totalReceivable - totalPayable; // positive means they owe us, negative means we owe them
+      const totalReceivable = DecimalMath.add(invBal, supOut, opReceivable);
+      const totalPayable = DecimalMath.add(purOut, opPayable);
+      const netOutstanding = DecimalMath.sub(totalReceivable, totalPayable);
 
       return {
         ...party,
-        totalReceivable: Math.round(totalReceivable * 100) / 100,
-        totalPayable: Math.round(totalPayable * 100) / 100,
-        netOutstanding: Math.round(netOutstanding * 100) / 100,
-        currentBalance: Math.abs(Math.round(netOutstanding * 100) / 100).toFixed(2),
+        totalReceivable,
+        totalPayable,
+        netOutstanding,
+        currentBalance: Math.abs(netOutstanding).toFixed(2),
         currentBalanceType: netOutstanding > 0 ? 'TO_RECEIVE' : netOutstanding < 0 ? 'TO_PAY' : 'SETTLED',
       };
-    }));
+    });
 
     res.json(enrichedParties);
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to fetch parties:', err);
-    res.status(500).json({ error: "Failed to fetch parties" });
+    res.status(500).json({ error: err.message || 'Failed to fetch parties' });
   }
 });
 
@@ -116,18 +145,18 @@ masterRouter.get('/parties/:id/ledger', async (req: AuthRequest, res: Response) 
     const partyId = parseInt(String(req.params.id), 10);
     if (isNaN(partyId)) return res.status(400).json({ error: 'Valid party ID required' });
 
-    const partyRes = await db.select().from(parties).where(
+    const [party] = await db.select().from(parties).where(
       and(eq(parties.id, partyId), eq(parties.userId, userId), eq(parties.isDeleted, 0))
     );
-    if (partyRes.length === 0) return res.status(404).json({ error: 'Party not found' });
-    const party = partyRes[0];
+    if (!party) return res.status(404).json({ error: 'Party not found' });
 
     // Fetch all transactions involving this party
-    const [invList, supList, purList, payList] = await Promise.all([
-      db.select().from(invoices).where(and(eq(invoices.userId, userId), eq(invoices.partyName, party.name), eq(invoices.isDeleted, 0))),
-      db.select().from(materialSupplies).where(and(eq(materialSupplies.userId, userId), eq(materialSupplies.partyName, party.name), eq(materialSupplies.isDeleted, 0))),
-      db.select().from(materialPurchases).where(and(eq(materialPurchases.userId, userId), eq(materialPurchases.partyName, party.name), eq(materialPurchases.isDeleted, 0))),
-      db.select().from(payments).where(and(eq(payments.userId, userId), eq(payments.partyName, party.name), eq(payments.isDeleted, 0))),
+    const [invList, supList, purList, payList, notesList] = await Promise.all([
+      db.select().from(invoices).where(and(eq(invoices.userId, userId), eq(invoices.partyName, party.name), eq(invoices.isDeleted, 0), eq(invoices.isVoid, 0))),
+      db.select().from(materialSupplies).where(and(eq(materialSupplies.userId, userId), eq(materialSupplies.partyName, party.name), eq(materialSupplies.isDeleted, 0), eq(materialSupplies.isVoid, 0))),
+      db.select().from(materialPurchases).where(and(eq(materialPurchases.userId, userId), eq(materialPurchases.partyName, party.name), eq(materialPurchases.isDeleted, 0), eq(materialPurchases.isVoid, 0))),
+      db.select().from(payments).where(and(eq(payments.userId, userId), eq(payments.partyName, party.name), eq(payments.isDeleted, 0), eq(payments.isReversed, 0))),
+      db.select().from(creditDebitNotes).where(and(eq(creditDebitNotes.userId, userId), eq(creditDebitNotes.partyId, party.id), eq(creditDebitNotes.isVoid, 0))),
     ]);
 
     type LedgerEntry = {
@@ -135,8 +164,8 @@ masterRouter.get('/parties/:id/ledger', async (req: AuthRequest, res: Response) 
       type: string;
       voucherNo: string;
       description: string;
-      debit: number;  // increases what they owe us (Sales, Supplies)
-      credit: number; // decreases what they owe us (Receipts, Purchases)
+      debit: number;  // Increases what party owes us
+      credit: number; // Decreases what party owes us / increases what we owe
     };
 
     const entries: LedgerEntry[] = [];
@@ -145,16 +174,16 @@ masterRouter.get('/parties/:id/ledger', async (req: AuthRequest, res: Response) 
     const opBal = parseFloat(party.openingBalance || '0');
     if (opBal > 0) {
       entries.push({
-        date: party.createdAt ? new Date(party.createdAt).toISOString().split('T')[0] : '2025-01-01',
+        date: party.createdAt ? new Date(party.createdAt).toISOString().split('T')[0] : '2025-04-01',
         type: 'Opening Balance',
         voucherNo: 'OP-BAL',
-        description: 'Opening Balance',
+        description: `Opening Balance (${party.openingBalanceType === 'TO_RECEIVE' ? 'Receivable' : 'Payable'})`,
         debit: party.openingBalanceType === 'TO_RECEIVE' ? opBal : 0,
         credit: party.openingBalanceType === 'TO_PAY' ? opBal : 0,
       });
     }
 
-    // Invoices (Debit - Sale)
+    // Invoices (Debit)
     invList.forEach(inv => {
       entries.push({
         date: inv.invoiceDate,
@@ -166,7 +195,7 @@ masterRouter.get('/parties/:id/ledger', async (req: AuthRequest, res: Response) 
       });
     });
 
-    // Material Supplies (Debit - Sale)
+    // Material Supplies (Debit)
     supList.forEach(sup => {
       entries.push({
         date: sup.date,
@@ -178,7 +207,7 @@ masterRouter.get('/parties/:id/ledger', async (req: AuthRequest, res: Response) 
       });
     });
 
-    // Material Purchases (Credit - We owe them)
+    // Material Purchases (Credit)
     purList.forEach(pur => {
       entries.push({
         date: pur.date,
@@ -190,7 +219,7 @@ masterRouter.get('/parties/:id/ledger', async (req: AuthRequest, res: Response) 
       });
     });
 
-    // Payments (Payment In = Credit reducing receivable; Payment Out = Debit reducing payable)
+    // Payments
     payList.forEach(pay => {
       const amt = parseFloat(pay.amount || '0');
       if (pay.paymentType === 'PAYMENT_IN') {
@@ -214,29 +243,57 @@ masterRouter.get('/parties/:id/ledger', async (req: AuthRequest, res: Response) 
       }
     });
 
-    // Sort entries chronologically
+    // Credit / Debit Notes
+    notesList.forEach(note => {
+      const amt = parseFloat(note.totalAmount || '0');
+      if (note.noteType === 'CREDIT_NOTE') {
+        entries.push({
+          date: note.noteDate,
+          type: 'Credit Note',
+          voucherNo: note.noteNumber,
+          description: note.reason,
+          debit: 0,
+          credit: amt,
+        });
+      } else {
+        entries.push({
+          date: note.noteDate,
+          type: 'Debit Note',
+          voucherNo: note.noteNumber,
+          description: note.reason,
+          debit: amt,
+          credit: 0,
+        });
+      }
+    });
+
+    // Chronological sorting
     entries.sort((a, b) => a.date.localeCompare(b.date));
 
-    // Calculate running balance
+    // Running balance
     let runningBalance = 0;
     const ledgerWithRunningBalance = entries.map(entry => {
-      runningBalance += (entry.debit - entry.credit);
+      runningBalance = DecimalMath.sub(DecimalMath.add(runningBalance, entry.debit), entry.credit);
       return {
         ...entry,
-        runningBalance: Math.round(runningBalance * 100) / 100,
+        runningBalance,
       };
     });
+
+    const totalDebit = entries.reduce((s, e) => DecimalMath.add(s, e.debit), 0);
+    const totalCredit = entries.reduce((s, e) => DecimalMath.add(s, e.credit), 0);
 
     res.json({
       party,
       ledger: ledgerWithRunningBalance,
-      totalDebit: entries.reduce((s, e) => s + e.debit, 0),
-      totalCredit: entries.reduce((s, e) => s + e.credit, 0),
-      closingBalance: Math.round(runningBalance * 100) / 100,
+      totalDebit,
+      totalCredit,
+      closingBalance: runningBalance,
+      closingBalanceType: runningBalance > 0 ? 'TO_RECEIVE' : runningBalance < 0 ? 'TO_PAY' : 'SETTLED',
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to generate ledger:', err);
-    res.status(500).json({ error: 'Failed to generate party ledger' });
+    res.status(500).json({ error: err.message || 'Failed to generate party ledger' });
   }
 });
 
@@ -246,34 +303,39 @@ masterRouter.post('/parties', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser!.id;
     const data = partySchema.parse(req.body);
 
-    const inserted = await db.insert(parties).values({
+    const [inserted] = await db.insert(parties).values({
       userId,
+      businessId: data.businessId || req.businessId || null,
       locationId: data.locationId || null,
-      name: data.name,
+      name: data.name.trim(),
       partyType: data.partyType,
       phone: data.phone || null,
       email: data.email || null,
-      pan: data.pan || null,
+      pan: data.pan ? data.pan.toUpperCase() : null,
       state: data.state || 'Gujarat',
       stateCode: data.stateCode || '24',
       address: data.address || null,
-      gst: data.gst || null,
+      gst: data.gst ? data.gst.toUpperCase() : null,
       openingBalance: data.openingBalance.toString(),
       openingBalanceType: data.openingBalanceType,
+      creditLimit: data.creditLimit.toString(),
+      paymentTermsDays: data.paymentTermsDays,
       notes: data.notes || null,
     }).returning();
 
     await db.insert(auditLogs).values({
       userId,
-      action: 'CREATE_PARTY',
+      businessId: inserted.businessId,
+      locationId: inserted.locationId,
+      action: 'CREATE',
       entityType: 'PARTY',
-      entityId: inserted[0].id,
-      metadata: JSON.stringify({ name: data.name, partyType: data.partyType })
+      entityId: inserted.id,
+      afterState: JSON.stringify(inserted),
     });
 
-    res.status(201).json(inserted[0]);
+    res.status(201).json(inserted);
   } catch (err: any) {
-    res.status(400).json({ error: err?.message || "Failed to create party" });
+    res.status(400).json({ error: err?.message || 'Failed to create party' });
   }
 });
 
@@ -284,27 +346,46 @@ masterRouter.put('/parties/:id', async (req: AuthRequest, res: Response) => {
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid party ID' });
 
+    const [existing] = await db.select().from(parties).where(
+      and(eq(parties.id, id), eq(parties.userId, userId), eq(parties.isDeleted, 0))
+    );
+    if (!existing) return res.status(404).json({ error: 'Party not found' });
+
     const data = partySchema.parse(req.body);
 
-    const updated = await db.update(parties).set({
-      name: data.name,
+    const [updated] = await db.update(parties).set({
+      businessId: data.businessId !== undefined ? data.businessId : existing.businessId,
+      locationId: data.locationId !== undefined ? data.locationId : existing.locationId,
+      name: data.name.trim(),
       partyType: data.partyType,
       phone: data.phone || null,
       email: data.email || null,
-      pan: data.pan || null,
+      pan: data.pan ? data.pan.toUpperCase() : null,
       state: data.state || 'Gujarat',
       stateCode: data.stateCode || '24',
       address: data.address || null,
-      gst: data.gst || null,
+      gst: data.gst ? data.gst.toUpperCase() : null,
       openingBalance: data.openingBalance.toString(),
       openingBalanceType: data.openingBalanceType,
+      creditLimit: data.creditLimit.toString(),
+      paymentTermsDays: data.paymentTermsDays,
       notes: data.notes || null,
     }).where(and(eq(parties.id, id), eq(parties.userId, userId))).returning();
 
-    if (updated.length === 0) return res.status(404).json({ error: 'Party not found' });
-    res.json(updated[0]);
+    await db.insert(auditLogs).values({
+      userId,
+      businessId: updated.businessId,
+      locationId: updated.locationId,
+      action: 'UPDATE',
+      entityType: 'PARTY',
+      entityId: id,
+      beforeState: JSON.stringify(existing),
+      afterState: JSON.stringify(updated),
+    });
+
+    res.json(updated);
   } catch (err: any) {
-    res.status(400).json({ error: err?.message || "Failed to update party" });
+    res.status(400).json({ error: err?.message || 'Failed to update party' });
   }
 });
 
@@ -315,20 +396,154 @@ masterRouter.delete('/parties/:id', async (req: AuthRequest, res: Response) => {
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid party ID' });
 
+    const [existing] = await db.select().from(parties).where(
+      and(eq(parties.id, id), eq(parties.userId, userId), eq(parties.isDeleted, 0))
+    );
+    if (!existing) return res.status(404).json({ error: 'Party not found' });
+
     await db.update(parties)
       .set({ isDeleted: 1 })
       .where(and(eq(parties.id, id), eq(parties.userId, userId)));
 
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete party" });
+    await db.insert(auditLogs).values({
+      userId,
+      businessId: existing.businessId,
+      locationId: existing.locationId,
+      action: 'DELETE',
+      entityType: 'PARTY',
+      entityId: id,
+      beforeState: JSON.stringify(existing),
+    });
+
+    res.json({ success: true, message: 'Party deleted successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to delete party' });
   }
 });
 
-// Teams
+// --- TAX RATES CRUD ---
+
+// GET /api/master/tax-rates - List tax rates (seeds defaults if empty)
+masterRouter.get('/tax-rates', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser!.id;
+    const businessId = req.query.businessId ? parseInt(String(req.query.businessId), 10) : req.businessId;
+
+    let rates = await db.select().from(taxRates).where(
+      and(
+        eq(taxRates.userId, userId),
+        eq(taxRates.isDeleted, 0),
+        businessId ? or(eq(taxRates.businessId, businessId), sql`${taxRates.businessId} IS NULL`) : sql`1=1`
+      )
+    ).orderBy(taxRates.gstRate);
+
+    // Auto-seed standard Indian GST rates if table has zero entries for user
+    if (rates.length === 0) {
+      const defaultRates = [
+        { name: 'GST 0% (Exempt)', gstRate: '0.00', cgstRate: '0.00', sgstRate: '0.00', igstRate: '0.00', isDefault: 0 },
+        { name: 'GST 5%', gstRate: '5.00', cgstRate: '2.50', sgstRate: '2.50', igstRate: '5.00', isDefault: 0 },
+        { name: 'GST 12%', gstRate: '12.00', cgstRate: '6.00', sgstRate: '6.00', igstRate: '12.00', isDefault: 0 },
+        { name: 'GST 18%', gstRate: '18.00', cgstRate: '9.00', sgstRate: '9.00', igstRate: '18.00', isDefault: 1 },
+        { name: 'GST 28%', gstRate: '28.00', cgstRate: '14.00', sgstRate: '14.00', igstRate: '28.00', isDefault: 0 },
+      ];
+
+      for (const dr of defaultRates) {
+        await db.insert(taxRates).values({
+          userId,
+          businessId: businessId || null,
+          name: dr.name,
+          gstRate: dr.gstRate,
+          cgstRate: dr.cgstRate,
+          sgstRate: dr.sgstRate,
+          igstRate: dr.igstRate,
+          cessRate: '0.00',
+          isDefault: dr.isDefault,
+        });
+      }
+
+      rates = await db.select().from(taxRates).where(
+        and(eq(taxRates.userId, userId), eq(taxRates.isDeleted, 0))
+      ).orderBy(taxRates.gstRate);
+    }
+
+    res.json(rates);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch tax rates' });
+  }
+});
+
+// POST /api/master/tax-rates - Create tax rate
+masterRouter.post('/tax-rates', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser!.id;
+    const data = taxRateSchema.parse(req.body);
+
+    const [inserted] = await db.insert(taxRates).values({
+      userId,
+      businessId: data.businessId || req.businessId || null,
+      name: data.name.trim(),
+      gstRate: data.gstRate.toFixed(2),
+      cgstRate: data.cgstRate.toFixed(2),
+      sgstRate: data.sgstRate.toFixed(2),
+      igstRate: data.igstRate.toFixed(2),
+      cessRate: data.cessRate.toFixed(2),
+      isDefault: data.isDefault,
+    }).returning();
+
+    res.status(201).json(inserted);
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || 'Failed to create tax rate' });
+  }
+});
+
+// PUT /api/master/tax-rates/:id - Update tax rate
+masterRouter.put('/tax-rates/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser!.id;
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const data = taxRateSchema.parse(req.body);
+
+    const [updated] = await db.update(taxRates).set({
+      name: data.name.trim(),
+      gstRate: data.gstRate.toFixed(2),
+      cgstRate: data.cgstRate.toFixed(2),
+      sgstRate: data.sgstRate.toFixed(2),
+      igstRate: data.igstRate.toFixed(2),
+      cessRate: data.cessRate.toFixed(2),
+      isDefault: data.isDefault,
+    }).where(and(eq(taxRates.id, id), eq(taxRates.userId, userId))).returning();
+
+    if (!updated) return res.status(404).json({ error: 'Tax rate not found' });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || 'Failed to update tax rate' });
+  }
+});
+
+// DELETE /api/master/tax-rates/:id - Delete tax rate
+masterRouter.delete('/tax-rates/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser!.id;
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+
+    await db.update(taxRates).set({ isDeleted: 1 }).where(
+      and(eq(taxRates.id, id), eq(taxRates.userId, userId))
+    );
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to delete tax rate' });
+  }
+});
+
+// --- TEAMS CRUD ---
+
 masterRouter.get('/teams', async (req: AuthRequest, res: Response) => {
   try {
-    const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
+    const locationId = req.query.locationId ? parseInt(String(req.query.locationId), 10) : undefined;
     const records = await db.select().from(labourTeams).where(
       and(
         eq(labourTeams.userId, req.dbUser!.id),
@@ -337,20 +552,32 @@ masterRouter.get('/teams', async (req: AuthRequest, res: Response) => {
       )
     );
     res.json(records);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch teams" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch teams' });
   }
 });
 
 masterRouter.post('/teams', async (req: AuthRequest, res: Response) => {
   try {
     const { name, locationId } = req.body;
-    if (!name || !locationId) return res.status(400).json({ error: "Name and Location ID required" });
-    const inserted = await db.insert(labourTeams).values({ name, locationId, userId: req.dbUser!.id }).returning();
-    await db.insert(auditLogs).values({ userId: req.dbUser!.id, action: 'CREATE_TEAM', entityType: 'TEAM', entityId: inserted[0].id, metadata: JSON.stringify({ name, locationId }) });
-    res.status(201).json(inserted[0]);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to create team" });
+    if (!name || !locationId) return res.status(400).json({ error: 'Name and Location ID required' });
+    const [inserted] = await db.insert(labourTeams).values({
+      name: String(name).trim(),
+      locationId: Number(locationId),
+      userId: req.dbUser!.id
+    }).returning();
+
+    await db.insert(auditLogs).values({
+      userId: req.dbUser!.id,
+      action: 'CREATE',
+      entityType: 'TEAM',
+      entityId: inserted.id,
+      afterState: JSON.stringify(inserted),
+    });
+
+    res.status(201).json(inserted);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to create team' });
   }
 });
 

@@ -1,15 +1,24 @@
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../middleware/auth.ts';
 import { createRecordSchema, updateRecordSchema } from '../validators/record.validator.ts';
-import { getRecords, getAllRecords, getRecordMetrics, createRecord, updateRecord, deleteRecord } from '../../db/records.ts';
+import { getRecords, getAllRecords, getRecordMetrics, createRecord, updateRecord, deleteRecord, recordRefund } from '../../db/records.ts';
+import { z } from 'zod';
 
 const recordRouter = Router();
-
 recordRouter.use(requireAuth);
+
+const refundSchema = z.object({
+  amount: z.coerce.number().positive('Refund amount must be greater than 0'),
+  refundDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  paymentMethod: z.string().default('CASH'),
+  referenceNumber: z.string().optional().default(''),
+  notes: z.string().optional().default(''),
+});
 
 recordRouter.get('/all', async (req: AuthRequest, res: Response) => {
   try {
     const filters = {
+      businessId: req.businessId,
       startDate: req.query.startDate as string,
       endDate: req.query.endDate as string,
       type: req.query.type as 'INCOME' | 'EXPENSE' | undefined,
@@ -31,6 +40,7 @@ recordRouter.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     const filters = {
+      businessId: req.businessId,
       startDate: req.query.startDate as string,
       endDate: req.query.endDate as string,
       type: req.query.type as 'INCOME' | 'EXPENSE' | undefined,
@@ -46,12 +56,11 @@ recordRouter.get('/', async (req: AuthRequest, res: Response) => {
 
 recordRouter.get('/metrics', async (req: AuthRequest, res: Response) => {
   try {
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) {
-      return res.status(400).json({ error: 'locationId query parameter is required' });
-    }
+    const locationIdParam = req.query.locationId as string;
+    const locationId = locationIdParam && locationIdParam !== 'all' ? parseInt(locationIdParam, 10) : undefined;
+    const businessId = req.businessId;
 
-    const metrics = await getRecordMetrics(req.dbUser!.id, locationId);
+    const metrics = await getRecordMetrics(req.dbUser!.id, locationId, businessId);
     res.json(metrics);
   } catch (error) {
     console.error('Failed to fetch metrics:', error);
@@ -62,7 +71,8 @@ recordRouter.get('/metrics', async (req: AuthRequest, res: Response) => {
 recordRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const data = createRecordSchema.parse(req.body);
-    const record = await createRecord(req.dbUser!.id, data);
+    const businessId = data.businessId || req.businessId;
+    const record = await createRecord(req.dbUser!.id, { ...data, businessId });
     res.status(201).json(record);
   } catch (error: any) {
     if (error.name === 'ZodError') throw error;
@@ -71,9 +81,23 @@ recordRouter.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// POST /api/records/:id/refund - Record refund against refundable expense
+recordRouter.post('/:id/refund', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Valid ID required' });
+    const data = refundSchema.parse(req.body);
+
+    const result = await recordRefund(req.dbUser!.id, id, data);
+    res.status(201).json(result);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Failed to record refund' });
+  }
+});
+
 recordRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id as string, 10);
+    const id = parseInt(String(req.params.id), 10);
     const data = updateRecordSchema.parse(req.body);
     
     const record = await updateRecord(req.dbUser!.id, id, data);
@@ -90,7 +114,7 @@ recordRouter.put('/:id', async (req: AuthRequest, res: Response) => {
 
 recordRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id as string, 10);
+    const id = parseInt(String(req.params.id), 10);
     const record = await deleteRecord(req.dbUser!.id, id);
     if (!record) {
       return res.status(404).json({ error: 'Record not found' });

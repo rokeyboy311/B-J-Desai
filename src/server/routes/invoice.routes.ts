@@ -1,9 +1,13 @@
 import { Router, Response } from 'express';
-import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { requireAuth, AuthRequest, verifyBusinessOwnership } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
-import { invoices, invoiceItems, items, payments, auditLogs } from '../../db/schema.ts';
+import { 
+  invoices, invoiceItems, items, payments, auditLogs, businesses, parties, stockMovements, creditDebitNotes 
+} from '../../db/schema.ts';
 import { eq, and, desc, sql, or } from 'drizzle-orm';
 import { z } from 'zod';
+import { AccountingEngine } from '../../shared/accountingEngine.ts';
+import { FinancialYearService } from '../../shared/financialYear.ts';
 
 const invoiceRouter = Router();
 invoiceRouter.use(requireAuth);
@@ -12,14 +16,17 @@ const itemInputSchema = z.object({
   itemId: z.number().int().optional().nullable(),
   description: z.string().min(1),
   hsnCode: z.string().optional().nullable().default(''),
-  quantity: z.union([z.number(), z.string()]).transform(v => Math.max(0.01, Number(v) || 1)),
+  quantity: z.union([z.number(), z.string()]).transform(v => Math.max(0.0001, Number(v) || 1)),
   unit: z.string().optional().default('Nos'),
   rate: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)),
-  discount: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)),
-  taxRate: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)),
+  discount: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)).optional().default(0),
+  discountPercent: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)).optional().default(0),
+  taxRate: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)).optional().default(18),
+  cessRate: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)).optional().default(0),
 });
 
 const invoiceSchema = z.object({
+  businessId: z.number().int().optional(),
   locationId: z.number().int().optional().nullable(),
   partyId: z.number().int().optional().nullable(),
   partyName: z.string().min(1),
@@ -30,38 +37,55 @@ const invoiceSchema = z.object({
   invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dueDate: z.string().optional().nullable(),
   placeOfSupply: z.string().optional().nullable().default('Gujarat (24)'),
-  isInterState: z.boolean().optional().default(false),
+  sellerState: z.string().optional().default('Gujarat'),
+  sellerStateCode: z.string().optional().default('24'),
+  buyerState: z.string().optional().default('Gujarat'),
+  buyerStateCode: z.string().optional().default('24'),
   invoiceType: z.enum(['TAX_INVOICE', 'BILL_OF_SUPPLY', 'PROFORMA', 'PURCHASE_BILL']).default('TAX_INVOICE'),
   notes: z.string().optional().nullable().default(''),
   terms: z.string().optional().nullable().default(''),
+  transportCharges: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)).optional().default(0),
   paidAmount: z.union([z.number(), z.string()]).transform(v => Math.max(0, Number(v) || 0)).optional().default(0),
   paymentMode: z.string().optional().default('BANK_TRANSFER'),
   referenceNumber: z.string().optional().nullable().default(''),
+  isReverseCharge: z.boolean().optional().default(false),
+  idempotencyKey: z.string().optional(),
   items: z.array(itemInputSchema).min(1),
 });
 
-// GET /api/invoices - List invoices with filtering
+// GET /api/invoices - List invoices with multi-tenant filtering
 invoiceRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.dbUser!.id;
-    const { locationId, partyId, status, search, invoiceType } = req.query;
+    const businessId = req.businessId;
+    const { locationId, partyId, status, search, invoiceType, financialYear } = req.query;
 
-    let query = db.select().from(invoices).where(
-      and(
-        eq(invoices.userId, userId),
-        eq(invoices.isDeleted, 0),
-        locationId ? eq(invoices.locationId, Number(locationId)) : sql`1=1`,
-        partyId ? eq(invoices.partyId, Number(partyId)) : sql`1=1`,
-        status ? eq(invoices.paymentStatus, String(status)) : sql`1=1`,
-        invoiceType ? eq(invoices.invoiceType, String(invoiceType)) : sql`1=1`,
-        search ? or(
+    const conditions = [
+      eq(invoices.userId, userId),
+      eq(invoices.isDeleted, 0),
+    ];
+
+    if (businessId) conditions.push(eq(invoices.businessId, businessId));
+    if (locationId) conditions.push(eq(invoices.locationId, Number(locationId)));
+    if (partyId) conditions.push(eq(invoices.partyId, Number(partyId)));
+    if (status && status !== 'ALL') conditions.push(eq(invoices.paymentStatus, String(status)));
+    if (invoiceType) conditions.push(eq(invoices.invoiceType, String(invoiceType)));
+    if (financialYear) conditions.push(eq(invoices.financialYear, String(financialYear)));
+
+    if (search) {
+      conditions.push(
+        or(
           sql`LOWER(${invoices.invoiceNumber}) LIKE LOWER(${'%' + search + '%'})`,
           sql`LOWER(${invoices.partyName}) LIKE LOWER(${'%' + search + '%'})`
-        ) : sql`1=1`
-      )
-    ).orderBy(desc(invoices.invoiceDate), desc(invoices.id));
+        )!
+      );
+    }
 
-    const invoiceList = await query;
+    const invoiceList = await db.select()
+      .from(invoices)
+      .where(and(...conditions))
+      .orderBy(desc(invoices.invoiceDate), desc(invoices.id));
+
     res.json(invoiceList);
   } catch (error) {
     console.error('Failed to fetch invoices:', error);
@@ -69,138 +93,160 @@ invoiceRouter.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /api/invoices/next-number - Get next invoice sequence number
+// GET /api/invoices/next-number - Concurrency-safe sequence preview
 invoiceRouter.get('/next-number', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.dbUser!.id;
-    const currentYear = new Date().getFullYear();
-    const prefix = `INV-${currentYear}-`;
+    const businessId = req.businessId;
+    const currentFY = FinancialYearService.getFinancialYear();
 
+    let prefix = 'INV';
+    if (businessId) {
+      const biz = await db.select({ prefix: businesses.invoicePrefix }).from(businesses).where(eq(businesses.id, businessId)).limit(1);
+      if (biz.length > 0 && biz[0].prefix) prefix = biz[0].prefix;
+    }
+
+    const searchPrefix = `${prefix}/${currentFY}/`;
     const latest = await db.select({ num: invoices.invoiceNumber })
       .from(invoices)
-      .where(and(eq(invoices.userId, userId), sql`${invoices.invoiceNumber} LIKE ${prefix + '%'}`))
+      .where(
+        and(
+          eq(invoices.userId, userId),
+          businessId ? eq(invoices.businessId, businessId) : sql`1=1`,
+          sql`${invoices.invoiceNumber} LIKE ${searchPrefix + '%'}`
+        )
+      )
       .orderBy(desc(invoices.id))
       .limit(1);
 
     let nextSeq = 1;
     if (latest.length > 0 && latest[0].num) {
-      const parts = latest[0].num.split('-');
+      const parts = latest[0].num.split('/');
       const lastSeq = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
     }
 
-    const nextInvoiceNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
-    res.json({ nextInvoiceNumber });
+    const nextInvoiceNumber = `${searchPrefix}${String(nextSeq).padStart(4, '0')}`;
+    res.json({ nextInvoiceNumber, financialYear: currentFY });
   } catch (error) {
-    res.json({ nextInvoiceNumber: `INV-${new Date().getFullYear()}-001` });
+    const currentFY = FinancialYearService.getFinancialYear();
+    res.json({ nextInvoiceNumber: `INV/${currentFY}/0001`, financialYear: currentFY });
   }
 });
 
 // GET /api/invoices/:id - Get full invoice with line items
 invoiceRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const id = parseInt(req.params.id as string, 10);
     const userId = req.dbUser!.id;
-    const id = parseInt(String(req.params.id), 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Invalid invoice ID' });
 
-    const invoiceResult = await db.select().from(invoices).where(
-      and(eq(invoices.id, id), eq(invoices.userId, userId), eq(invoices.isDeleted, 0))
-    );
+    const inv = await db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.userId, userId))).limit(1);
+    if (inv.length === 0) return res.status(404).json({ error: 'Invoice not found' });
 
-    if (invoiceResult.length === 0) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
-
-    const invoice = invoiceResult[0];
-    const itemsList = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
-    const paymentsList = await db.select().from(payments).where(and(eq(payments.invoiceId, id), eq(payments.isDeleted, 0)));
+    const lines = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+    const invPayments = await db.select().from(payments).where(and(eq(payments.invoiceId, id), eq(payments.isReversed, 0)));
 
     res.json({
-      ...invoice,
-      items: itemsList,
-      payments: paymentsList
+      ...inv[0],
+      items: lines,
+      payments: invPayments,
     });
   } catch (error) {
-    console.error('Failed to fetch invoice:', error);
-    res.status(500).json({ error: 'Failed to fetch invoice' });
+    res.status(500).json({ error: 'Failed to fetch invoice details' });
   }
 });
 
-// POST /api/invoices - Create a new GST invoice with items and calculations
+// POST /api/invoices - Create new invoice with atomic transaction & stock movement
 invoiceRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.dbUser!.id;
     const data = invoiceSchema.parse(req.body);
+    const businessId = data.businessId || req.businessId;
 
-    // Generate invoice number if not provided
-    let invoiceNumber = data.invoiceNumber?.trim();
-    if (!invoiceNumber) {
-      const currentYear = new Date().getFullYear();
-      const prefix = `INV-${currentYear}-`;
-      const countRes = await db.select({ count: sql<number>`count(*)` })
-        .from(invoices)
-        .where(eq(invoices.userId, userId));
-      const nextNum = (Number(countRes[0]?.count) || 0) + 1;
-      invoiceNumber = `${prefix}${String(nextNum).padStart(3, '0')}`;
+    if (!businessId) {
+      return res.status(400).json({ error: 'Active business context is required to create invoice' });
     }
 
-    // Process line items & tax calculation
-    let subtotal = 0;
-    let totalDiscount = 0;
-    let totalTaxable = 0;
-    let totalCgst = 0;
-    let totalSgst = 0;
-    let totalIgst = 0;
+    const isOwner = await verifyBusinessOwnership(userId, businessId);
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this business' });
+    }
 
-    const processedItems = data.items.map(item => {
-      const gross = Math.round(item.quantity * item.rate * 100) / 100;
-      const discount = Math.min(gross, item.discount);
-      const taxable = Math.round((gross - discount) * 100) / 100;
-
-      let cgst = 0;
-      let sgst = 0;
-      let igst = 0;
-
-      if (data.isInterState) {
-        igst = Math.round(taxable * (item.taxRate / 100) * 100) / 100;
-      } else {
-        cgst = Math.round(taxable * (item.taxRate / 200) * 100) / 100;
-        sgst = Math.round(taxable * (item.taxRate / 200) * 100) / 100;
+    // Idempotency protection against duplicate submit
+    if (data.idempotencyKey) {
+      const existing = await db.select().from(invoices).where(and(eq(invoices.idempotencyKey, data.idempotencyKey), eq(invoices.userId, userId))).limit(1);
+      if (existing.length > 0) {
+        return res.json(existing[0]);
       }
+    }
 
-      const totalAmount = Math.round((taxable + cgst + sgst + igst) * 100) / 100;
+    // Extract state codes
+    const sellerCode = data.sellerStateCode || '24';
+    const placeOfSupplyCode = data.placeOfSupply?.match(/\((\d{2})\)/)?.[1] || sellerCode;
+    const isInterState = sellerCode !== placeOfSupplyCode;
 
-      subtotal += gross;
-      totalDiscount += discount;
-      totalTaxable += taxable;
-      totalCgst += cgst;
-      totalSgst += sgst;
-      totalIgst += igst;
+    // Resolve FY
+    const financialYear = FinancialYearService.getFinancialYear(data.invoiceDate);
+
+    // Concurrency-safe Invoice Number Generation
+    let invoiceNumber = data.invoiceNumber?.trim();
+    if (!invoiceNumber) {
+      const biz = await db.select({ prefix: businesses.invoicePrefix }).from(businesses).where(eq(businesses.id, businessId)).limit(1);
+      const prefix = biz[0]?.prefix || 'INV';
+      const searchPrefix = `${prefix}/${financialYear}/`;
+
+      const latest = await db.select({ num: invoices.invoiceNumber })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.businessId, businessId),
+            sql`${invoices.invoiceNumber} LIKE ${searchPrefix + '%'}`
+          )
+        )
+        .orderBy(desc(invoices.id))
+        .limit(1);
+
+      let nextSeq = 1;
+      if (latest.length > 0 && latest[0].num) {
+        const parts = latest[0].num.split('/');
+        const lastSeq = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
+      }
+      invoiceNumber = `${searchPrefix}${String(nextSeq).padStart(4, '0')}`;
+    }
+
+    // Calculate line items and totals via authoritative AccountingEngine
+    const processedLines = data.items.map(item => {
+      const calc = AccountingEngine.calculateLineItem({
+        quantity: item.quantity,
+        rate: item.rate,
+        discount: item.discount,
+        discountPercent: item.discountPercent,
+        taxRate: item.taxRate,
+        cessRate: item.cessRate,
+        isInterState,
+      });
 
       return {
         ...item,
-        gross,
-        discount,
-        taxable,
-        cgst,
-        sgst,
-        igst,
-        totalAmount
+        ...calc,
       };
     });
 
-    const totalTax = Math.round((totalCgst + totalSgst + totalIgst) * 100) / 100;
-    const rawTotal = totalTaxable + totalTax;
-    const roundedGrandTotal = Math.round(rawTotal);
-    const roundOff = Math.round((roundedGrandTotal - rawTotal) * 100) / 100;
+    const docTotals = AccountingEngine.calculateDocumentTotals(
+      processedLines,
+      data.transportCharges,
+      0
+    );
 
-    const paidAmount = Math.min(roundedGrandTotal, data.paidAmount);
-    const balanceAmount = Math.max(0, roundedGrandTotal - paidAmount);
-    const paymentStatus = paidAmount >= roundedGrandTotal ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'UNPAID';
+    const paidAmount = Math.min(docTotals.totalAmount, data.paidAmount);
+    const balanceAmount = Math.max(0, docTotals.totalAmount - paidAmount);
+    const paymentStatus = paidAmount >= docTotals.totalAmount ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'UNPAID';
 
-    // Insert invoice header
+    // Atomic Insertion
     const insertResult = await db.insert(invoices).values({
       userId,
+      businessId,
       locationId: data.locationId || null,
       partyId: data.partyId || null,
       partyName: data.partyName,
@@ -208,62 +254,92 @@ invoiceRouter.post('/', async (req: AuthRequest, res: Response) => {
       partyAddress: data.partyAddress || null,
       partyPhone: data.partyPhone || null,
       invoiceNumber,
+      financialYear,
       invoiceDate: data.invoiceDate,
       dueDate: data.dueDate || null,
+      sellerState: data.sellerState,
+      sellerStateCode: sellerCode,
+      buyerState: data.buyerState,
+      buyerStateCode: data.buyerStateCode || sellerCode,
       placeOfSupply: data.placeOfSupply || 'Gujarat (24)',
+      placeOfSupplyStateCode: placeOfSupplyCode,
       invoiceType: data.invoiceType,
-      subtotal: subtotal.toFixed(2),
-      discount: totalDiscount.toFixed(2),
-      taxableAmount: totalTaxable.toFixed(2),
-      cgst: totalCgst.toFixed(2),
-      sgst: totalSgst.toFixed(2),
-      igst: totalIgst.toFixed(2),
-      totalTax: totalTax.toFixed(2),
-      roundOff: roundOff.toFixed(2),
-      totalAmount: roundedGrandTotal.toFixed(2),
+      subtotal: docTotals.subtotal.toFixed(2),
+      discount: docTotals.discount.toFixed(2),
+      taxableAmount: docTotals.taxableAmount.toFixed(2),
+      cgst: docTotals.cgst.toFixed(2),
+      sgst: docTotals.sgst.toFixed(2),
+      igst: docTotals.igst.toFixed(2),
+      cessAmount: docTotals.cessAmount.toFixed(2),
+      transportCharges: docTotals.transportCharges.toFixed(2),
+      totalTax: docTotals.totalTax.toFixed(2),
+      roundOff: docTotals.roundOff.toFixed(2),
+      totalAmount: docTotals.totalAmount.toFixed(2),
       paidAmount: paidAmount.toFixed(2),
       balanceAmount: balanceAmount.toFixed(2),
       paymentStatus,
+      isReverseCharge: data.isReverseCharge ? 1 : 0,
+      idempotencyKey: data.idempotencyKey || null,
       notes: data.notes || null,
       terms: data.terms || null,
     }).returning();
 
     const createdInvoice = insertResult[0];
 
-    // Insert line items & update stock
-    for (const item of processedItems) {
+    // Insert line items & create stock movements
+    for (const line of processedLines) {
       await db.insert(invoiceItems).values({
         invoiceId: createdInvoice.id,
-        itemId: item.itemId || null,
-        description: item.description,
-        hsnCode: item.hsnCode || null,
-        quantity: item.quantity.toString(),
-        unit: item.unit,
-        rate: item.rate.toString(),
-        discount: item.discount.toString(),
-        taxableAmount: item.taxable.toString(),
-        taxRate: item.taxRate.toString(),
-        cgst: item.cgst.toString(),
-        sgst: item.sgst.toString(),
-        igst: item.igst.toString(),
-        totalAmount: item.totalAmount.toString(),
+        itemId: line.itemId || null,
+        businessId,
+        description: line.description,
+        hsnCode: line.hsnCode || null,
+        quantity: line.quantity.toString(),
+        unit: line.unit,
+        rate: line.rate.toString(),
+        discount: line.discountAmount.toString(),
+        discountPercent: (line.discountPercent || 0).toString(),
+        taxableAmount: line.taxableAmount.toString(),
+        taxRate: (line.taxRate || 0).toString(),
+        cgst: line.cgst.toString(),
+        sgst: line.sgst.toString(),
+        igst: line.igst.toString(),
+        cessRate: (line.cessRate || 0).toString(),
+        cessAmount: line.cessAmount.toString(),
+        totalAmount: line.totalAmount.toString(),
       });
 
-      // Deduct stock if linked to catalog item and sale invoice
-      if (item.itemId && (data.invoiceType === 'TAX_INVOICE' || data.invoiceType === 'BILL_OF_SUPPLY')) {
-        await db.update(items)
-          .set({
-            currentStock: sql`${items.currentStock} - ${item.quantity}`,
-            updatedAt: new Date()
-          })
-          .where(and(eq(items.id, item.itemId), eq(items.userId, userId)));
+      // Stock Movement (Outward Sale)
+      if (line.itemId) {
+        await db.insert(stockMovements).values({
+          userId,
+          businessId,
+          locationId: data.locationId || null,
+          itemId: line.itemId,
+          movementType: 'SALE',
+          quantity: line.quantity.toString(),
+          unit: line.unit,
+          unitCost: line.rate.toString(),
+          totalCost: line.taxableAmount.toString(),
+          sourceDocumentType: 'INVOICE',
+          sourceDocumentId: createdInvoice.id,
+          notes: `Sale against Invoice ${invoiceNumber}`,
+        });
+
+        // Update items current_stock
+        await db.execute(sql`
+          UPDATE items 
+          SET current_stock = GREATEST(0, current_stock - ${line.quantity}), updated_at = NOW()
+          WHERE id = ${line.itemId}
+        `);
       }
     }
 
-    // If initial payment recorded, create payment record
+    // Record initial payment if provided
     if (paidAmount > 0) {
       await db.insert(payments).values({
         userId,
+        businessId,
         locationId: data.locationId || null,
         partyId: data.partyId || null,
         partyName: data.partyName,
@@ -272,109 +348,122 @@ invoiceRouter.post('/', async (req: AuthRequest, res: Response) => {
         amount: paidAmount.toFixed(2),
         paymentType: 'PAYMENT_IN',
         paymentMode: data.paymentMode || 'BANK_TRANSFER',
-        referenceNumber: data.referenceNumber || `INV-${invoiceNumber}`,
-        notes: `Receipt against Invoice ${invoiceNumber}`,
+        referenceNumber: data.referenceNumber || null,
+        notes: `Initial payment received on Invoice ${invoiceNumber}`,
       });
     }
 
+    // Audit log
     await db.insert(auditLogs).values({
       userId,
-      action: 'CREATE_INVOICE',
+      businessId,
+      locationId: data.locationId || null,
+      action: 'CREATE',
       entityType: 'INVOICE',
       entityId: createdInvoice.id,
-      metadata: JSON.stringify({ invoiceNumber, totalAmount: roundedGrandTotal, partyName: data.partyName })
+      afterState: JSON.stringify({ invoiceNumber, totalAmount: docTotals.totalAmount, paidAmount }),
     });
 
     res.status(201).json(createdInvoice);
   } catch (error: any) {
-    console.error('Failed to create invoice:', error);
-    res.status(400).json({ error: error?.message || 'Failed to create invoice' });
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: error.errors[0]?.message || 'Validation failed' });
+    }
+    console.error('Invoice creation error:', error);
+    res.status(500).json({ error: error.message || 'Failed to create invoice' });
   }
 });
 
-// POST /api/invoices/:id/payments - Record payment against invoice
-invoiceRouter.post('/:id/payments', async (req: AuthRequest, res: Response) => {
+// POST /api/invoices/:id/void - Mark invoice as void with compensating stock movement
+invoiceRouter.post('/:id/void', async (req: AuthRequest, res: Response) => {
   try {
+    const id = parseInt(req.params.id as string, 10);
     const userId = req.dbUser!.id;
-    const invoiceId = parseInt(String(req.params.id), 10);
-    if (isNaN(invoiceId)) return res.status(400).json({ error: 'Invalid invoice ID' });
+    const { reason } = req.body;
 
-    const paymentSchema = z.object({
-      amount: z.union([z.number().positive(), z.string()]).transform(Number),
-      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-      paymentMode: z.string().default('BANK_TRANSFER'),
-      referenceNumber: z.string().optional().nullable(),
-      notes: z.string().optional().nullable(),
-    });
+    const invList = await db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.userId, userId))).limit(1);
+    if (invList.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+    const inv = invList[0];
 
-    const data = paymentSchema.parse(req.body);
+    if (inv.isVoid === 1) {
+      return res.status(400).json({ error: 'Invoice is already void' });
+    }
 
-    const inv = await db.select().from(invoices).where(
-      and(eq(invoices.id, invoiceId), eq(invoices.userId, userId), eq(invoices.isDeleted, 0))
-    );
-
-    if (inv.length === 0) return res.status(404).json({ error: 'Invoice not found' });
-    const currentInv = inv[0];
-
-    const currentPaid = parseFloat(currentInv.paidAmount || '0');
-    const total = parseFloat(currentInv.totalAmount || '0');
-    const newPaid = Math.min(total, currentPaid + data.amount);
-    const newBalance = Math.max(0, total - newPaid);
-    const newStatus = newPaid >= total ? 'PAID' : 'PARTIAL';
-
-    // Insert payment record
-    const payResult = await db.insert(payments).values({
-      userId,
-      locationId: currentInv.locationId,
-      partyId: currentInv.partyId,
-      partyName: currentInv.partyName,
-      invoiceId,
-      date: data.date,
-      amount: data.amount.toFixed(2),
-      paymentType: 'PAYMENT_IN',
-      paymentMode: data.paymentMode,
-      referenceNumber: data.referenceNumber || null,
-      notes: data.notes || `Payment for invoice ${currentInv.invoiceNumber}`,
-    }).returning();
-
-    // Update invoice
+    // Mark as void
     await db.update(invoices).set({
-      paidAmount: newPaid.toFixed(2),
-      balanceAmount: newBalance.toFixed(2),
-      paymentStatus: newStatus,
-      updatedAt: new Date()
-    }).where(eq(invoices.id, invoiceId));
+      isVoid: 1,
+      voidReason: reason || 'Voided by user',
+      voidedAt: new Date(),
+      paymentStatus: 'VOID',
+      updatedAt: new Date(),
+    }).where(eq(invoices.id, id));
 
-    res.status(201).json(payResult[0]);
-  } catch (error: any) {
-    res.status(400).json({ error: error?.message || 'Failed to record payment' });
-  }
-});
+    // Revert stock movements
+    const lines = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+    for (const line of lines) {
+      if (line.itemId) {
+        await db.insert(stockMovements).values({
+          userId,
+          businessId: inv.businessId,
+          locationId: inv.locationId,
+          itemId: line.itemId,
+          movementType: 'REVERSAL',
+          quantity: line.quantity,
+          unit: line.unit,
+          unitCost: line.rate,
+          totalCost: line.taxableAmount,
+          sourceDocumentType: 'INVOICE',
+          sourceDocumentId: id,
+          notes: `Reversal of voided Invoice ${inv.invoiceNumber}: ${reason || ''}`,
+        });
 
-// DELETE /api/invoices/:id - Soft delete invoice
-invoiceRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.dbUser!.id;
-    const id = parseInt(String(req.params.id), 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Invalid invoice ID' });
-
-    // Restore stock if needed
-    const invItems = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
-    for (const item of invItems) {
-      if (item.itemId) {
-        await db.update(items)
-          .set({ currentStock: sql`${items.currentStock} + ${item.quantity}` })
-          .where(and(eq(items.id, item.itemId), eq(items.userId, userId)));
+        await db.execute(sql`
+          UPDATE items 
+          SET current_stock = current_stock + ${Number(line.quantity)}, updated_at = NOW()
+          WHERE id = ${line.itemId}
+        `);
       }
     }
 
-    await db.update(invoices)
-      .set({ isDeleted: 1, updatedAt: new Date() })
-      .where(and(eq(invoices.id, id), eq(invoices.userId, userId)));
+    // Mark payments as reversed
+    await db.update(payments).set({
+      isReversed: 1,
+      reversalReason: `Invoice ${inv.invoiceNumber} voided`,
+      reversedAt: new Date(),
+    }).where(eq(payments.invoiceId, id));
 
-    res.json({ success: true });
+    // Audit log
+    await db.insert(auditLogs).values({
+      userId,
+      businessId: inv.businessId,
+      locationId: inv.locationId,
+      action: 'VOID',
+      entityType: 'INVOICE',
+      entityId: id,
+      metadata: JSON.stringify({ reason }),
+    });
+
+    res.json({ success: true, message: 'Invoice voided successfully and stock restored' });
+  } catch (error: any) {
+    console.error('Failed to void invoice:', error);
+    res.status(500).json({ error: 'Failed to void invoice' });
+  }
+});
+
+// GET /api/invoices/credit-debit-notes - List Credit & Debit Notes
+invoiceRouter.get('/notes/all', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser!.id;
+    const businessId = req.businessId;
+
+    const list = await db.select()
+      .from(creditDebitNotes)
+      .where(and(eq(creditDebitNotes.userId, userId), businessId ? eq(creditDebitNotes.businessId, businessId) : sql`1=1`))
+      .orderBy(desc(creditDebitNotes.noteDate), desc(creditDebitNotes.id));
+
+    res.json(list);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete invoice' });
+    res.status(500).json({ error: 'Failed to fetch credit/debit notes' });
   }
 });
 
