@@ -1,5 +1,24 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
+
+import { stockLedger } from '../../db/schema.js';
+
+export class StockManager {
+  static async addStockMovement(dbTx: any, userId: number, locationId: number, materialId: number, type: 'IN'|'OUT'|'ADJUST', quantity: number, refId: number, refType: string, notes?: string) {
+    if (!materialId || isNaN(quantity)) throw new Error("Invalid stock movement details");
+    await dbTx.insert(stockLedger).values({
+      userId,
+      locationId,
+      materialId,
+      transactionType: type,
+      quantity: type === 'OUT' ? -Math.abs(quantity) : Math.abs(quantity),
+      referenceId: refId,
+      referenceType: refType,
+      notes
+    });
+  }
+}
+
 import {
   records,
   investmentTransactions,

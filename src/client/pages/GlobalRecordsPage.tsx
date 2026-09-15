@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../lib/api";
+import { auth } from "../lib/firebase";
 import { Receipt, Search, Filter, Download } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
@@ -47,9 +48,10 @@ export default function GlobalRecordsPage() {
         url += `?${queryString}`;
       }
 
+      const token = await auth.currentUser?.getIdToken();
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${await (await import('../lib/firebase')).auth.currentUser?.getIdToken()}`
+          'Authorization': `Bearer ${token}`
         }
       });
       

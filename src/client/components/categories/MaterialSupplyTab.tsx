@@ -26,6 +26,8 @@ const PRESET_UNITS = [
 export default function MaterialSupplyTab({ locationId }: { locationId: number }) {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [parties, setParties] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -55,7 +57,9 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/materials/supply?locationId=${locationId}`);
+      const [res, mats, parts] = await Promise.all([apiFetch(`/materials/supply?locationId=${locationId}`),
+      apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
+      apiFetch(`/master/parties?locationId=${locationId}`).catch(() => [])]);
       setRecords(res || []);
     } catch (err) {
       console.error("Failed to load supplies:", err);
@@ -372,6 +376,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
               <label className="block text-xs font-medium text-slate-700 mb-1">Client / Contractor / Site Name *</label>
               <input
                 type="text"
+                list="parties-list"
                 value={formData.partyName}
                 onChange={e => setFormData({ ...formData, partyName: e.target.value })}
                 placeholder="e.g. Apex Builders, Site B Project"
@@ -384,6 +389,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
               <label className="block text-xs font-medium text-slate-700 mb-1">Material Supplied *</label>
               <input
                 type="text"
+                list="materials-list"
                 value={formData.materialName}
                 onChange={e => setFormData({ ...formData, materialName: e.target.value })}
                 placeholder="e.g. River Sand, Blue Metal 20mm, Bricks"
@@ -598,7 +604,13 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
           >
             Save Material Supply
           </button>
-        </form>
+          <datalist id="materials-list">
+    {materials.map(m => <option key={m.id} value={m.name} />)}
+  </datalist>
+  <datalist id="parties-list">
+    {parties.map(p => <option key={p.id} value={p.name} />)}
+  </datalist>
+</form>
       </Modal>
 
       {/* Details Modal */}

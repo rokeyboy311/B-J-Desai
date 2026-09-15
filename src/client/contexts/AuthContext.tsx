@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { auth } from "../lib/firebase";
-import { onAuthStateChanged, User, signOut as firebaseSignOut } from "firebase/auth";
+import { auth, googleProvider } from "../lib/firebase";
+import { 
+  onAuthStateChanged, 
+  User, 
+  signOut as firebaseSignOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  sendPasswordResetEmail,
+  UserCredential
+} from "firebase/auth";
 import { apiFetch } from "../lib/api";
 
 interface DBUser {
@@ -14,6 +23,10 @@ interface AuthContextType {
   user: User | null;
   dbUser: DBUser | null;
   loading: boolean;
+  login: (email: string, pass: string) => Promise<UserCredential>;
+  registerUser: (email: string, pass: string) => Promise<UserCredential>;
+  signInWithGoogle: () => Promise<UserCredential>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -45,12 +58,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
+  const login = (email: string, pass: string) => {
+    return signInWithEmailAndPassword(auth, email, pass);
+  };
+
+  const registerUser = (email: string, pass: string) => {
+    return createUserWithEmailAndPassword(auth, email, pass);
+  };
+
+  const signInWithGoogle = () => {
+    return signInWithPopup(auth, googleProvider);
+  };
+
+  const resetPassword = (email: string) => {
+    return sendPasswordResetEmail(auth, email);
+  };
+
   const logout = async () => {
     await firebaseSignOut(auth);
   };
 
   return (
-    <AuthContext.Provider value={{ user, dbUser, loading, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        dbUser,
+        loading,
+        login,
+        registerUser,
+        signInWithGoogle,
+        resetPassword,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

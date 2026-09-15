@@ -1,362 +1,330 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Plus, PackageOpen, Trash2, Settings2 } from "lucide-react";
-
-const PRESET_MATERIALS = [
-  "Fuse box",
-  "Lugs",
-  "Wire 1.5 sqmm",
-  "Wire 2.5 sqmm",
-  "Switches",
-  "Sockets",
-  "MCB 10A",
-  "MCB 16A",
-  "MCB 32A",
-  "PVC Pipe",
-  "Casing Capping"
-];
-
-const PRESET_TEAMS = [
-  "Team Alpha",
-  "Team Beta",
-  "Fitting Team 1"
-];
+import { Plus, Trash2, Wrench, Package, FileText, Check } from "lucide-react";
 
 export default function MaterialLabourSupplyTab({ locationId }: { locationId: number }) {
   const [records, setRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [materialOptions, setMaterialOptions] = useState<string[]>(PRESET_MATERIALS);
-  
-  const [teamOptions, setTeamOptions] = useState<string[]>([]);
-  const [isManageTeamsOpen, setIsManageTeamsOpen] = useState(false);
-  const [newTeamName, setNewTeamName] = useState("");
-  
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [parties, setParties] = useState<any[]>([]);
+
+  // Parent form state
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
-    siteLocationName: "",
-    teamName: "",
+    teamId: "",
+    responsiblePerson: "",
+    workDescription: "",
+    referenceNumber: "",
+    notes: "",
+    investorId: "",
   });
 
-  const [materials, setMaterials] = useState([{ name: "", quantity: "" }]);
+  // Items list state
+  const [items, setItems] = useState<any[]>([{ materialId: "", quantity: "", rate: "" }]);
 
   useEffect(() => {
-    loadData();
-    loadMasterData();
+    fetchData();
   }, [locationId]);
 
-  const loadMasterData = async () => {
+  const fetchData = async () => {
     try {
-      const parties = await apiFetch(`/master/parties?locationId=${locationId}`);
-      if (parties && parties.length > 0) {
-        
-      } else {
-        
+      const [data, mats, tms, invs] = await Promise.all([
+        apiFetch(`/site-supplies?locationId=${locationId}`),
+        apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/master/teams?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/master/parties?locationId=${locationId}`).catch(() => []), // as investors
+      ]);
+      setRecords(data || []);
+      setMaterials(mats || []);
+      setTeams(tms || []);
+      setParties(invs || []);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addItem = () => setItems([...items, { materialId: "", quantity: "", rate: "" }]);
+  
+  const removeItem = (index: number) => {
+    const newItems = [...items];
+    newItems.splice(index, 1);
+    setItems(newItems);
+  };
+
+  const updateItem = (index: number, field: string, value: string) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+    
+    // Auto-fill rate based on material
+    if (field === 'materialId') {
+      const mat = materials.find(m => m.id.toString() === value);
+      if (mat && mat.defaultRate) {
+        newItems[index].rate = mat.defaultRate;
       }
-      
-      const teams = await apiFetch(`/master/teams?locationId=${locationId}`);
-      if (teams && teams.length > 0) {
-        setTeamOptions(teams.map((t: any) => t.name));
-      } else {
-        
-      }
-    } catch (e) {
-      console.error(e);
     }
-  };
-
-  const loadData = async () => {
-    try {
-      const res = await apiFetch(`/materials/labour-supply?locationId=${locationId}`);
-      setRecords(res || []);
-      
-      if (res && res.length > 0) {
-        const historyMats = res.map((r: any) => r.materialName).filter(Boolean);
-        const uniqueMats = Array.from(new Set([...PRESET_MATERIALS, ...historyMats]));
-        setMaterialOptions(uniqueMats as string[]);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const saveTeamOptions = (newOptions: string[]) => {
-    setTeamOptions(newOptions);
-    localStorage.setItem(`managed_teams_${locationId}`, JSON.stringify(newOptions));
-  };
-
-  const handleAddTeam = () => {
-    if (newTeamName.trim() && !teamOptions.includes(newTeamName.trim())) {
-      saveTeamOptions([...teamOptions, newTeamName.trim()]);
-      setNewTeamName("");
-    }
-  };
-
-  const handleRemoveTeam = (team: string) => {
-    saveTeamOptions(teamOptions.filter(t => t !== team));
-    if (formData.teamName === team) {
-      setFormData({ ...formData, teamName: "" });
-    }
+    setItems(newItems);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await Promise.all(materials.map(mat => 
-        apiFetch("/materials/labour-supply", {
-          method: "POST",
-          body: JSON.stringify({ 
-            ...formData, 
-            locationId,
-            partyName: formData.teamName || "N/A", 
-            workDescription: formData.siteLocationName || "N/A",
-            materialName: mat.name,
-            materialQuantity: mat.quantity || "0",
-            materialAmount: 0,
-            labourAmount: 0,
-            taxPercentage: 0,
-            paymentStatus: "UNPAID"
-          }),
-        })
-      ));
+      const payload = {
+        locationId,
+        date: formData.date,
+        teamId: formData.teamId ? parseInt(formData.teamId) : undefined,
+        responsiblePerson: formData.responsiblePerson,
+        workDescription: formData.workDescription,
+        referenceNumber: formData.referenceNumber,
+        notes: formData.notes,
+        investorId: formData.investorId ? parseInt(formData.investorId) : undefined,
+        items: items.filter(i => i.materialId && i.quantity).map(i => ({
+          materialId: parseInt(i.materialId),
+          quantity: i.quantity,
+          rate: i.rate || "0"
+        }))
+      };
+
+      await apiFetch(`/site-supplies`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
       setIsModalOpen(false);
-      resetForm();
-      loadData();
-    } catch (err) {
-      console.error(err);
+      setFormData({
+        date: new Date().toISOString().split("T")[0],
+        teamId: "",
+        responsiblePerson: "",
+        workDescription: "",
+        referenceNumber: "",
+        notes: "",
+        investorId: "",
+      });
+      setItems([{ materialId: "", quantity: "", rate: "" }]);
+      fetchData();
+    } catch (error) {
+      alert("Failed to save site supply");
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm("Delete this record?")) return;
+    if (!confirm("Are you sure you want to delete this record? Stock will be reversed.")) return;
     try {
-      await apiFetch(`/materials/labour-supply/${id}`, { method: "DELETE" });
-      loadData();
-    } catch (e) {
-      console.error(e);
+      await apiFetch(`/site-supplies/${id}`, { method: "DELETE" });
+      fetchData();
+    } catch (error) {
+      alert("Failed to delete record");
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      date: new Date().toISOString().split("T")[0],
-      siteLocationName: "",
-      teamName: "",
-    });
-    setMaterials([{ name: "", quantity: "" }]);
-  };
-
-  const updateMaterial = (index: number, field: "name" | "quantity", value: string) => {
-    const newMats = [...materials];
-    newMats[index][field] = value;
-    setMaterials(newMats);
-  };
-
-  const removeMaterial = (index: number) => {
-    setMaterials(materials.filter((_, i) => i !== index));
-  };
-
-  const addMaterialRow = () => {
-    setMaterials([...materials, { name: "", quantity: "" }]);
-  };
+  const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.quantity||0) * parseFloat(item.rate||0)), 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-        <div>
-          <h3 className="font-bold text-slate-900">Site Supplies</h3>
-          <p className="text-xs text-slate-500">Track materials and teams assigned to sites</p>
-        </div>
-        <button type="button" onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 transition-colors text-white rounded-lg text-sm font-medium">
-          <Plus className="w-4 h-4" /> Add Site Supply
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-sm font-bold text-slate-800">Site Supplies & Internal Usage</h3>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+        >
+          <Plus className="w-4 h-4" /> New Site Supply
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50/80 text-slate-600 border-b border-gray-100">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="p-4 font-semibold text-xs uppercase tracking-wider">Date</th>
-                <th className="p-4 font-semibold text-xs uppercase tracking-wider">Site Location</th>
-                <th className="p-4 font-semibold text-xs uppercase tracking-wider">Team Name</th>
-                <th className="p-4 font-semibold text-xs uppercase tracking-wider">Material</th>
-                <th className="p-4 font-semibold text-xs uppercase tracking-wider text-right">Qty</th>
-                <th className="p-4 font-semibold text-xs uppercase tracking-wider text-center">Actions</th>
+                <th className="p-3 font-semibold text-slate-600">Date</th>
+                <th className="p-3 font-semibold text-slate-600">Team / Person</th>
+                <th className="p-3 font-semibold text-slate-600">Work Description</th>
+                <th className="p-3 font-semibold text-slate-600 text-right">Items</th>
+                <th className="p-3 font-semibold text-slate-600 text-right">Total Amount</th>
+                <th className="p-3 font-semibold text-slate-600 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {records.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400">
-                    <PackageOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    No site supplies recorded yet.
+              {records.map((r, i) => (
+                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3">{r.date}</td>
+                  <td className="p-3 font-medium text-slate-900">
+                    {teams.find(t => t.id === r.teamId)?.name || r.responsiblePerson || 'N/A'}
                   </td>
-                </tr>
-              ) : records.map(r => (
-                <tr key={r.id} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="p-4 whitespace-nowrap text-slate-700">
-                    {new Date(r.date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </td>
-                  <td className="p-4 font-medium text-slate-900">
-                    {r.siteLocationName || r.workDescription || '-'}
-                  </td>
-                  <td className="p-4 text-slate-700">
-                    {r.teamName || r.partyName || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-slate-700 font-medium">
-                    <span className="inline-flex px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-semibold">
-                      {r.materialName || '-'}
+                  <td className="p-3 text-slate-600 max-w-[200px] truncate">{r.workDescription || '-'}</td>
+                  <td className="p-3 text-right">
+                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-semibold">
+                      {r.items?.length || 0} items
                     </span>
                   </td>
-                  <td className="p-4 text-right font-medium text-slate-900">
-                    {Number(r.materialQuantity || 0).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center font-medium">
-                    <button type="button" onClick={() => handleDelete(r.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg hover:text-rose-700 transition-colors">
+                  <td className="p-3 text-right font-bold text-indigo-700">₹{Number(r.totalAmount).toLocaleString()}</td>
+                  <td className="p-3 text-center">
+                    <button
+                      onClick={() => { setSelectedRecord(r); setIsDetailsOpen(true); }}
+                      className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded-lg mr-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r.id)}
+                      className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>
               ))}
+              {records.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-500">
+                    No site supply records found
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Site Supply Record">
+      {/* Form Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Site Supply">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-slate-700 mb-1">Date *</label>
-              <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500" required />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Date</label>
+              <input type="date" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500" />
             </div>
-            
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-slate-700 mb-1">Site Location Name *</label>
-              <input type="text" placeholder="e.g. Tower B, Floor 3" value={formData.siteLocationName} onChange={e => setFormData({...formData, siteLocationName: e.target.value})} className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500" required />
-            </div>
-
-            <div className="sm:col-span-2">
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-medium text-slate-700">Team Name *</label>
-                <button 
-                  type="button" 
-                  onClick={() => setIsManageTeamsOpen(true)}
-                  className="text-xs text-blue-600 font-medium hover:text-blue-800 flex items-center gap-1"
-                >
-                  <Settings2 className="w-3 h-3" /> Manage Teams
-                </button>
-              </div>
-              <select 
-                value={formData.teamName} 
-                onChange={e => setFormData({...formData, teamName: e.target.value})} 
-                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white" 
-                required 
-              >
-                <option value="" disabled>Select a team...</option>
-                {teamOptions.map(team => (
-                  <option key={team} value={team}>{team}</option>
-                ))}
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Labour Team</label>
+              <select value={formData.teamId} onChange={e => setFormData({ ...formData, teamId: e.target.value })} className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                <option value="">-- Select Team --</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-slate-700 mb-1">Work Description</label>
+              <input type="text" required placeholder="What work is this for?" value={formData.workDescription} onChange={e => setFormData({ ...formData, workDescription: e.target.value })} className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500" />
+            </div>
           </div>
-
-          <div className="pt-4 border-t mt-4 space-y-3">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Material List *</label>
-            {materials.map((mat, index) => (
-              <div key={index} className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <input 
-                    type="text" 
-                    list="material-options"
-                    placeholder="Select or enter material..." 
-                    value={mat.name} 
-                    onChange={e => updateMaterial(index, "name", e.target.value)} 
-                    className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-slate-50" 
-                    required 
-                  />
-                </div>
-                <div className="w-24">
-                  <input 
-                    type="number" inputMode="decimal" 
-                    step="0.01" 
-                    placeholder="Qty" 
-                    value={mat.quantity} 
-                    onChange={e => updateMaterial(index, "quantity", e.target.value)} 
-                    className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-slate-50" 
-                    required 
-                  />
-                </div>
-                {materials.length > 1 && (
-                  <button type="button"  onClick={() => removeMaterial(index)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 className="w-5 h-5" />
+          
+          {/* Multi-Material Lines */}
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Materials Supplied</label>
+            </div>
+            
+            <div className="space-y-2">
+              {items.map((item, idx) => (
+                <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white p-2 border rounded-lg shadow-sm">
+                  <div className="flex-1 min-w-[150px]">
+                    <select
+                      required
+                      value={item.materialId}
+                      onChange={e => updateItem(idx, 'materialId', e.target.value)}
+                      className="w-full p-1.5 text-sm border-b focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value="">Select Material</option>
+                      {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="w-[80px]">
+                    <input
+                      type="number"
+                      required min="0" step="0.01"
+                      placeholder="Qty"
+                      value={item.quantity}
+                      onChange={e => updateItem(idx, 'quantity', e.target.value)}
+                      className="w-full p-1.5 text-sm border-b focus:border-indigo-500 focus:outline-none text-right"
+                    />
+                  </div>
+                  <div className="w-[90px]">
+                    <input
+                      type="number"
+                      min="0" step="0.01"
+                      placeholder="Rate (₹)"
+                      value={item.rate}
+                      onChange={e => updateItem(idx, 'rate', e.target.value)}
+                      className="w-full p-1.5 text-sm border-b focus:border-indigo-500 focus:outline-none text-right"
+                    />
+                  </div>
+                  <div className="w-[90px] text-right font-bold text-slate-700 text-sm py-1.5">
+                    ₹{((parseFloat(item.quantity||'0') * parseFloat(item.rate||'0'))).toFixed(2)}
+                  </div>
+                  <button type="button" onClick={() => removeItem(idx)} className="p-1.5 text-red-500 hover:bg-red-50 rounded">
+                    <Trash2 className="w-4 h-4" />
                   </button>
-                )}
-              </div>
-            ))}
-            <button type="button"  onClick={addMaterialRow} className="mt-2 text-sm text-blue-600 font-medium hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">
-              <Plus className="w-4 h-4" /> Add another material
-            </button>
-            <datalist id="material-options">
-              {materialOptions.map(mat => (
-                <option key={mat} value={mat} />
+                </div>
               ))}
-            </datalist>
+            </div>
+            
+            <div className="mt-3 flex justify-between items-center">
+              <button type="button" onClick={addItem} className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded">
+                <Plus className="w-3 h-3" /> Add Row
+              </button>
+              <div className="text-sm">
+                <span className="text-slate-500">Total: </span>
+                <span className="font-bold text-indigo-700">₹{totalAmount.toLocaleString()}</span>
+              </div>
+            </div>
           </div>
 
-          <button type="submit"  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow transition-colors mt-6">
+          <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold shadow text-sm">
             Save Site Supply
           </button>
         </form>
       </Modal>
 
-      <Modal isOpen={isManageTeamsOpen} onClose={() => setIsManageTeamsOpen(false)} title="Manage Teams">
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <input 
-              type="text" 
-              placeholder="Enter new team name" 
-              value={newTeamName} 
-              onChange={e => setNewTeamName(e.target.value)} 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
-              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTeam())}
-            />
-            <button 
-              type="button" 
-              onClick={handleAddTeam}
-              className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
-            >
-              Add
-            </button>
+      {/* Details Modal */}
+      {selectedRecord && (
+        <Modal isOpen={isDetailsOpen} onClose={() => setIsDetailsOpen(false)} title="Site Supply Details">
+          <div className="space-y-4 text-sm">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <h4 className="font-bold text-slate-900 text-base">{selectedRecord.workDescription}</h4>
+              <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full text-xs font-bold">{selectedRecord.date}</span>
+            </div>
+            
+            <div>
+              <p className="text-xs text-slate-500 font-semibold mb-1 uppercase tracking-wider">Materials Supplied</p>
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="p-2 font-medium">Material</th>
+                      <th className="p-2 font-medium text-right">Qty</th>
+                      <th className="p-2 font-medium text-right">Rate</th>
+                      <th className="p-2 font-medium text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {(selectedRecord.items || []).map((item: any, i: number) => {
+                      const matName = materials.find(m => m.id === item.materialId)?.name || 'Unknown';
+                      return (
+                        <tr key={i}>
+                          <td className="p-2 font-medium">{matName}</td>
+                          <td className="p-2 text-right">{item.quantity}</td>
+                          <td className="p-2 text-right">₹{item.rate}</td>
+                          <td className="p-2 text-right font-bold">₹{item.amount}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="flex justify-between font-bold text-base text-slate-900 pt-2">
+              <span>Total Amount</span>
+              <span className="text-indigo-600">₹{Number(selectedRecord.totalAmount).toLocaleString()}</span>
+            </div>
           </div>
-          
-          <div className="border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
-            <ul className="divide-y">
-              {teamOptions.length === 0 ? (
-                <li className="p-4 text-center text-sm text-slate-500">No teams added.</li>
-              ) : (
-                teamOptions.map(team => (
-                  <li key={team} className="flex justify-between items-center p-3 hover:bg-slate-50 transition-colors">
-                    <span className="text-sm font-medium text-slate-800">{team}</span>
-                    <button 
-                      type="button" 
-                      onClick={() => handleRemoveTeam(team)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg hover:text-rose-700 transition-colors"
-                      title="Remove team"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-          <button type="button"  onClick={() => setIsManageTeamsOpen(false)} className="w-full py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium">
-            Done
-          </button>
-        </div>
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 }

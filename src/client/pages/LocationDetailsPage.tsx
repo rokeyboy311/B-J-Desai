@@ -5,13 +5,14 @@ import { auth } from "../lib/firebase";
 import { 
   ArrowLeft, Download, Landmark, TrendingDown,
   ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User
-} from "lucide-react";
+, Database } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { PurchaseIcon } from "../components/icons/PurchaseIcon";
 
 import InvestmentTab, { InvestmentSubCategory } from "../components/categories/InvestmentTab";
 import ExpenseTab, { ExpenseSubCategory } from "../components/categories/ExpenseTab";
 import SupervisorCostTab from "../components/categories/SupervisorCostTab";
+import MasterDataTab from "../components/categories/MasterDataTab";
 
 export default function LocationDetailsPage() {
   const { id: locationId } = useParams();
@@ -407,7 +408,32 @@ export default function LocationDetailsPage() {
               </button>
             </div>
           </div>
-          {/* 3rd Category: SUPERVISOR COST */}
+          {/* 4th Category: MASTER DATA */}
+    <div className="flex flex-col gap-1.5 bg-white p-2 rounded-2xl border border-slate-200/60 shadow-sm min-w-[240px] lg:min-w-0">
+      <button type="button"
+        id="main-cat-master"
+        onClick={() => setActiveCategory("master")}
+        className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 text-left ${
+          activeCategory === "master"
+            ? "bg-slate-800 text-white shadow-md shadow-slate-900/20"
+            : "hover:bg-slate-50 text-slate-700"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg ${activeCategory === "master" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+            <Database className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="font-bold text-sm">4. Master Data</div>
+            <div className={`text-xs ${activeCategory === "master" ? "text-slate-300" : "text-slate-400"}`}>
+              Materials & Labour Config
+            </div>
+          </div>
+        </div>
+      </button>
+    </div>
+
+    {/* 3rd Category: SUPERVISOR COST */}
           <div className="flex flex-col gap-1.5 bg-white p-2 rounded-2xl border border-slate-200/60 shadow-sm min-w-[240px] lg:min-w-0">
             <button type="button"
               id="main-cat-supervisor"
@@ -472,7 +498,10 @@ export default function LocationDetailsPage() {
                   locationId={Number(locationId)} 
                 />
               )}
-            </motion.div>
+              {activeCategory === "master" && (
+      <MasterDataTab locationId={Number(locationId)} />
+    )}
+  </motion.div>
           </AnimatePresence>
         </div>
       </div>

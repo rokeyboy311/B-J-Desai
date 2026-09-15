@@ -1,6 +1,14 @@
 import { auth } from "./firebase";
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+  if (!auth.currentUser && typeof auth.authStateReady === "function") {
+    try {
+      await auth.authStateReady();
+    } catch (e) {
+      console.warn("Auth state readiness check:", e);
+    }
+  }
+
   const user = auth.currentUser;
   const headers = new Headers(options.headers || {});
 
