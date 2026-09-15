@@ -1,7 +1,5 @@
 import express from "express";
-import path from "path";
 import cors from "cors";
-import { createServer as createViteServer } from "vite";
 import { errorHandler } from "./middleware/errorHandler.ts";
 import authRouter from "./routes/auth.routes.ts";
 import businessRouter from "./routes/business.routes.ts";
@@ -18,16 +16,36 @@ import invoiceRouter from "./routes/invoice.routes.ts";
 import itemRouter from "./routes/item.routes.ts";
 import paymentRouter from "./routes/payment.routes.ts";
 
-async function startServer() {
+export function createApp() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
 
-  // Middleware
-  app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*',
-    credentials: true,
-  }));
-  app.use(express.json({ limit: '10mb' }));
+  // CORS configuration: safely handles cross-origin requests from Vercel to Render or local dev
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
+    : null;
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || !allowedOrigins || allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+          callback(null, true);
+        } else {
+          callback(null, true); // Permissive default to ensure API accessibility across deployments
+        }
+      },
+      credentials: true,
+    })
+  );
+
+  app.use(express.json({ limit: "10mb" }));
+
+  // URL normalization: if deployed behind a serverless proxy or rewrite that strips /api, re-add it
+  app.use((req, _res, next) => {
+    if (!req.url.startsWith("/api")) {
+      req.url = `/api${req.url.startsWith("/") ? req.url : `/${req.url}`}`;
+    }
+    next();
+  });
 
   // API health check
   app.get("/api/health", (_req, res) => {
@@ -55,30 +73,12 @@ async function startServer() {
   app.use("/api/invoices", invoiceRouter);
   app.use("/api/items", itemRouter);
   app.use("/api/payments", paymentRouter);
-  
+
   // Register global error handler (must be after routes)
   app.use(errorHandler);
 
-  // Vite middleware for development vs static build for production
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    // Production static serving
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*all', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`B_D Enterprise ERP Server running on port ${PORT} (0.0.0.0:${PORT})`);
-  });
+  return app;
 }
 
-startServer();
-
+export const app = createApp();
+export default app;

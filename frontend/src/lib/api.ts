@@ -1,5 +1,26 @@
 import { auth } from "./firebase";
 
+const rawBase = (import.meta.env.VITE_API_URL || "").trim();
+const apiBase = rawBase.replace(/\/+$/, "");
+
+/**
+ * Resolves full API URL based on VITE_API_URL environment variable.
+ * Handles trailing slashes, duplicate /api prefixes, and relative endpoints.
+ */
+export function getApiUrl(endpoint: string): string {
+  const clean = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (!apiBase) {
+    return clean.startsWith("/api") ? clean : `/api${clean}`;
+  }
+  if (apiBase.endsWith("/api") && clean.startsWith("/api")) {
+    return `${apiBase}${clean.replace(/^\/api/, "")}`;
+  }
+  if (!apiBase.endsWith("/api") && !clean.startsWith("/api")) {
+    return `${apiBase}/api${clean}`;
+  }
+  return `${apiBase}${clean}`;
+}
+
 export async function apiFetch<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const user = auth.currentUser;
   const headers = new Headers(options.headers || {});
@@ -18,7 +39,7 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`/api${endpoint}`, {
+  const response = await fetch(getApiUrl(endpoint), {
     ...options,
     headers,
   });
@@ -53,7 +74,7 @@ export async function apiDownload(endpoint: string, filename: string) {
     headers.set("x-business-id", activeBusinessId);
   }
 
-  const response = await fetch(`/api${endpoint}`, {
+  const response = await fetch(getApiUrl(endpoint), {
     method: "GET",
     headers,
   });

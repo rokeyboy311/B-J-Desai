@@ -5,7 +5,7 @@
     },
     "render": {
       "command": "npx",
-      "args": ["-y", "render-mcp"],
+      "args": ["render-mcp", "start"],
       "env": {
         "RENDER_API_KEY": ""
       }

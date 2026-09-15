@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import { apiFetch, getApiUrl } from "../lib/api";
 import { auth } from "../lib/firebase";
 import { 
   ArrowLeft, Download, Landmark, TrendingDown,
@@ -55,7 +55,7 @@ export default function LocationDetailsPage() {
     setShowExportMenu(false);
     try {
       const token = await auth.currentUser?.getIdToken();
-      const res = await fetch(`/api/reports/export-location/${locationId}?tab=${tabId}`, {
+      const res = await fetch(getApiUrl(`/reports/export-location/${locationId}?tab=${tabId}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       

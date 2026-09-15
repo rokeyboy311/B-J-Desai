@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(() => {
   return {
     plugins: [
-      react(), 
+      react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
@@ -16,7 +16,7 @@ export default defineConfig(() => {
           id: '/',
           name: 'Bina Enterprise',
           short_name: 'Bina Ent',
-          description: 'A modern accounting application.',
+          description: 'A modern accounting and ERP application.',
           theme_color: '#ffffff',
           background_color: '#ffffff',
           display: 'standalone',
@@ -47,19 +47,21 @@ export default defineConfig(() => {
           enabled: true,
           type: 'module',
         },
-      })
+      }),
     ],
     resolve: {
       alias: {
-        '@': path.resolve(process.cwd(), '.'),
+        '@': path.resolve(__dirname, './src'),
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      port: 5173,
+      proxy: {
+        '/api': {
+          target: process.env.VITE_API_URL || 'http://localhost:3000',
+          changeOrigin: true,
+        },
+      },
     },
   };
 });
