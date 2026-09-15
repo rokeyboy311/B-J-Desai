@@ -5,16 +5,36 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers || {});
 
   if (user) {
-    const token = await user.getIdToken();
-    headers.set("Authorization", `Bearer ${token}`);
+    try {
+      const token = await user.getIdToken();
+      headers.set("Authorization", `Bearer ${token}`);
+    } catch (e) {
+      console.warn("Failed to get ID token:", e);
+    }
   }
 
-  headers.set("Content-Type", "application/json");
+  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
 
-  const response = await fetch(`/api${endpoint}`, {
+  let response = await fetch(`/api${endpoint}`, {
     ...options,
     headers,
   });
+
+  // If 401 Unauthorized and user is logged in, try force-refreshing the token once
+  if (response.status === 401 && user) {
+    try {
+      const freshToken = await user.getIdToken(true);
+      headers.set("Authorization", `Bearer ${freshToken}`);
+      response = await fetch(`/api${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch (refreshErr) {
+      console.error("Token refresh retry failed:", refreshErr);
+    }
+  }
 
   if (!response.ok) {
     let errorMsg = "API Error";

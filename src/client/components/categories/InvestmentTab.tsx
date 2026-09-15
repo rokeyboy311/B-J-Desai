@@ -7,7 +7,7 @@ import {
   FileText, ArrowDownLeft, ArrowUpRight, Eye, RefreshCw, X
 } from "lucide-react";
 
-export type InvestmentSubCategory = "INVESTMENT" | "UPAD" | "PARTIES";
+export type InvestmentSubCategory = "INVESTMENT" | "UPAD" | "PARTIES" | "CONNECTED_EXPENSES";
 
 interface InvestmentParty {
   id: number;
@@ -59,6 +59,7 @@ export default function InvestmentTab({
 
   const [parties, setParties] = useState<InvestmentParty[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
+  const [connectedExpenses, setConnectedExpenses] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   // Search & Filter
@@ -92,12 +93,16 @@ export default function InvestmentTab({
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [partiesRes, txsRes] = await Promise.all([
+      const [partiesRes, txsRes, dashRes] = await Promise.all([
         apiFetch(`/investments/parties?locationId=${locationId}`),
-        apiFetch(`/investments/transactions?locationId=${locationId}`)
+        apiFetch(`/investments/transactions?locationId=${locationId}`),
+        apiFetch(`/reports/dashboard?locationId=${locationId}`).catch(() => null)
       ]);
       setParties(partiesRes || []);
       setTransactions(txsRes || []);
+      if (dashRes?.connectedExpenses) {
+        setConnectedExpenses(dashRes.connectedExpenses);
+      }
     } catch (error) {
       console.error("Failed to load investment data:", error);
     } finally {
@@ -351,6 +356,27 @@ export default function InvestmentTab({
               subCategory === "PARTIES" ? "bg-blue-700/80 text-white" : "bg-slate-200 text-slate-700"
             }`}>
               {metrics.totalParties} Parties
+            </span>
+          </button>
+
+          {/* 4th Sub-View: Part 2 Connected Expenses */}
+          <button type="button"
+            id="subcat-btn-connected"
+            onClick={() => handleSetSubCategory("CONNECTED_EXPENSES")}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+              subCategory === "CONNECTED_EXPENSES"
+                ? "bg-rose-600 text-white shadow-md shadow-rose-500/20 scale-[1.01]"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
+            }`}
+          >
+            <div className={`p-1 rounded-lg ${subCategory === "CONNECTED_EXPENSES" ? "bg-white/20" : "bg-rose-100/70 text-rose-700"}`}>
+              <TrendingDown className="w-4 h-4" />
+            </div>
+            <span>Part 2: Connected Expenses</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              subCategory === "CONNECTED_EXPENSES" ? "bg-rose-700/80 text-white" : "bg-rose-50 text-rose-700 border border-rose-200/60"
+            }`}>
+              Cut from Pool
             </span>
           </button>
         </div>
@@ -822,6 +848,149 @@ export default function InvestmentTab({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Part 2: Connected Expenses View (Deducted from Investment Capital) */}
+      {subCategory === "CONNECTED_EXPENSES" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-rose-100 shadow-sm p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                  Part 2: Connected Expenses (Deducted from Investment Capital Pool)
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  All site operational expenses are connected to Part 1 investment. Any expenditure incurred here is deducted from the net capital pool.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold px-3 py-1 bg-rose-100 text-rose-800 rounded-full">
+                  Utilization: {connectedExpenses?.utilizationRate ?? 0}%
+                </span>
+              </div>
+            </div>
+
+            {/* Reconciliation KPI Ribbon */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+              <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100">
+                <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Part 1 Net Capital Pool</span>
+                <div className="text-2xl font-bold text-emerald-900 mt-1">
+                  ₹{(Number(connectedExpenses?.netCapitalPool ?? metrics.netBalance ?? 0)).toLocaleString()}
+                </div>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  Invested (₹{(Number(metrics.totalInvestment || 0)).toLocaleString()}) - Upad (₹{(Number(metrics.totalUpad || 0)).toLocaleString()})
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-rose-50/70 border border-rose-100">
+                <span className="text-xs font-semibold text-rose-800 uppercase tracking-wider">Total Expenses Cut</span>
+                <div className="text-2xl font-bold text-rose-700 mt-1">
+                  ₹{(Number(connectedExpenses?.totalExpensesCut ?? 0)).toLocaleString()}
+                </div>
+                <p className="text-[11px] text-rose-600 mt-0.5">
+                  Sum of all site operational costs
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-900 text-white shadow-sm lg:col-span-2">
+                <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Remaining Net Capital</span>
+                <div className={`text-2xl font-bold mt-1 ${(Number(connectedExpenses?.remainingCapital ?? metrics.netBalance ?? 0)) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  ₹{(Number(connectedExpenses?.remainingCapital ?? metrics.netBalance ?? 0)).toLocaleString()}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Available balance remaining in project treasury
+                </p>
+              </div>
+            </div>
+
+            {/* Connected Expense Categories Breakdown */}
+            <div className="mt-6">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+                Connected Expense Breakdown (All Sub-Categories)
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      <span className="text-sm font-bold text-slate-900">Material Purchase Expenses</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Raw materials procured and added to live stock
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-bold text-rose-600">
+                      -₹{(Number(connectedExpenses?.materialPurchaseExpense ?? 0)).toLocaleString()}
+                    </span>
+                    <span className="block text-[10px] text-slate-400">Deducted</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                      <span className="text-sm font-bold text-slate-900">Site Supply Expenses</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Site execution materials and contractor labour supply
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-bold text-rose-600">
+                      -₹{(Number(connectedExpenses?.siteSupplyExpense ?? 0)).toLocaleString()}
+                    </span>
+                    <span className="block text-[10px] text-slate-400">Deducted</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                      <span className="text-sm font-bold text-slate-900">Labour Wages &amp; Upad Payouts</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Disbursed worker advances, piece-rate (TC) and salaries
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-bold text-rose-600">
+                      -₹{(Number(connectedExpenses?.labourSalaryExpense ?? 0)).toLocaleString()}
+                    </span>
+                    <span className="block text-[10px] text-slate-400">Deducted</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      <span className="text-sm font-bold text-slate-900">General Operational Site Expenses</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Miscellaneous consumables, transport, and utilities
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-bold text-rose-600">
+                      -₹{(Number(connectedExpenses?.generalExpense ?? 0)).toLocaleString()}
+                    </span>
+                    <span className="block text-[10px] text-slate-400">Deducted</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Formula note */}
+            <div className="mt-5 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+              <strong>ERP Connection Logic:</strong> All transactions recorded in Material Purchase, Site Supply, Labour, and General Expenses automatically deduct from the Part 1 Investment capital pool. Supervisor Costs are maintained completely independently for cross-checking against site supply.
+            </div>
           </div>
         </div>
       )}

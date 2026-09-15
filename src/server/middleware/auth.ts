@@ -22,10 +22,17 @@ export const requireAuth = async (
 
   const token = authHeader.split('Bearer ')[1];
   
+  let decodedToken: DecodedIdToken;
   try {
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    decodedToken = await adminAuth.verifyIdToken(token);
     req.user = decodedToken;
-    
+  } catch (tokenError) {
+    console.error('Error verifying Firebase ID token:', tokenError);
+    res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
+    return;
+  }
+
+  try {
     // Sync to PostgreSQL to get our internal integer ID
     const dbUser = await getOrCreateUser(
       decodedToken.uid,
@@ -33,11 +40,10 @@ export const requireAuth = async (
       decodedToken.name
     );
     req.dbUser = dbUser;
-    
     next();
-  } catch (error) {
-    console.error('Error verifying Firebase ID token:', error);
-    res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
+  } catch (dbError) {
+    console.error('Failed to sync user to database:', dbError);
+    res.status(500).json({ error: 'Failed to synchronize user profile' });
     return;
   }
 };

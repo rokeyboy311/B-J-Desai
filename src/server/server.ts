@@ -37,6 +37,7 @@ async function startServer() {
   app.use("/api/materials", materialRouter);
   app.use("/api/labour", labourRouter);
   app.use("/api/supervisor-costs", supervisorRouter);
+  app.use("/api/master", masterRouter);
   
   // Register global error handler (must be after routes)
   app.use(errorHandler);

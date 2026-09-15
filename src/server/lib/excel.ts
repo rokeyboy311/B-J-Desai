@@ -110,5 +110,18 @@ export function generateExcelBuffer(locationName: string, data: any, tab: string
     utils.book_append_sheet(wb, ws6, 'Labour Salaries');
   }
 
+  // Supervisor Costs
+  if (data.supervisorCosts) {
+    const ws7 = utils.json_to_sheet(data.supervisorCosts.map((r: any) => ({
+      'Date': new Date(r.date).toLocaleDateString(),
+      'Supervisor Name': r.supervisorName,
+      'Amount ₹': Number(r.amount),
+      'Payment Method': r.paymentMethod || '-',
+      'Reference No': r.referenceNumber || '-',
+      'Description': r.description || '-',
+    })));
+    utils.book_append_sheet(wb, ws7, 'Supervisor Costs');
+  }
+
   return write(wb, { type: 'buffer', bookType: 'xlsx' });
 }

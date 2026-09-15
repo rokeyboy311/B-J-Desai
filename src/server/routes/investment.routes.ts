@@ -103,6 +103,25 @@ investmentRouter.post('/parties', async (req: AuthRequest, res: Response) => {
   }
 });
 
+investmentRouter.put('/parties/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+    const { partyName } = req.body;
+    if (!partyName || typeof partyName !== 'string') return res.status(400).json({ error: 'Party name required' });
+
+    const [updated] = await db.update(investmentParties)
+      .set({ partyName: partyName.trim(), updatedAt: new Date() })
+      .where(and(eq(investmentParties.id, id), eq(investmentParties.userId, req.dbUser!.id)))
+      .returning();
+
+    if (!updated) return res.status(404).json({ error: 'Party not found' });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update party' });
+  }
+});
+
 investmentRouter.get('/transactions', async (req: AuthRequest, res: Response) => {
   try {
     const partyId = req.query.partyId ? parseInt(req.query.partyId as string, 10) : undefined;
@@ -173,6 +192,44 @@ investmentRouter.post('/transactions', async (req: AuthRequest, res: Response) =
     });
     
     res.json(result[0]);
+  } catch (error) {
+    res.status(400).json({ error: 'Validation failed' });
+  }
+});
+
+investmentRouter.put('/transactions/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+    const data = txSchema.parse(req.body);
+
+    const [updated] = await db.update(investmentTransactions)
+      .set({
+        partyId: data.partyId,
+        type: data.type,
+        amount: data.amount.toString(),
+        date: data.date,
+        description: data.description,
+        paymentMethod: data.paymentMethod,
+        referenceNumber: data.referenceNumber,
+      })
+      .where(and(
+        eq(investmentTransactions.id, id),
+        eq(investmentTransactions.userId, req.dbUser!.id)
+      ))
+      .returning();
+
+    if (!updated) return res.status(404).json({ error: 'Transaction not found' });
+
+    await db.insert(auditLogs).values({
+      userId: req.dbUser!.id,
+      action: `UPDATE_${data.type}`,
+      entityType: 'INVESTMENT',
+      entityId: id,
+      metadata: JSON.stringify({ partyId: data.partyId, amount: data.amount, type: data.type })
+    });
+
+    res.json(updated);
   } catch (error) {
     res.status(400).json({ error: 'Validation failed' });
   }

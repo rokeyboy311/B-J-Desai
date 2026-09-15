@@ -32,6 +32,19 @@ masterRouter.post('/parties', async (req: AuthRequest, res) => {
   }
 });
 
+masterRouter.delete('/parties/:id', async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "Valid id required" });
+    await db.update(parties)
+      .set({ isDeleted: 1 })
+      .where(and(eq(parties.id, id), eq(parties.userId, req.dbUser!.id)));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete party" });
+  }
+});
+
 // Teams
 masterRouter.get('/teams', async (req: AuthRequest, res) => {
   try {
@@ -53,6 +66,19 @@ masterRouter.post('/teams', async (req: AuthRequest, res) => {
     res.status(201).json(inserted[0]);
   } catch (err) {
     res.status(500).json({ error: "Failed to create team" });
+  }
+});
+
+masterRouter.delete('/teams/:id', async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "Valid id required" });
+    await db.update(labourTeams)
+      .set({ isDeleted: 1 })
+      .where(and(eq(labourTeams.id, id), eq(labourTeams.userId, req.dbUser!.id)));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete team" });
   }
 });
 

@@ -54,6 +54,38 @@ supervisorRouter.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+supervisorRouter.put('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser!.id;
+    const { id } = req.params;
+    const { 
+      date, supervisorName, amount, 
+      description, paymentMethod, referenceNumber 
+    } = req.body;
+    
+    const [updatedRecord] = await db.update(supervisorCosts)
+      .set({
+        date,
+        supervisorName,
+        amount: String(amount),
+        description,
+        paymentMethod,
+        referenceNumber
+      })
+      .where(and(
+        eq(supervisorCosts.id, Number(id)),
+        eq(supervisorCosts.userId, userId)
+      ))
+      .returning();
+      
+    if (!updatedRecord) return res.status(404).json({ error: "Record not found" });
+    res.json(updatedRecord);
+  } catch (error) {
+    console.error("Failed to update supervisor cost:", error);
+    res.status(500).json({ error: "Failed to update supervisor cost" });
+  }
+});
+
 supervisorRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.dbUser!.id;

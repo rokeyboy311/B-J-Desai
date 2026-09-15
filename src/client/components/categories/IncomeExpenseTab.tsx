@@ -141,11 +141,11 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-red-50 p-4 rounded-xl border border-red-100">
           <div className="text-red-600 text-sm font-medium">Actual Expense</div>
-          <div className="text-2xl font-bold text-red-700">₹{metrics.totalExpense.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-red-700">₹{(Number(metrics?.totalExpense || 0)).toLocaleString()}</div>
         </div>
         <div className="bg-slate-50 p-4 rounded-xl border border-gray-200">
           <div className="text-slate-600 text-sm font-medium">Refundable</div>
-          <div className="text-2xl font-bold text-slate-900">₹{metrics.totalRefundable.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-slate-900">₹{(Number(metrics?.totalRefundable || 0)).toLocaleString()}</div>
         </div>
       </div>
 

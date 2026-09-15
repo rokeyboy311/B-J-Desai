@@ -104,6 +104,7 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
             labourTeam: formData.labourTeam,
             attendanceType: typeVal,
             tcNumber: "", 
+            tcQuantity: isDay ? 0 : Number(att.tcQuantity || 0),
             dailyRate: att.dailyRate || 0,
             days: daysVal,
             otherEarnings: 0,
@@ -128,6 +129,7 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
               labourTeam: formData.labourTeam,
               attendanceType: typeVal,
               tcNumber: "", 
+              tcQuantity: isDay ? 0 : Number(att.tcQuantity || 0),
               dailyRate: att.dailyRate || 0,
               days: daysVal,
               otherEarnings: 0,
@@ -160,7 +162,7 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
     
     if (r.attendanceType === "TC" || r.attendanceType === "TC-wise") {
       typeCategory = "TC";
-      tcQuantity = r.days;
+      tcQuantity = r.tcQuantity || r.days;
     } else {
       if (Number(r.days) === 0.5) attendanceType = "Half-day";
       else attendanceType = "Full-day";

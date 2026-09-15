@@ -16,6 +16,7 @@ const salarySchema = z.object({
   labourTeam: z.string().optional().nullable(),
   attendanceType: z.string().optional().nullable(),
   tcNumber: z.string().optional().nullable(),
+  tcQuantity: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
   description: z.string().optional().nullable(),
   days: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
   dailyRate: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
@@ -28,7 +29,7 @@ const salarySchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
-labourRouter.get('/', async (req: AuthRequest, res: Response) => {
+const getLabourHandler = async (req: AuthRequest, res: Response) => {
   try {
     const locationId = parseInt(req.query.locationId as string, 10);
     if (isNaN(locationId)) return res.status(400).json({ error: 'locationId required' });
@@ -45,20 +46,27 @@ labourRouter.get('/', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch labour records' });
   }
-});
+};
+
+labourRouter.get('/', getLabourHandler);
+labourRouter.get('/salary', getLabourHandler);
 
 labourRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const data = salarySchema.parse(req.body);
     
     // Calculate logic
-    const grossSalary = Math.round(((data.days * data.dailyRate) + data.otherEarnings) * 100) / 100;
+    const effectiveDays = (data.attendanceType === 'TC' || data.attendanceType === 'TC-wise')
+      ? (data.tcQuantity || data.days)
+      : data.days;
+    const grossSalary = Math.round(((effectiveDays * data.dailyRate) + data.otherEarnings) * 100) / 100;
     const netSalary = Math.round((grossSalary - data.deduction) * 100) / 100;
     const balance = Math.round((netSalary - data.upad - data.paymentAmount) * 100) / 100;
     
     const result = await db.insert(labourSalaries).values({
       userId: req.dbUser!.id,
       ...data,
+      tcQuantity: data.tcQuantity.toString(),
       days: data.days.toString(),
       dailyRate: data.dailyRate.toString(),
       otherEarnings: data.otherEarnings.toString(),
@@ -82,12 +90,16 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     if (isNaN(id)) return res.status(400).json({ error: 'Valid id required' });
     const data = salarySchema.parse(req.body);
     
-    const grossSalary = Math.round(((data.days * data.dailyRate) + data.otherEarnings) * 100) / 100;
+    const effectiveDays = (data.attendanceType === 'TC' || data.attendanceType === 'TC-wise')
+      ? (data.tcQuantity || data.days)
+      : data.days;
+    const grossSalary = Math.round(((effectiveDays * data.dailyRate) + data.otherEarnings) * 100) / 100;
     const netSalary = Math.round((grossSalary - data.deduction) * 100) / 100;
     const balance = Math.round((netSalary - data.upad - data.paymentAmount) * 100) / 100;
     
     const result = await db.update(labourSalaries).set({
       ...data,
+      tcQuantity: data.tcQuantity.toString(),
       days: data.days.toString(),
       dailyRate: data.dailyRate.toString(),
       otherEarnings: data.otherEarnings.toString(),
