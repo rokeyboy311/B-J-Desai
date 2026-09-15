@@ -110,5 +110,42 @@ export function generateExcelBuffer(locationName: string, data: any, tab: string
     utils.book_append_sheet(wb, ws6, 'Labour Salaries');
   }
 
+  // Invoices & Billing Sheet
+  if (data.invoices && data.invoices.length > 0) {
+    const wsInvoices = utils.json_to_sheet(data.invoices.map((inv: any) => ({
+      'Invoice No': inv.invoiceNumber,
+      'Date': inv.invoiceDate,
+      'Due Date': inv.dueDate || '-',
+      'Type': inv.invoiceType ? inv.invoiceType.replace('_', ' ') : 'TAX INVOICE',
+      'Customer': inv.partyName,
+      'GSTIN': inv.partyGst || 'Unregistered',
+      'Place of Supply': inv.placeOfSupply || 'Gujarat (24)',
+      'Taxable Amount (₹)': Number(inv.taxableAmount || 0),
+      'CGST (₹)': Number(inv.cgst || 0),
+      'SGST (₹)': Number(inv.sgst || 0),
+      'IGST (₹)': Number(inv.igst || 0),
+      'Total Tax (₹)': Number(inv.totalTax || 0),
+      'Grand Total (₹)': Number(inv.totalAmount || 0),
+      'Paid Amount (₹)': Number(inv.paidAmount || 0),
+      'Balance Due (₹)': Number(inv.balanceAmount || 0),
+      'Payment Status': inv.paymentStatus || 'UNPAID',
+    })));
+    utils.book_append_sheet(wb, wsInvoices, 'GST Invoices');
+  }
+
+  // Payments Ledger Sheet
+  if (data.payments && data.payments.length > 0) {
+    const wsPayments = utils.json_to_sheet(data.payments.map((p: any) => ({
+      'Date': p.date,
+      'Party Name': p.partyName,
+      'Flow Type': p.paymentType === 'PAYMENT_IN' ? 'RECEIPT (IN)' : 'PAYMENT (OUT)',
+      'Amount (₹)': Number(p.amount || 0),
+      'Payment Mode': p.paymentMode || 'BANK_TRANSFER',
+      'Reference No': p.referenceNumber || '-',
+      'Notes': p.notes || '-',
+    })));
+    utils.book_append_sheet(wb, wsPayments, 'Payments Ledger');
+  }
+
   return write(wb, { type: 'buffer', bookType: 'xlsx' });
 }

@@ -30,15 +30,19 @@ const salarySchema = z.object({
 
 labourRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId required' });
+    const locationId = req.query.locationId ? parseInt(req.query.locationId as string, 10) : undefined;
+
+    const conditions = [
+      eq(labourSalaries.userId, req.dbUser!.id),
+      eq(labourSalaries.isDeleted, 0)
+    ];
+
+    if (locationId && !isNaN(locationId)) {
+      conditions.push(eq(labourSalaries.locationId, locationId));
+    }
 
     const records = await db.select().from(labourSalaries).where(
-      and(
-        eq(labourSalaries.userId, req.dbUser!.id),
-        eq(labourSalaries.locationId, locationId),
-        eq(labourSalaries.isDeleted, 0)
-      )
+      and(...conditions)
     ).orderBy(desc(labourSalaries.date), desc(labourSalaries.id));
     
     res.json(records);

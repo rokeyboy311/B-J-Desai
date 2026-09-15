@@ -66,20 +66,24 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
     }
   };
 
-  const saveTeamOptions = (newOptions: string[]) => {
-    setTeamOptions(newOptions);
-    localStorage.setItem(`managed_teams_${locationId}`, JSON.stringify(newOptions));
-  };
-
-  const handleAddTeam = () => {
-    if (newTeamName.trim() && !teamOptions.includes(newTeamName.trim())) {
-      saveTeamOptions([...teamOptions, newTeamName.trim()]);
+  const handleAddTeam = async () => {
+    const trimmed = newTeamName.trim();
+    if (trimmed && !teamOptions.includes(trimmed)) {
+      try {
+        await apiFetch("/master/teams", {
+          method: "POST",
+          body: JSON.stringify({ name: trimmed, locationId })
+        });
+      } catch (err) {
+        console.error("Failed to save team:", err);
+      }
+      setTeamOptions([...teamOptions, trimmed]);
       setNewTeamName("");
     }
   };
 
   const handleRemoveTeam = (team: string) => {
-    saveTeamOptions(teamOptions.filter(t => t !== team));
+    setTeamOptions(teamOptions.filter(t => t !== team));
     if (formData.labourTeam === team) {
       setFormData({ ...formData, labourTeam: "" });
     }

@@ -13,6 +13,9 @@ import materialRouter from "./routes/material.routes.ts";
 import labourRouter from "./routes/labour.routes.ts";
 import supervisorRouter from "./routes/supervisor.routes.ts";
 import masterRouter from "./routes/master.routes.ts";
+import invoiceRouter from "./routes/invoice.routes.ts";
+import itemRouter from "./routes/item.routes.ts";
+import paymentRouter from "./routes/payment.routes.ts";
 
 async function startServer() {
   const app = express();
@@ -37,6 +40,10 @@ async function startServer() {
   app.use("/api/materials", materialRouter);
   app.use("/api/labour", labourRouter);
   app.use("/api/supervisor-costs", supervisorRouter);
+  app.use("/api/master", masterRouter);
+  app.use("/api/invoices", invoiceRouter);
+  app.use("/api/items", itemRouter);
+  app.use("/api/payments", paymentRouter);
   
   // Register global error handler (must be after routes)
   app.use(errorHandler);

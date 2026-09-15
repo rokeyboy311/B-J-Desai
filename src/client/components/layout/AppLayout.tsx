@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { LogOut, LayoutDashboard, MapPin, Receipt, FileSpreadsheet, History, User, Building2, Menu, X } from "lucide-react";
+import { 
+  LogOut, LayoutDashboard, MapPin, FileSpreadsheet, History, 
+  User, Building2, Menu, X, FileText, ShoppingBag, 
+  Wallet, Boxes, Users, CreditCard, UserCheck
+} from "lucide-react";
 import { PWAInstallButton } from "../PWAInstallButton";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -18,10 +22,15 @@ export default function AppLayout() {
 
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
-    { name: "Locations", path: "/locations", icon: MapPin },
-    { name: "Records", path: "/records", icon: Receipt },
-    { name: "Reports", path: "/reports", icon: FileSpreadsheet },
-    { name: "Activity", path: "/activity", icon: History },
+    { name: "Sales & Invoicing", path: "/sales", icon: FileText },
+    { name: "Purchases", path: "/purchases", icon: ShoppingBag },
+    { name: "Income & Expenses", path: "/expenses", icon: Wallet },
+    { name: "Inventory & Products", path: "/inventory", icon: Boxes },
+    { name: "Parties & Ledgers", path: "/parties", icon: Users },
+    { name: "Payments & Receipts", path: "/payments", icon: CreditCard },
+    { name: "Accounting & Reports", path: "/reports", icon: FileSpreadsheet },
+    { name: "Labour / Employees", path: "/labour", icon: UserCheck },
+    { name: "Locations / Branches", path: "/locations", icon: MapPin },
   ];
 
   return (
@@ -182,24 +191,31 @@ export default function AppLayout() {
         </div>
       </main>
       
-      {/* Mobile Bottom Navigation - Keep for quick access */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around z-40 px-1 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pt-1">
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around z-40 px-1 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pt-1">
         {navItems.slice(0, 4).map((item) => {
           const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
           return (
             <button 
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center justify-center p-2 flex-1 relative ${isActive ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex flex-col items-center justify-center p-2 flex-1 relative ${isActive ? 'text-indigo-600 font-semibold' : 'text-slate-400 hover:text-slate-600'}`}
             >
               {isActive && (
                 <motion.div layoutId="mobile-nav-indicator" className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-600 rounded-b-full" />
               )}
-              <item.icon size={20} className={`mb-1 mt-1 ${isActive ? 'text-indigo-600' : ''}`} />
-              <span className="text-[10px] font-medium tracking-wide">{item.name}</span>
+              <item.icon size={18} className="mb-0.5 mt-0.5" />
+              <span className="text-[10px] truncate max-w-[65px]">{item.name.split(' ')[0]}</span>
             </button>
-          )
+          );
         })}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className={`flex flex-col items-center justify-center p-2 flex-1 ${mobileMenuOpen ? 'text-indigo-600 font-semibold' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          <Menu size={18} className="mb-0.5 mt-0.5" />
+          <span className="text-[10px]">All ERP</span>
+        </button>
       </nav>
     </div>
   );

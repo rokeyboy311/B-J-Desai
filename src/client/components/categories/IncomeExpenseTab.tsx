@@ -69,39 +69,47 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
     }
   };
 
-  const savePartyOptions = (newOptions: string[]) => {
-    setPartyOptions(newOptions);
-    localStorage.setItem(`managed_parties_${locationId}`, JSON.stringify(newOptions));
-  };
-
-  const saveTeamOptions = (newOptions: string[]) => {
-    setTeamOptions(newOptions);
-    localStorage.setItem(`managed_teams_${locationId}`, JSON.stringify(newOptions));
-  };
-
-  const handleAddParty = () => {
-    if (newPartyName.trim() && !partyOptions.includes(newPartyName.trim())) {
-      savePartyOptions([...partyOptions, newPartyName.trim()]);
+  const handleAddParty = async () => {
+    const trimmed = newPartyName.trim();
+    if (trimmed && !partyOptions.includes(trimmed)) {
+      try {
+        await apiFetch("/master/parties", {
+          method: "POST",
+          body: JSON.stringify({ name: trimmed, locationId })
+        });
+      } catch (err) {
+        console.error("Failed to save party to master:", err);
+      }
+      setPartyOptions([...partyOptions, trimmed]);
       setNewPartyName("");
     }
   };
 
   const handleRemoveParty = (party: string) => {
-    savePartyOptions(partyOptions.filter(p => p !== party));
+    setPartyOptions(partyOptions.filter(p => p !== party));
     if (formData.partyName === party) {
       setFormData({ ...formData, partyName: "" });
     }
   };
 
-  const handleAddTeam = () => {
-    if (newTeamName.trim() && !teamOptions.includes(newTeamName.trim())) {
-      saveTeamOptions([...teamOptions, newTeamName.trim()]);
+  const handleAddTeam = async () => {
+    const trimmed = newTeamName.trim();
+    if (trimmed && !teamOptions.includes(trimmed)) {
+      try {
+        await apiFetch("/master/teams", {
+          method: "POST",
+          body: JSON.stringify({ name: trimmed, locationId })
+        });
+      } catch (err) {
+        console.error("Failed to save team to master:", err);
+      }
+      setTeamOptions([...teamOptions, trimmed]);
       setNewTeamName("");
     }
   };
 
   const handleRemoveTeam = (team: string) => {
-    saveTeamOptions(teamOptions.filter(t => t !== team));
+    setTeamOptions(teamOptions.filter(t => t !== team));
     if (formData.teamName === team) {
       setFormData({ ...formData, teamName: "" });
     }
@@ -121,8 +129,8 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
         description: "",
       });
       loadData();
-    } catch (error) {
-      alert("Failed to save record");
+    } catch (error: any) {
+      console.error("Failed to save record:", error);
     }
   };
 

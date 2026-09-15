@@ -1,6 +1,6 @@
 {
   "name": "Bina Enterprise",
-  "description": "Location-based accounting application organized into 1st Category: Investment (sub-categories: 1. Investment, 2. Upad) and 2nd Category: Expense (sub-categories: Material Purchase, Material Supply, Site Supply, Labour Salary).",
+  "description": "Comprehensive Generic ERP, GST Billing, Invoicing, Inventory, Purchasing, Sales, Payments, Accounting Ledgers, and Multi-Location Financial Management System.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

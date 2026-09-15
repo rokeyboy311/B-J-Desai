@@ -259,10 +259,109 @@ export const supervisorCosts = pgTable('supervisor_costs', {
 export const parties = pgTable('parties', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  partyType: text('party_type').default('CUSTOMER').notNull(), // CUSTOMER, SUPPLIER, BOTH
+  phone: text('phone'),
+  email: text('email'),
+  pan: text('pan'),
+  state: text('state'),
+  stateCode: text('state_code'),
   address: text('address'),
   gst: text('gst'),
+  openingBalance: numeric('opening_balance', { precision: 12, scale: 2 }).default('0').notNull(),
+  openingBalanceType: text('opening_balance_type').default('TO_RECEIVE').notNull(), // TO_RECEIVE (Debit), TO_PAY (Credit)
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+// Products & Services Catalog
+export const items = pgTable('items', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  type: text('type').default('PRODUCT').notNull(), // PRODUCT, SERVICE
+  hsnCode: text('hsn_code'),
+  unit: text('unit').default('Nos').notNull(),
+  salePrice: numeric('sale_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  purchasePrice: numeric('purchase_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  taxRate: numeric('tax_rate', { precision: 5, scale: 2 }).default('18').notNull(), // 0, 5, 12, 18, 28
+  openingStock: numeric('opening_stock', { precision: 12, scale: 2 }).default('0').notNull(),
+  currentStock: numeric('current_stock', { precision: 12, scale: 2 }).default('0').notNull(),
+  minStockAlert: numeric('min_stock_alert', { precision: 12, scale: 2 }).default('0').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+// GST Invoices & Bills
+export const invoices = pgTable('invoices', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'set null' }),
+  partyId: integer('party_id').references(() => parties.id, { onDelete: 'set null' }),
+  partyName: text('party_name').notNull(),
+  partyGst: text('party_gst'),
+  partyAddress: text('party_address'),
+  partyPhone: text('party_phone'),
+  invoiceNumber: text('invoice_number').notNull(),
+  invoiceDate: text('invoice_date').notNull(),
+  dueDate: text('due_date'),
+  placeOfSupply: text('place_of_supply'),
+  invoiceType: text('invoice_type').default('TAX_INVOICE').notNull(), // TAX_INVOICE, BILL_OF_SUPPLY, PROFORMA, PURCHASE_BILL
+  subtotal: numeric('subtotal', { precision: 12, scale: 2 }).default('0').notNull(),
+  discount: numeric('discount', { precision: 12, scale: 2 }).default('0').notNull(),
+  taxableAmount: numeric('taxable_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  cgst: numeric('cgst', { precision: 12, scale: 2 }).default('0').notNull(),
+  sgst: numeric('sgst', { precision: 12, scale: 2 }).default('0').notNull(),
+  igst: numeric('igst', { precision: 12, scale: 2 }).default('0').notNull(),
+  totalTax: numeric('total_tax', { precision: 12, scale: 2 }).default('0').notNull(),
+  roundOff: numeric('round_off', { precision: 6, scale: 2 }).default('0').notNull(),
+  totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
+  paidAmount: numeric('paid_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  balanceAmount: numeric('balance_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  paymentStatus: text('payment_status').default('UNPAID').notNull(), // UNPAID, PARTIAL, PAID
+  notes: text('notes'),
+  terms: text('terms'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+// Invoice Line Items
+export const invoiceItems = pgTable('invoice_items', {
+  id: serial('id').primaryKey(),
+  invoiceId: integer('invoice_id').references(() => invoices.id, { onDelete: 'cascade' }).notNull(),
+  itemId: integer('item_id').references(() => items.id, { onDelete: 'set null' }),
+  description: text('description').notNull(),
+  hsnCode: text('hsn_code'),
+  quantity: numeric('quantity', { precision: 12, scale: 2 }).default('1').notNull(),
+  unit: text('unit').default('Nos').notNull(),
+  rate: numeric('rate', { precision: 12, scale: 2 }).notNull(),
+  discount: numeric('discount', { precision: 12, scale: 2 }).default('0').notNull(),
+  taxableAmount: numeric('taxable_amount', { precision: 12, scale: 2 }).notNull(),
+  taxRate: numeric('tax_rate', { precision: 5, scale: 2 }).default('0').notNull(),
+  cgst: numeric('cgst', { precision: 12, scale: 2 }).default('0').notNull(),
+  sgst: numeric('sgst', { precision: 12, scale: 2 }).default('0').notNull(),
+  igst: numeric('igst', { precision: 12, scale: 2 }).default('0').notNull(),
+  totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
+});
+
+// Payments & Receipts Ledger
+export const payments = pgTable('payments', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'set null' }),
+  partyId: integer('party_id').references(() => parties.id, { onDelete: 'set null' }),
+  partyName: text('party_name').notNull(),
+  invoiceId: integer('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
+  date: text('date').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  paymentType: text('payment_type').notNull(), // PAYMENT_IN (Receipt from Customer), PAYMENT_OUT (Payment to Vendor/Labour)
+  paymentMode: text('payment_mode').default('CASH').notNull(), // CASH, BANK_TRANSFER, UPI, CHEQUE, NEFT
+  referenceNumber: text('reference_number'),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   isDeleted: integer('is_deleted').default(0).notNull(),

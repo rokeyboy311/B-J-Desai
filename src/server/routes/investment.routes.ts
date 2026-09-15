@@ -25,15 +25,19 @@ const txSchema = z.object({
 
 investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
   try {
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locationId = req.query.locationId ? parseInt(req.query.locationId as string, 10) : undefined;
+
+    const conditions = [
+      eq(investmentParties.userId, req.dbUser!.id),
+      eq(investmentParties.isDeleted, 0)
+    ];
+
+    if (locationId && !isNaN(locationId)) {
+      conditions.push(eq(investmentParties.locationId, locationId));
+    }
 
     const parties = await db.select().from(investmentParties).where(
-      and(
-        eq(investmentParties.userId, req.dbUser!.id),
-        eq(investmentParties.locationId, locationId),
-        eq(investmentParties.isDeleted, 0)
-      )
+      and(...conditions)
     ).orderBy(desc(investmentParties.createdAt));
 
     // Get metrics for each party
