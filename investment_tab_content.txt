@@ -1,0 +1,319 @@
+import React, { useState, useEffect } from "react";
+import { apiFetch } from "../../lib/api";
+import { Modal } from "../ui/Modal";
+import { TrendingUp, Plus, Trash2, ArrowUpRight, FileText, Banknote, Building2 } from "lucide-react";
+
+export default function InvestmentTab({ locationId }: { locationId: number }) {
+  const [activeSubTab, setActiveSubTab] = useState<"investors" | "bills">("investors");
+  const [loading, setLoading] = useState(true);
+
+  // Data
+  const [parties, setParties] = useState<any[]>([]);
+  const [investorTxs, setInvestorTxs] = useState<any[]>([]);
+  const [billIncomes, setBillIncomes] = useState<any[]>([]);
+
+  // Modals
+  const [isInvestorTxModalOpen, setIsInvestorTxModalOpen] = useState(false);
+  const [isBillModalOpen, setIsBillModalOpen] = useState(false);
+
+  const [investorTxData, setInvestorTxData] = useState({
+    partyId: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    paymentMethod: "Bank Transfer",
+    referenceNumber: "",
+    description: "",
+  });
+
+  const [billData, setBillData] = useState({
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+  });
+
+  useEffect(() => {
+    loadData();
+  }, [locationId]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [partiesRes, txsRes, recordsRes] = await Promise.all([
+        apiFetch(`/investments/parties?locationId=${locationId}`),
+        apiFetch(`/investments/transactions?locationId=${locationId}`),
+        apiFetch(`/records?locationId=${locationId}`)
+      ]);
+      setParties(partiesRes || []);
+      setInvestorTxs((txsRes || []).filter((tx: any) => tx.type === "INVESTMENT"));
+      setBillIncomes((recordsRes || []).filter((r: any) => r.type === "INCOME"));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateInvestorTx = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!investorTxData.partyId || !investorTxData.amount) return;
+    try {
+      await apiFetch("/investments/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          partyId: parseInt(investorTxData.partyId),
+          type: "INVESTMENT",
+          amount: parseFloat(investorTxData.amount),
+          date: investorTxData.date,
+          paymentMethod: investorTxData.paymentMethod,
+          referenceNumber: investorTxData.referenceNumber,
+          description: investorTxData.description
+        })
+      });
+      setInvestorTxData({
+        partyId: "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        paymentMethod: "Bank Transfer",
+        referenceNumber: "",
+        description: "",
+      });
+      setIsInvestorTxModalOpen(false);
+      loadData();
+    } catch (err) {
+      alert("Failed to record investment.");
+    }
+  };
+
+  const handleCreateBillIncome = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!billData.amount) return;
+    try {
+      await apiFetch("/records", {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          type: "INCOME",
+          amount: parseFloat(billData.amount),
+          date: billData.date,
+          description: billData.description || "Bill Income"
+        })
+      });
+      setBillData({
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        description: "",
+      });
+      setIsBillModalOpen(false);
+      loadData();
+    } catch (err) {
+      alert("Failed to record bill.");
+    }
+  };
+
+  const handleDeleteInvestorTx = async (id: number) => {
+    if (!confirm("Delete this investment?")) return;
+    try {
+      await apiFetch(`/investments/transactions/${id}`, { method: "DELETE" });
+      loadData();
+    } catch (err) {
+      alert("Failed to delete.");
+    }
+  };
+
+  const handleDeleteBill = async (id: number) => {
+    if (!confirm("Delete this bill income?")) return;
+    try {
+      await apiFetch(`/records/${id}`, { method: "DELETE" });
+      loadData();
+    } catch (err) {
+      alert("Failed to delete.");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-blue-600/10 via-indigo-600/5 to-blue-600/10 border border-blue-200/80 p-5 rounded-2xl flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-blue-600 text-white rounded-xl shadow-md">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Investment Category</h2>
+            <p className="text-xs text-slate-600">Track investments from investors and bill incomes.</p>
+          </div>
+        </div>
+
+        <div className="flex bg-white rounded-lg p-1 border border-blue-100 shadow-sm w-max">
+          <button
+            onClick={() => setActiveSubTab("investors")}
+            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${activeSubTab === "investors" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            Part 1: From Investors
+          </button>
+          <button
+            onClick={() => setActiveSubTab("bills")}
+            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${activeSubTab === "bills" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            Part 2: From Bills
+          </button>
+        </div>
+      </div>
+
+      {activeSubTab === "investors" && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2"><ArrowUpRight className="w-4 h-4 text-emerald-600"/> Investments from Investors</h3>
+            <button onClick={() => setIsInvestorTxModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-blue-700 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add Investment
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Investor Name</th>
+                  <th className="p-3 text-right">Amount Invested (₹)</th>
+                  <th className="p-3">Details</th>
+                  <th className="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {investorTxs.map(tx => (
+                  <tr key={tx.id} className="hover:bg-slate-50">
+                    <td className="p-3 text-slate-600">{tx.date}</td>
+                    <td className="p-3 font-bold text-slate-900">{tx.partyName}</td>
+                    <td className="p-3 text-right font-bold text-emerald-600">₹{Number(tx.amount).toLocaleString()}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-0.5">
+                        {tx.paymentMethod && <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 rounded w-max">{tx.paymentMethod}</span>}
+                        {tx.description && <span className="text-slate-500 truncate max-w-[150px]">{tx.description}</span>}
+                      </div>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button onClick={() => handleDeleteInvestorTx(tx.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                    </td>
+                  </tr>
+                ))}
+                {investorTxs.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-slate-500">No investments recorded yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {investorTxs.length > 0 && (
+            <div className="p-4 bg-slate-50 border-t border-slate-200 text-right">
+              <span className="text-slate-500 text-sm font-semibold mr-3">Total Invested:</span>
+              <span className="text-xl font-black text-slate-900">₹{investorTxs.reduce((s, tx) => s + Number(tx.amount), 0).toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeSubTab === "bills" && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2"><Banknote className="w-4 h-4 text-emerald-600"/> Investments from Bills</h3>
+            <button onClick={() => setIsBillModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-blue-700 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add Bill Income
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Description / Bill Info</th>
+                  <th className="p-3 text-right">Amount Received (₹)</th>
+                  <th className="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {billIncomes.map(b => (
+                  <tr key={b.id} className="hover:bg-slate-50">
+                    <td className="p-3 text-slate-600">{b.date}</td>
+                    <td className="p-3 font-semibold text-slate-800">{b.description || "Bill Income"}</td>
+                    <td className="p-3 text-right font-bold text-emerald-600">₹{Number(b.amount).toLocaleString()}</td>
+                    <td className="p-3 text-center">
+                      <button onClick={() => handleDeleteBill(b.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                    </td>
+                  </tr>
+                ))}
+                {billIncomes.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-500">No bill incomes recorded yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {billIncomes.length > 0 && (
+            <div className="p-4 bg-slate-50 border-t border-slate-200 text-right">
+              <span className="text-slate-500 text-sm font-semibold mr-3">Total Bill Income:</span>
+              <span className="text-xl font-black text-slate-900">₹{billIncomes.reduce((s, b) => s + Number(b.amount), 0).toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modals */}
+      <Modal isOpen={isInvestorTxModalOpen} onClose={() => setIsInvestorTxModalOpen(false)} title="Add Investment from Investor">
+        <form onSubmit={handleCreateInvestorTx} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Select Investor</label>
+            <select required value={investorTxData.partyId} onChange={e => setInvestorTxData({...investorTxData, partyId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+              <option value="">-- Select --</option>
+              {parties.map(p => <option key={p.id} value={p.id}>{p.partyName}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Amount (₹)</label>
+              <input type="number" required value={investorTxData.amount} onChange={e => setInvestorTxData({...investorTxData, amount: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date</label>
+              <input type="date" required value={investorTxData.date} onChange={e => setInvestorTxData({...investorTxData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+              <select value={investorTxData.paymentMethod} onChange={e => setInvestorTxData({...investorTxData, paymentMethod: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <option value="Cash">Cash</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="UPI">UPI</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Reference No</label>
+              <input type="text" value={investorTxData.referenceNumber} onChange={e => setInvestorTxData({...investorTxData, referenceNumber: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Notes</label>
+            <textarea value={investorTxData.description} onChange={e => setInvestorTxData({...investorTxData, description: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" rows={2} />
+          </div>
+          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg">Save Investment</button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isBillModalOpen} onClose={() => setIsBillModalOpen(false)} title="Add Investment from Bill">
+        <form onSubmit={handleCreateBillIncome} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Amount Received (₹)</label>
+              <input type="number" required value={billData.amount} onChange={e => setBillData({...billData, amount: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date</label>
+              <input type="date" required value={billData.date} onChange={e => setBillData({...billData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Description / Bill Info</label>
+            <textarea required value={billData.description} onChange={e => setBillData({...billData, description: e.target.value})} placeholder="e.g. Sales Invoice #1024" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" rows={3} />
+          </div>
+          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg">Save Bill Income</button>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+

@@ -36,11 +36,10 @@ export default function DashboardPage() {
   }
 
   // Derived metrics for UI
-  const invFromInvestors = metrics?.connectedExpenses?.totalInvested || 0;
-  const invFromBills = metrics?.connectedExpenses?.totalIncome || metrics?.totalIncome || 0;
-  const invUpad = metrics?.connectedExpenses?.totalUpad || 0;
-  
-  const totalInvestment = invFromInvestors + invFromBills;
+  const totalInvestment = metrics?.totalInvestment || 0;
+  const invFromBills = metrics?.totalBillInvestment || 0;
+  const invFromInvestors = totalInvestment - invFromBills;
+  const invUpad = metrics?.totalInvestmentUpad || 0;
   const totalInvestorAvailable = invFromInvestors - invUpad;
 
   return (

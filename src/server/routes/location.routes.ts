@@ -13,7 +13,7 @@ locationRouter.get('/', async (req: AuthRequest, res: Response) => {
     const locations = await getLocationsWithRecordCount(req.dbUser!.id);
     res.json(locations);
   } catch (error) {
-    console.error('Failed to fetch locations:', error);
+    console.error('Failed to fetch locations from DB:', error, error.stack || error.message);
     res.status(500).json({ error: 'Failed to fetch locations' });
   }
 });

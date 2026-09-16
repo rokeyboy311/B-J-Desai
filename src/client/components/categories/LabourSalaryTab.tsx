@@ -91,8 +91,9 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
       if (editingId) {
         const att = attendances[0];
         const isDay = att.typeCategory === "Day";
+        const isPayment = att.typeCategory === "Payment";
         const daysVal = isDay ? (att.attendanceType === "Half-day" ? 0.5 : 1) : Number(att.tcQuantity || 0);
-        const typeVal = isDay ? att.attendanceType : "TC";
+        const typeVal = isPayment ? "Payment" : isDay ? att.attendanceType : "TC";
 
         await apiFetch(`/labour/${editingId}`, {
           method: "PUT",
@@ -116,8 +117,9 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
       } else {
         await Promise.all(attendances.map(att => {
           const isDay = att.typeCategory === "Day";
-          const daysVal = isDay ? (att.attendanceType === "Half-day" ? 0.5 : 1) : Number(att.tcQuantity || 0);
-          const typeVal = isDay ? att.attendanceType : "TC";
+        const isPayment = att.typeCategory === "Payment";
+        const daysVal = isDay ? (att.attendanceType === "Half-day" ? 0.5 : 1) : Number(att.tcQuantity || 0);
+        const typeVal = isPayment ? "Payment" : isDay ? att.attendanceType : "TC";
           
           return apiFetch("/labour", {
             method: "POST",
@@ -212,8 +214,13 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
     if (field === "typeCategory") {
       if (value === "Day") {
         newAtt[index].attendanceType = "Full-day";
-      } else {
+      } else if (value === "TC") {
         newAtt[index].attendanceType = "TC";
+      } else {
+        newAtt[index].attendanceType = "Payment";
+        newAtt[index].tcQuantity = "0";
+        newAtt[index].dailyRate = "0";
+        newAtt[index].upad = "0";
       }
     }
     
@@ -391,6 +398,7 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
                   >
                     <option value="Day">Day</option>
                     <option value="TC">TC</option>
+                    <option value="Payment">Payment</option>
                   </select>
                 </div>
 
@@ -407,7 +415,7 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
                       <option value="Half-day">Half</option>
                     </select>
                   </div>
-                ) : (
+                ) : att.typeCategory === "TC" ? (
                   <div className="w-[100px]">
                     <label className="block text-[10px] uppercase text-slate-500 font-semibold mb-1">No. of TCs</label>
                     <input 
@@ -419,9 +427,13 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
                       required
                     />
                   </div>
+                ) : (
+                  <div className="w-[100px] flex items-center justify-center bg-green-50 rounded-lg border border-green-200 text-xs font-bold text-green-700">
+                    Payment Only
+                  </div>
                 )}
                 
-                <div className="w-[100px]">
+                {att.typeCategory !== "Payment" && <div className="w-[100px]">
                   <label className="block text-[10px] uppercase text-slate-500 font-semibold mb-1">Rate</label>
                   <input 
                     type="number" inputMode="decimal" min="0" step="0.01"
@@ -431,9 +443,9 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
                     className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
                   />
-                </div>
+                </div>}
 
-                <div className="w-[100px]">
+                {att.typeCategory !== "Payment" && <div className="w-[100px]">
                   <label className="block text-[10px] uppercase text-amber-600 font-semibold mb-1">Upad</label>
                   <input 
                     type="number" inputMode="decimal" min="0" step="0.01"
@@ -442,7 +454,7 @@ export default function LabourSalaryTab({ locationId }: { locationId: number }) 
                     onChange={e => updateAttendance(index, "upad", e.target.value)} 
                     className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-amber-500 border-amber-200 bg-amber-50"
                   />
-                </div>
+                </div>}
 
                 <div className="w-[100px]">
                   <label className="block text-[10px] uppercase text-green-600 font-semibold mb-1">Paid</label>

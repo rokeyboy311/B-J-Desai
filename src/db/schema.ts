@@ -3,7 +3,7 @@ import { integer, numeric, pgEnum, pgTable, serial, text, timestamp } from 'driz
 
 // Enums
 export const recordTypeEnum = pgEnum('record_type', ['INCOME', 'EXPENSE']);
-export const investmentTypeEnum = pgEnum('investment_type', ['INVESTMENT', 'PAYMENT', 'UPAD']);
+export const investmentTypeEnum = pgEnum('investment_type', ['INVESTMENT', 'PAYMENT', 'UPAD', 'CONTRIBUTION']);
 
 // Define the 'users' table.
 export const users = pgTable('users', {

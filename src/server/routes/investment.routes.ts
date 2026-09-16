@@ -15,7 +15,7 @@ const partySchema = z.object({
 
 const txSchema = z.object({
   partyId: z.number().int().positive(),
-  type: z.enum(['INVESTMENT', 'UPAD', 'PAYMENT']),
+  type: z.enum(['INVESTMENT', 'UPAD', 'PAYMENT', 'CONTRIBUTION']),
   amount: z.union([z.number().positive(), z.string().regex(/^\d+(\.\d{1,2})?$/)]).transform(Number),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   description: z.string().optional().nullable(),
@@ -57,6 +57,7 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
       let totalInvestment = 0;
       let totalPayment = 0;
       let totalUpad = 0;
+      let totalContribution = 0;
       
       metrics.filter(m => m.partyId === p.id).forEach(m => {
         if (m.type === 'INVESTMENT') totalInvestment += parseFloat(m.total || '0');

@@ -34,7 +34,7 @@ export default function LocationsPage() {
       const res = await apiFetch("/locations");
       setLocations(res);
     } catch (error) {
-      console.error("Failed to load locations");
+      console.error("Failed to load locations: ", error);
     } finally {
       setLoading(false);
     }

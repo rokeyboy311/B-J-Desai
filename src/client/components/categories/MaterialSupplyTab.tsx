@@ -106,6 +106,25 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     });
   };
 
+
+  const handleEdit = (record: any) => {
+    setEditingId(record.id);
+    setFormData({
+      date: record.date || new Date().toISOString().split("T")[0],
+      partyId: record.partyId?.toString() || "",
+      materialId: record.materialId?.toString() || "",
+      quantity: record.quantity || "",
+      rate: record.rate || "",
+      taxPercentage: record.taxPercentage || "18",
+      transportCost: record.transportCost || "0",
+      discount: record.discount || "0",
+      referenceNumber: record.referenceNumber || "",
+      description: record.notes || record.description || "",
+      unit: record.unit || "Nos"
+    });
+    setIsModalOpen(true);
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this supply record? Stock will be reverted.")) return;
     try {
@@ -165,6 +184,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
                   <td className="p-3 text-right text-slate-600">{r.taxPercentage || 0}%</td>
                   <td className="p-3 text-right font-black text-slate-900">₹{Number(r.totalAmount).toLocaleString()}</td>
                   <td className="p-3 text-center">
+                    <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-amber-600 p-1"><Pencil className="w-4 h-4" /></button>
                     <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>
@@ -175,7 +195,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Supply (GST Bill)">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Supply" : "Add Supply (GST Bill)"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>

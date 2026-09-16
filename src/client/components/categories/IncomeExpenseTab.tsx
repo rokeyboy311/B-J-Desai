@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Plus, Trash2, Settings2 } from "lucide-react";
+import { Plus, Trash2, Settings2, Pencil } from "lucide-react";
 
 const PRESET_PARTIES = ["Supplier A", "Contractor B"];
 const PRESET_TEAMS = ["Team Alpha", "Team Beta"];
@@ -19,6 +19,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
   const [newPartyName, setNewPartyName] = useState("");
   const [newTeamName, setNewTeamName] = useState("");
 
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     type: "EXPENSE",
     date: new Date().toISOString().split("T")[0],

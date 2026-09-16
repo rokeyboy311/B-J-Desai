@@ -25,10 +25,21 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     headers.set("Content-Type", "application/json");
   }
 
-  let response = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`/api${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (netErr) {
+    console.error("Network error during fetch:", netErr);
+    // Transient network error (e.g. server restarting), wait and retry once
+    await new Promise(r => setTimeout(r, 1500));
+    response = await fetch(`/api${endpoint}`, {
+      ...options,
+      headers,
+    });
+  }
 
   // If 401 Unauthorized and user is logged in, try force-refreshing the token once
   if (response.status === 401 && user) {

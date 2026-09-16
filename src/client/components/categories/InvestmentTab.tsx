@@ -4,7 +4,7 @@ import { Modal } from "../ui/Modal";
 import { TrendingUp, Plus, Trash2, ArrowUpRight, FileText, Banknote, Building2 } from "lucide-react";
 
 export default function InvestmentTab({ locationId }: { locationId: number }) {
-  const [activeSubTab, setActiveSubTab] = useState<"investors" | "bills">("investors");
+  const [activeSubTab, setActiveSubTab] = useState<"investors" | "bills" | "combined">("combined");
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -45,7 +45,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       ]);
       setParties(partiesRes || []);
       setInvestorTxs((txsRes || []).filter((tx: any) => tx.type === "INVESTMENT"));
-      setBillIncomes((recordsRes || []).filter((r: any) => r.type === "INCOME"));
+      setBillIncomes((recordsRes || []).filter((r: any) => r.type === "INCOME" && r.category === "BILL_INVESTMENT"));
     } catch (err) {
       console.error(err);
     } finally {
@@ -96,6 +96,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           type: "INCOME",
           amount: parseFloat(billData.amount),
           date: billData.date,
+          partyName: "Bill Payment",
+          category: "BILL_INVESTMENT",
           description: billData.description || "Bill Income"
         })
       });
@@ -159,6 +161,61 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </button>
         </div>
       </div>
+
+      
+      {activeSubTab === "combined" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 flex flex-col justify-center">
+              <span className="text-xs text-blue-600 font-bold uppercase tracking-wider mb-1">Investor Investment</span>
+              <span className="text-3xl font-black text-blue-700">₹{investorTxs.reduce((s, tx) => s + Number(tx.amount), 0).toLocaleString()}</span>
+            </div>
+            <div className="bg-emerald-50 p-6 rounded-xl border border-emerald-100 flex flex-col justify-center">
+              <span className="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-1">Bill Investment</span>
+              <span className="text-3xl font-black text-emerald-700">₹{billIncomes.reduce((s, b) => s + Number(b.amount), 0).toLocaleString()}</span>
+            </div>
+            <div className="bg-indigo-600 p-6 rounded-xl border border-indigo-700 flex flex-col justify-center text-white shadow-md">
+              <span className="text-xs text-indigo-200 font-bold uppercase tracking-wider mb-1">Total Investment</span>
+              <span className="text-3xl font-black">₹{(investorTxs.reduce((s, tx) => s + Number(tx.amount), 0) + billIncomes.reduce((s, b) => s + Number(b.amount), 0)).toLocaleString()}</span>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-200 bg-slate-50">
+              <h3 className="font-bold text-slate-900">Combined Transaction Records</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Source / Details</th>
+                    <th className="p-3 text-right">Amount (₹)</th>
+                    <th className="p-3">Type</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {[...investorTxs.map(tx => ({...tx, source: 'Investor: ' + tx.partyName})), ...billIncomes.map(b => ({...b, source: 'Bill: ' + (b.description || 'Bill Income')}))]
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((item, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="p-3 text-slate-600">{item.date}</td>
+                      <td className="p-3 font-semibold text-slate-800">{item.source}</td>
+                      <td className="p-3 text-right font-bold text-slate-900">₹{Number(item.amount).toLocaleString()}</td>
+                      <td className="p-3">
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${item.partyName ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {item.partyName ? 'INVESTOR' : 'BILL'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {(investorTxs.length === 0 && billIncomes.length === 0) && <tr><td colSpan={4} className="p-8 text-center text-slate-500">No investments recorded yet.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeSubTab === "investors" && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
@@ -316,3 +373,4 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     </div>
   );
 }
+

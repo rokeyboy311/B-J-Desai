@@ -50,17 +50,28 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
 
     // 1. Income & Expenses
     const ieQuery = await db.execute(sql`
-      SELECT type, SUM(amount) as amt, SUM(refundable_amount) as ref_amt, SUM(refunded_amount) as refd_amt
+      SELECT 
+        type, 
+        category,
+        SUM(amount) as amt, 
+        SUM(refundable_amount) as ref_amt, 
+        SUM(refunded_amount) as refd_amt
       FROM records
       WHERE user_id = ${userId} AND is_deleted = 0 AND location_id IN (${sql.raw(idList)})
-      GROUP BY type
+      GROUP BY type, category
     `);
     
-    let totalIncome = 0, actualExpense = 0, totalRefundable = 0, totalRefunded = 0;
+    let totalIncome = 0, actualExpense = 0, totalRefundable = 0, totalRefunded = 0, totalBillInvestment = 0;
     for (const r of ieQuery.rows) {
-      if (r.type === 'INCOME') totalIncome += parseFloat(r.amt as string || '0');
+      const amt = parseFloat(r.amt as string || '0');
+      if (r.type === 'INCOME') {
+        totalIncome += amt;
+        if (r.category === 'BILL_INVESTMENT') {
+          totalBillInvestment += amt;
+        }
+      }
       if (r.type === 'EXPENSE') {
-        actualExpense += parseFloat(r.amt as string || '0');
+        actualExpense += amt;
         totalRefundable += parseFloat(r.ref_amt as string || '0');
         totalRefunded += parseFloat(r.refd_amt as string || '0');
       }
@@ -85,6 +96,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       if (r.type === 'UPAD') totalInvestmentUpad += a;
     }
     const investmentBalance = totalInvestment - totalInvestmentPayment - totalInvestmentUpad;
+    totalInvestment += totalBillInvestment;
 
     // 3. Material Purchase
     const mpQuery = await db.execute(sql`
@@ -108,8 +120,8 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
 
     // 5. Material Labour Supply
     const mlsQuery = await db.execute(sql`
-      SELECT SUM(total_amount) as tot, SUM(paid_amount) as pd, SUM(outstanding_amount) as out
-      FROM material_labour_supplies
+      SELECT SUM(total_amount) as tot, 0 as pd, 0 as out
+      FROM site_supplies
       WHERE user_id = ${userId} AND is_deleted = 0 AND location_id IN (${sql.raw(idList)})
     `);
     const totalMaterialLabourSupply = parseFloat(mlsQuery.rows[0]?.tot as string || '0');
@@ -174,12 +186,12 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
     });
 
     // 9. Connected Expenses (Part 2 - all expenses connected to Part 1 investment)
-    const netCapitalPool = Math.round((totalInvestment - totalInvestmentUpad) * 100) / 100;
+    const netCapitalPool = Math.round((totalInvestment - totalInvestmentUpad + totalMaterialSupplyPaid) * 100) / 100;
     const materialPurchaseExpense = totalMaterialPurchase;
     const siteSupplyExpense = totalMaterialLabourSupply;
     const labourSalaryExpense = Math.round((labourMetrics.totalPayment + labourMetrics.totalUpad) * 100) / 100;
     const generalExpense = actualExpense;
-    const totalExpensesCut = Math.round((materialPurchaseExpense + siteSupplyExpense + labourSalaryExpense + generalExpense) * 100) / 100;
+    const totalExpensesCut = Math.round((materialPurchaseExpense + labourSalaryExpense + generalExpense) * 100) / 100;
     const remainingCapital = Math.round((netCapitalPool - totalExpensesCut) * 100) / 100;
     const utilizationRate = netCapitalPool > 0 
       ? Math.min(100, Math.round((totalExpensesCut / netCapitalPool) * 100)) 
@@ -199,7 +211,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
     };
 
     // 10. Live Stock Inventory Summary
-    const [purchasesForStock, suppliesForStock, siteSuppliesForStock] = await Promise.all([
+    const [purchasesForStock, suppliesForStock, siteSuppliesForStockRaw] = await Promise.all([
       db.select({
         materialName: materialPurchases.materialName,
         unit: materialPurchases.unit,
@@ -211,11 +223,14 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
         unit: materialSupplies.unit,
         quantity: materialSupplies.quantity,
       }).from(materialSupplies).where(and(eq(materialSupplies.userId, userId), eq(materialSupplies.isDeleted, 0), sql`location_id IN (${sql.raw(idList)})`)),
-      db.select({
-        materialName: materialLabourSupplies.materialName,
-        unit: materialLabourSupplies.materialUnit,
-        quantity: materialLabourSupplies.materialQuantity,
-      }).from(materialLabourSupplies).where(and(eq(materialLabourSupplies.userId, userId), eq(materialLabourSupplies.isDeleted, 0), sql`location_id IN (${sql.raw(idList)})`))
+      db.execute(sql`
+        SELECT m.material_name as "materialName", m.unit, SUM(CAST(i.quantity AS DECIMAL)) as "quantity"
+        FROM site_supply_items i
+        JOIN site_supplies s ON i.site_supply_id = s.id
+        JOIN materials m ON i.material_id = m.id
+        WHERE s.user_id = ${userId} AND s.is_deleted = 0 AND s.location_id IN (${sql.raw(idList)}) AND i.is_deleted = 0
+        GROUP BY m.material_name, m.unit
+      `) as Promise<any>
     ]);
 
     const stockMap: Record<string, { materialName: string; unit: string; purchasedQty: number; otherSupplyQty: number; siteSupplyQty: number; totalValue: number }> = {};
@@ -232,6 +247,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       if (!stockMap[key]) stockMap[key] = { materialName: s.materialName.trim(), unit: s.unit || 'Unit', purchasedQty: 0, otherSupplyQty: 0, siteSupplyQty: 0, totalValue: 0 };
       stockMap[key].otherSupplyQty += parseFloat(s.quantity as string) || 0;
     }
+    const siteSuppliesForStock = siteSuppliesForStockRaw.rows || [];
     for (const ms of siteSuppliesForStock) {
       if (!ms.materialName) continue;
       const key = `${ms.materialName.trim().toLowerCase()}_${(ms.unit || 'unit').trim().toLowerCase()}`;
@@ -289,7 +305,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
     };
 
     res.json({
-      totalIncome, actualExpense, totalRefundable, totalRefunded, pendingRefundable, netIncome,
+      totalIncome, totalBillInvestment, actualExpense, totalRefundable, totalRefunded, pendingRefundable, netIncome,
       totalInvestment, totalInvestmentPayment, totalInvestmentUpad, investmentBalance,
       totalMaterialPurchase, totalMaterialPurchasePaid, totalMaterialPurchaseOutstanding,
       totalMaterialSupply, totalMaterialSupplyPaid, totalMaterialSupplyOutstanding,
@@ -489,7 +505,7 @@ reportRouter.get('/export-location/:id', async (req: AuthRequest, res: Response)
       exportData.supplies = await db.select().from(materialSupplies).where(and(eq(materialSupplies.locationId, locationId), eq(materialSupplies.userId, userId), eq(materialSupplies.isDeleted, 0)));
     }
     if (tab === 'all' || tab === 'material-labour-supply') {
-      exportData.labourSupplies = await db.select().from(materialLabourSupplies).where(and(eq(materialLabourSupplies.locationId, locationId), eq(materialLabourSupplies.userId, userId), eq(materialLabourSupplies.isDeleted, 0)));
+      exportData.siteSupplies = await db.execute(sql`SELECT s.*, i.material_id, i.quantity, i.rate, i.amount as item_amount FROM site_supplies s LEFT JOIN site_supply_items i ON s.id = i.site_supply_id WHERE s.user_id = ${userId} AND s.location_id = ${locationId} AND s.is_deleted = 0`).then(res => res.rows);
     }
     if (tab === 'all' || tab === 'labour-salary') {
       exportData.salaries = await db.select().from(labourSalaries).where(and(eq(labourSalaries.locationId, locationId), eq(labourSalaries.userId, userId), eq(labourSalaries.isDeleted, 0)));
@@ -523,7 +539,7 @@ reportRouter.get('/export-all', async (req: AuthRequest, res: Response) => {
     
     exportData.purchases = await db.select().from(materialPurchases).where(and(eq(materialPurchases.userId, userId), eq(materialPurchases.isDeleted, 0)));
     exportData.supplies = await db.select().from(materialSupplies).where(and(eq(materialSupplies.userId, userId), eq(materialSupplies.isDeleted, 0)));
-    exportData.labourSupplies = await db.select().from(materialLabourSupplies).where(and(eq(materialLabourSupplies.userId, userId), eq(materialLabourSupplies.isDeleted, 0)));
+    exportData.siteSupplies = await db.execute(sql`SELECT s.*, i.material_id, i.quantity, i.rate, i.amount as item_amount FROM site_supplies s LEFT JOIN site_supply_items i ON s.id = i.site_supply_id WHERE s.user_id = ${userId} AND s.is_deleted = 0`).then(res => res.rows);
     exportData.salaries = await db.select().from(labourSalaries).where(and(eq(labourSalaries.userId, userId), eq(labourSalaries.isDeleted, 0)));
     exportData.supervisorCosts = await db.select().from(supervisorCosts).where(and(eq(supervisorCosts.userId, userId), eq(supervisorCosts.isDeleted, 0)));
 

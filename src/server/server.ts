@@ -37,6 +37,7 @@ async function startServer() {
   app.use("/api/audit-logs", auditRouter);
   app.use("/api/investments", investmentRouter);
   app.use("/api/materials", materialRouter);
+  app.use("/api/site-supplies", siteSupplyRouter);
   app.use("/api/labour", labourRouter);
   app.use("/api/supervisor-costs", supervisorRouter);
   app.use("/api/master", masterRouter);

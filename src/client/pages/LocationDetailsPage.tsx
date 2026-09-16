@@ -13,13 +13,14 @@ import MaterialPurchaseTab from "../components/categories/MaterialPurchaseTab";
 import MaterialSupplyTab from "../components/categories/MaterialSupplyTab";
 import SiteSupplyTab from "../components/categories/SiteSupplyTab";
 import LabourAttendanceTab from "../components/categories/LabourAttendanceTab";
+import LabourSalaryTab from "../components/categories/LabourSalaryTab";
 import SupervisorCostTab from "../components/categories/SupervisorCostTab";
 
 export default function LocationDetailsPage() {
   const { id: locationId } = useParams();
   const navigate = useNavigate();
 
-  const [activeCategory, setActiveCategory] = useState<"investors" | "investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "supervisor">("investors");
+  const [activeCategory, setActiveCategory] = useState<"investors" | "investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "labour_records" | "supervisor">("investors");
   
   const [locationName, setLocationName] = useState("Loading...");
 
@@ -115,10 +116,18 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
+          
+          <button type="button" onClick={() => setActiveCategory("labour_records")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "labour_records" ? "bg-cyan-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+            <div className={`p-2 rounded-lg ${activeCategory === "labour_records" ? "bg-white/20" : "bg-cyan-100 text-cyan-700"}`}><Wallet className="w-4 h-4" /></div>
+            <div>
+              <div className="font-bold text-sm">7. Labour Records</div>
+              <div className={`text-xs ${activeCategory === "labour_records" ? "text-cyan-100" : "text-slate-400"}`}>Salary & Payments</div>
+            </div>
+          </button>
           <button type="button" onClick={() => setActiveCategory("supervisor")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "supervisor" ? "bg-indigo-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "supervisor" ? "bg-white/20" : "bg-indigo-100 text-indigo-700"}`}><HardHat className="w-4 h-4" /></div>
             <div>
-              <div className="font-bold text-sm">7. Supervisor Cost</div>
+              <div className="font-bold text-sm">8. Supervisor Cost</div>
               <div className={`text-xs ${activeCategory === "supervisor" ? "text-indigo-100" : "text-slate-400"}`}>Site Supervisor Expenses</div>
             </div>
           </button>
@@ -141,6 +150,7 @@ export default function LocationDetailsPage() {
               {activeCategory === "material_supply" && <MaterialSupplyTab locationId={Number(locationId)} />}
               {activeCategory === "site_supply" && <SiteSupplyTab locationId={Number(locationId)} />}
               {activeCategory === "labour_attendance" && <LabourAttendanceTab locationId={Number(locationId)} />}
+              {activeCategory === "labour_records" && <LabourSalaryTab locationId={Number(locationId)} />}
               {activeCategory === "supervisor" && <SupervisorCostTab locationId={Number(locationId)} />}
             </motion.div>
           </AnimatePresence>
