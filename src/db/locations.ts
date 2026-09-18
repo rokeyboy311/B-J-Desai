@@ -2,7 +2,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { db } from './index.ts';
 import { locations, records, auditLogs } from './schema.ts';
 
-export async function getLocationsWithRecordCount(userId: number) {
+export async function getLocationsWithRecordCount(_userId?: number) {
   return await db
     .select({
       id: locations.id,
@@ -20,7 +20,7 @@ export async function getLocationsWithRecordCount(userId: number) {
         eq(records.isDeleted, 0)
       )
     )
-    .where(and(eq(locations.userId, userId), eq(locations.isDeleted, 0)))
+    .where(eq(locations.isDeleted, 0))
     .groupBy(locations.id)
     .orderBy(locations.name);
 }
@@ -45,7 +45,7 @@ export async function createLocation(userId: number, name: string, address?: str
 export async function updateLocation(userId: number, locationId: number, name: string, address?: string | null) {
   const result = await db.update(locations)
     .set({ name, address: address || null, updatedAt: new Date() })
-    .where(and(eq(locations.id, locationId), eq(locations.userId, userId)))
+    .where(and(eq(locations.id, locationId), eq(locations.isDeleted, 0)))
     .returning();
     
   if (result.length) {
@@ -63,7 +63,7 @@ export async function updateLocation(userId: number, locationId: number, name: s
 export async function deleteLocation(userId: number, locationId: number) {
   const result = await db.update(locations)
     .set({ isDeleted: 1, updatedAt: new Date() })
-    .where(and(eq(locations.id, locationId), eq(locations.userId, userId)))
+    .where(and(eq(locations.id, locationId), eq(locations.isDeleted, 0)))
     .returning();
 
   if (result.length) {

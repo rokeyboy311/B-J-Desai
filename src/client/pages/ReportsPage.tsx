@@ -2,27 +2,39 @@ import React, { useState, useEffect } from "react";
 import { apiFetch } from "../lib/api";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { FileSpreadsheet } from "lucide-react";
+import { useLiveSync } from "../hooks/useLiveSync";
 
 export default function ReportsPage() {
+  const [reconciliation, setReconciliation] = useState<any[]>([]);
   const [data, setData] = useState<{
     monthly: any[];
     categories: any[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchAnalytics = async (isBackground = false) => {
+    try {
+      if (!isBackground && !data) setLoading(true);
+      const [analyticsRes, reconRes] = await Promise.all([
+        apiFetch("/reports/analytics"),
+        apiFetch("/reports/reconciliation")
+      ]);
+      setData(analyticsRes);
+      setReconciliation(reconRes || []);
+    } catch (error) {
+      console.error("Failed to load analytics");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchAnalytics = async () => {
-      try {
-        const result = await apiFetch("/reports/analytics");
-        setData(result);
-      } catch (error) {
-        console.error("Failed to load analytics");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAnalytics();
+    fetchAnalytics(false);
   }, []);
+
+  useLiveSync(() => {
+    fetchAnalytics(true);
+  }, 3500);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);

@@ -2,9 +2,8 @@ import { eq, and, sql, desc, gte, lte } from 'drizzle-orm';
 import { db } from './index.ts';
 import { records, auditLogs, locations } from './schema.ts';
 
-export async function getAllRecords(userId: number, filters?: { startDate?: string, endDate?: string, type?: 'INCOME' | 'EXPENSE' }) {
+export async function getAllRecords(_userId?: number, filters?: { startDate?: string, endDate?: string, type?: 'INCOME' | 'EXPENSE' }) {
   const conditions = [
-    eq(records.userId, userId),
     eq(records.isDeleted, 0)
   ];
 
@@ -34,9 +33,8 @@ export async function getAllRecords(userId: number, filters?: { startDate?: stri
   .orderBy(desc(records.date), desc(records.id));
 }
 
-export async function getRecords(userId: number, locationId: number, filters?: { startDate?: string, endDate?: string, type?: 'INCOME' | 'EXPENSE' }) {
+export async function getRecords(_userId: number, locationId: number, filters?: { startDate?: string, endDate?: string, type?: 'INCOME' | 'EXPENSE' }) {
   const conditions = [
-    eq(records.userId, userId),
     eq(records.locationId, locationId),
     eq(records.isDeleted, 0)
   ];
@@ -57,7 +55,7 @@ export async function getRecords(userId: number, locationId: number, filters?: {
     .orderBy(desc(records.date), desc(records.id));
 }
 
-export async function getRecordMetrics(userId: number, locationId: number) {
+export async function getRecordMetrics(_userId: number, locationId: number) {
   const result = await db.select({
     type: records.type,
     total: sql<string>`sum(${records.amount})`,
@@ -66,7 +64,6 @@ export async function getRecordMetrics(userId: number, locationId: number) {
   })
   .from(records)
   .where(and(
-    eq(records.userId, userId),
     eq(records.locationId, locationId),
     eq(records.isDeleted, 0)
   ))
@@ -128,7 +125,7 @@ export async function updateRecord(userId: number, recordId: number, data: any) 
       refundedAmount: data.refundedAmount ? data.refundedAmount.toString() : undefined,
       updatedAt: new Date()
     })
-    .where(and(eq(records.id, recordId), eq(records.userId, userId)))
+    .where(and(eq(records.id, recordId), eq(records.isDeleted, 0)))
     .returning();
 
   if (result.length) {
@@ -146,7 +143,7 @@ export async function updateRecord(userId: number, recordId: number, data: any) 
 export async function deleteRecord(userId: number, recordId: number) {
   const result = await db.update(records)
     .set({ isDeleted: 1, updatedAt: new Date() })
-    .where(and(eq(records.id, recordId), eq(records.userId, userId)))
+    .where(and(eq(records.id, recordId), eq(records.isDeleted, 0)))
     .returning();
 
   if (result.length) {

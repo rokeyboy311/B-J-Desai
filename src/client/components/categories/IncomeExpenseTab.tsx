@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
 import { Plus, Trash2, Settings2, Pencil } from "lucide-react";
+import { useLiveSync } from "../../hooks/useLiveSync";
 
 const PRESET_PARTIES = ["Supplier A", "Contractor B"];
 const PRESET_TEAMS = ["Team Alpha", "Team Beta"];
@@ -29,10 +30,30 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
     description: "",
   });
 
+  const loadData = async (isBackground = false) => {
+    try {
+      if (!isBackground && records.length === 0) setLoading(true);
+      const [recordsRes, metricsRes] = await Promise.all([
+        apiFetch(`/records?locationId=${locationId}&type=EXPENSE`),
+        apiFetch(`/records/metrics?locationId=${locationId}`)
+      ]);
+      setRecords(recordsRes.filter((r: any) => r.type === "EXPENSE"));
+      setMetrics(metricsRes);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadData();
+    loadData(false);
     loadMasterData();
   }, [locationId]);
+
+  useLiveSync(() => {
+    loadData(true);
+  }, 3500);
 
   const loadMasterData = async () => {
     try {
@@ -52,21 +73,6 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
       console.error(e);
       setPartyOptions(PRESET_PARTIES);
       setTeamOptions(PRESET_TEAMS);
-    }
-  };
-
-  const loadData = async () => {
-    try {
-      const [recordsRes, metricsRes] = await Promise.all([
-        apiFetch(`/records?locationId=${locationId}&type=EXPENSE`),
-        apiFetch(`/records/metrics?locationId=${locationId}`)
-      ]);
-      setRecords(recordsRes.filter((r: any) => r.type === "EXPENSE"));
-      setMetrics(metricsRes);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
     }
   };
 

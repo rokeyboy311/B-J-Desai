@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { apiFetch } from "../lib/api";
-import { auth } from "../lib/firebase";
+import { apiFetch, getStoredPinToken } from "../lib/api";
 import { Receipt, Search, Filter, Download } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
+import { useLiveSync } from "../hooks/useLiveSync";
 
 interface GlobalRecord {
   id: number;
@@ -48,10 +48,11 @@ export default function GlobalRecordsPage() {
         url += `?${queryString}`;
       }
 
-      const token = await auth.currentUser?.getIdToken();
+      const token = getStoredPinToken();
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': token ? `Bearer ${token}` : '',
+          'x-app-pin-token': token || ''
         }
       });
       
@@ -79,19 +80,25 @@ export default function GlobalRecordsPage() {
     }
   };
 
+  const fetchRecords = async (isBackground = false) => {
+    try {
+      if (!isBackground && records.length === 0) setLoading(true);
+      const data = await apiFetch("/records/all");
+      setRecords(data || []);
+    } catch (error) {
+      console.error("Failed to load records");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchRecords = async () => {
-      try {
-        const data = await apiFetch("/records/all");
-        setRecords(data);
-      } catch (error) {
-        console.error("Failed to load records");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRecords();
+    fetchRecords(false);
   }, []);
+
+  useLiveSync(() => {
+    fetchRecords(true);
+  }, 3500);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);

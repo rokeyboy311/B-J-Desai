@@ -1,132 +1,177 @@
 import { Router, Response } from 'express';
-import { requireAuth, AuthRequest } from '../middleware/auth.ts';
-import { db } from '../../db/index.ts';
-import { labourSalaries, auditLogs } from '../../db/schema.ts';
+import { db } from '../../db/index.js';
+import { labourSalaries, auditLogs } from '../../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
-import { z } from 'zod';
+import { requireAuth, AuthRequest } from '../middleware/auth.js';
 
 const labourRouter = Router();
 labourRouter.use(requireAuth);
 
-const salarySchema = z.object({
-  locationId: z.number().int().positive(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  siteLocationName: z.string().optional().nullable(),
-  labourName: z.string().min(1),
-  labourTeam: z.string().optional().nullable(),
-  attendanceType: z.string().optional().nullable(),
-  tcNumber: z.string().optional().nullable(),
-  tcQuantity: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
-  description: z.string().optional().nullable(),
-  days: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
-  dailyRate: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
-  otherEarnings: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
-  deduction: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
-  upad: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
-  paymentAmount: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
-  paymentMethod: z.string().optional().nullable(),
-  referenceNumber: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
-});
-
-const getLabourHandler = async (req: AuthRequest, res: Response) => {
+labourRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId required' });
-
-    const records = await db.select().from(labourSalaries).where(
-      and(
-        eq(labourSalaries.userId, req.dbUser!.id),
-        eq(labourSalaries.locationId, locationId),
-        eq(labourSalaries.isDeleted, 0)
-      )
-    ).orderBy(desc(labourSalaries.date), desc(labourSalaries.id));
-    
+    const locationId = req.query.locationId;
+    const conditions = [eq(labourSalaries.isDeleted, 0)];
+    if (locationId) {
+      conditions.push(eq(labourSalaries.locationId, parseInt(String(locationId), 10)));
+    }
+    const records = await db.select().from(labourSalaries)
+      .where(and(...conditions))
+      .orderBy(desc(labourSalaries.date), desc(labourSalaries.id));
     res.json(records);
   } catch (error) {
+    console.error('Fetch labour records error:', error);
     res.status(500).json({ error: 'Failed to fetch labour records' });
   }
-};
-
-labourRouter.get('/', getLabourHandler);
-labourRouter.get('/salary', getLabourHandler);
+});
 
 labourRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const data = salarySchema.parse(req.body);
-    
-    // Calculate logic
-    const effectiveDays = (data.attendanceType === 'TC' || data.attendanceType === 'TC-wise')
-      ? (data.tcQuantity || data.days)
-      : data.days;
-    const grossSalary = Math.round(((effectiveDays * data.dailyRate) + data.otherEarnings) * 100) / 100;
-    const netSalary = Math.round((grossSalary - data.deduction) * 100) / 100;
-    const balance = Math.round((netSalary - data.upad - data.paymentAmount) * 100) / 100;
-    
+    const data = req.body;
+    const userId = req.dbUser?.id || 1;
+    const locationId = parseInt(String(data.locationId), 10);
+    const date = String(data.date || new Date().toISOString().split('T')[0]);
+    const labourMasterId = data.labourMasterId ? parseInt(String(data.labourMasterId), 10) : null;
+    const labourName = String(data.labourName || 'Unknown');
+    const labourTeam = data.labourTeam ? String(data.labourTeam) : (data.teamName ? String(data.teamName) : null);
+    const siteLocationName = data.siteLocationName ? String(data.siteLocationName) : '';
+
+    const attendanceType = String(data.attendanceType || 'Full Day');
+    const days = data.days !== undefined ? String(data.days) : (attendanceType === 'Half Day' ? '0.5' : '1');
+    const dailyRate = String(data.dailyRate || data.rate || '0');
+
+    // Work-wise fields
+    const isWorkWise = attendanceType.includes('Work');
+    const workName = data.workName ? String(data.workName) : (data.notes || '');
+    const unitOfMeasurement = data.unitOfMeasurement ? String(data.unitOfMeasurement) : (isWorkWise ? 'Nos' : null);
+    const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : '0');
+    const rate = data.rate ? String(data.rate) : (data.tcRate ? String(data.tcRate) : dailyRate);
+
+    let grossSalary = 0;
+    if (isWorkWise) {
+      grossSalary = Math.round(parseFloat(quantity) * parseFloat(rate) * 100) / 100;
+    } else {
+      grossSalary = Math.round(parseFloat(days) * parseFloat(dailyRate) * 100) / 100;
+    }
+
+    const upad = String(data.upad || '0');
+    const paymentAmount = String(data.paymentAmount || '0');
+    const deduction = String(data.deduction || '0');
+    const netSalary = (grossSalary - parseFloat(deduction)).toFixed(2);
+    const balance = (parseFloat(netSalary) - parseFloat(upad) - parseFloat(paymentAmount)).toFixed(2);
+
     const result = await db.insert(labourSalaries).values({
-      userId: req.dbUser!.id,
-      ...data,
-      tcQuantity: data.tcQuantity.toString(),
-      days: data.days.toString(),
-      dailyRate: data.dailyRate.toString(),
-      otherEarnings: data.otherEarnings.toString(),
+      userId,
+      locationId,
+      labourMasterId,
+      labourName,
+      labourTeam,
+      siteLocationName,
+      date,
+      attendanceType,
+      workType: isWorkWise ? workName : null,
+      unitOfMeasurement,
+      days: isWorkWise ? '0' : days,
+      dailyRate: isWorkWise ? '0' : dailyRate,
+      tcQuantity: isWorkWise ? quantity : '0',
+      tcRate: isWorkWise ? rate : '0',
+      tcNumber: workName,
       grossSalary: grossSalary.toString(),
-      deduction: data.deduction.toString(),
-      netSalary: netSalary.toString(),
-      upad: data.upad.toString(),
-      paymentAmount: data.paymentAmount.toString(),
-      balance: balance.toString(),
+      upad,
+      deduction,
+      paymentAmount,
+      netSalary,
+      balance,
+      notes: isWorkWise ? `${workName} (${quantity} ${unitOfMeasurement || 'Nos'})` : (data.notes || null),
     }).returning();
-    
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'CREATE_LABOUR_ATTENDANCE',
+      entityType: 'LABOUR_ATTENDANCE',
+      entityId: result[0].id,
+      metadata: JSON.stringify({ labourName, attendanceType, grossSalary, siteLocationName })
+    });
+
     res.json(result[0]);
   } catch (error) {
-    res.status(400).json({ error: 'Validation failed' });
+    console.error('Create labour attendance error:', error);
+    res.status(500).json({ error: 'Failed to record attendance' });
   }
 });
 
 labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id as string, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Valid id required' });
-    const data = salarySchema.parse(req.body);
-    
-    const effectiveDays = (data.attendanceType === 'TC' || data.attendanceType === 'TC-wise')
-      ? (data.tcQuantity || data.days)
-      : data.days;
-    const grossSalary = Math.round(((effectiveDays * data.dailyRate) + data.otherEarnings) * 100) / 100;
-    const netSalary = Math.round((grossSalary - data.deduction) * 100) / 100;
-    const balance = Math.round((netSalary - data.upad - data.paymentAmount) * 100) / 100;
-    
-    const result = await db.update(labourSalaries).set({
-      ...data,
-      tcQuantity: data.tcQuantity.toString(),
-      days: data.days.toString(),
-      dailyRate: data.dailyRate.toString(),
-      otherEarnings: data.otherEarnings.toString(),
+    const rawId = req.params.id;
+    const id = parseInt(Array.isArray(rawId) ? rawId[0] : rawId, 10);
+    const data = req.body;
+    const attendanceType = String(data.attendanceType || 'Full Day');
+    const isWorkWise = attendanceType.includes('Work');
+    const workName = data.workName ? String(data.workName) : (data.notes || '');
+    const unitOfMeasurement = data.unitOfMeasurement ? String(data.unitOfMeasurement) : (isWorkWise ? 'Nos' : null);
+    const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : '0');
+    const rate = data.rate ? String(data.rate) : (data.tcRate ? String(data.tcRate) : (data.dailyRate || '0'));
+    const days = data.days !== undefined ? String(data.days) : (attendanceType === 'Half Day' ? '0.5' : '1');
+    const dailyRate = String(data.dailyRate || '0');
+
+    let grossSalary = 0;
+    if (isWorkWise) {
+      grossSalary = Math.round(parseFloat(quantity) * parseFloat(rate) * 100) / 100;
+    } else {
+      grossSalary = Math.round(parseFloat(days) * parseFloat(dailyRate) * 100) / 100;
+    }
+
+    const upad = String(data.upad || '0');
+    const paymentAmount = String(data.paymentAmount || '0');
+    const deduction = String(data.deduction || '0');
+    const netSalary = (grossSalary - parseFloat(deduction)).toFixed(2);
+    const balance = (parseFloat(netSalary) - parseFloat(upad) - parseFloat(paymentAmount)).toFixed(2);
+
+    const updatePayload: any = {
+      date: data.date,
+      attendanceType,
+      siteLocationName: data.siteLocationName ? String(data.siteLocationName) : '',
+      workType: isWorkWise ? workName : null,
+      unitOfMeasurement,
+      days: isWorkWise ? '0' : days,
+      dailyRate: isWorkWise ? '0' : dailyRate,
+      tcQuantity: isWorkWise ? quantity : '0',
+      tcRate: isWorkWise ? rate : '0',
+      tcNumber: workName,
       grossSalary: grossSalary.toString(),
-      deduction: data.deduction.toString(),
-      netSalary: netSalary.toString(),
-      upad: data.upad.toString(),
-      paymentAmount: data.paymentAmount.toString(),
-      balance: balance.toString(),
-    }).where(and(eq(labourSalaries.id, id), eq(labourSalaries.userId, req.dbUser!.id))).returning();
-    
-    if (!result.length) return res.status(404).json({ error: 'Record not found' });
+      upad,
+      deduction,
+      paymentAmount,
+      netSalary,
+      balance,
+      notes: isWorkWise ? `${workName} (${quantity} ${unitOfMeasurement || 'Nos'})` : (data.notes || null),
+    };
+
+    if (data.labourName) updatePayload.labourName = data.labourName;
+    if (data.labourTeam || data.teamName) updatePayload.labourTeam = data.labourTeam || data.teamName;
+    if (data.labourMasterId) updatePayload.labourMasterId = parseInt(String(data.labourMasterId), 10);
+
+    const result = await db.update(labourSalaries)
+      .set(updatePayload)
+      .where(and(eq(labourSalaries.id, id), eq(labourSalaries.isDeleted, 0)))
+      .returning();
+
     res.json(result[0]);
   } catch (error) {
-    res.status(400).json({ error: 'Validation failed' });
+    console.error('Update labour record error:', error);
+    res.status(500).json({ error: 'Failed to update attendance' });
   }
 });
 
 labourRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id as string, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'Valid id required' });
-    
-    await db.update(labourSalaries).set({ isDeleted: 1 })
-      .where(and(eq(labourSalaries.id, id), eq(labourSalaries.userId, req.dbUser!.id)));
+    const rawId = req.params.id;
+    const id = parseInt(Array.isArray(rawId) ? rawId[0] : rawId, 10);
+    await db.update(labourSalaries)
+      .set({ isDeleted: 1 })
+      .where(eq(labourSalaries.id, id));
     res.json({ success: true });
   } catch (error) {
+    console.error('Delete labour record error:', error);
     res.status(500).json({ error: 'Failed to delete record' });
   }
 });

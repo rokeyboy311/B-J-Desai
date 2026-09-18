@@ -5,6 +5,7 @@ import {
   Plus, Trash2, User, IndianRupee, Pencil, CheckCircle2, 
   AlertTriangle, ArrowRightLeft, ShieldAlert, Eye 
 } from "lucide-react";
+import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 
 export default function SupervisorCostTab({ locationId }: { locationId: number }) {
   const [records, setRecords] = useState<any[]>([]);
@@ -24,11 +25,7 @@ export default function SupervisorCostTab({ locationId }: { locationId: number }
     referenceNumber: ""
   });
 
-  useEffect(() => { 
-    loadData();
-  }, [locationId]);
-
-  const loadData = async () => {
+  const loadData = async (isBackground = false) => {
     try {
       const [supRes, siteRes] = await Promise.all([
         apiFetch(`/supervisor-costs?locationId=${locationId}`),
@@ -40,6 +37,14 @@ export default function SupervisorCostTab({ locationId }: { locationId: number }
       console.error(e);
     }
   };
+
+  useEffect(() => { 
+    loadData(false);
+  }, [locationId]);
+
+  useLiveSync(() => {
+    loadData(true);
+  }, 3500);
 
   const handleEdit = (r: any) => {
     setEditingId(r.id);
@@ -74,6 +79,7 @@ export default function SupervisorCostTab({ locationId }: { locationId: number }
           body: JSON.stringify(payload),
         });
       }
+      triggerSync("supervisor_costs");
       setIsModalOpen(false);
       resetForm();
       loadData();
@@ -88,6 +94,7 @@ export default function SupervisorCostTab({ locationId }: { locationId: number }
     setIsDeleting(id);
     try {
       await apiFetch(`/supervisor-costs/${id}`, { method: "DELETE" });
+      triggerSync("supervisor_costs");
       loadData();
     } catch (error) {
       console.error(error);

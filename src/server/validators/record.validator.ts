@@ -6,7 +6,7 @@ export const createRecordSchema = z.object({
   amount: z.union([z.number().positive(), z.string().regex(/^\d+(\.\d{1,2})?$/)]).transform(Number),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
   time: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)").optional().nullable(),
-  partyName: z.string().min(1, "Party name is required").max(100),
+  partyName: z.string().max(100).optional().nullable().transform(val => (val && val.trim()) ? val.trim() : 'General'),
   teamName: z.string().max(100).optional().nullable(),
   description: z.string().max(500).optional().nullable(),
   category: z.string().max(100).optional().nullable(),

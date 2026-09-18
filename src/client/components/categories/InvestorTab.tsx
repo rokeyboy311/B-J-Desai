@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Users, Plus, Trash2, Banknote, Search, Calendar, FileText, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import {
+  Users, Plus, Trash2, Banknote, Search, Calendar, FileText,
+  ArrowDownLeft, ArrowUpRight, Pencil, Wallet, TrendingUp,
+  CreditCard, CheckCircle2, ChevronRight, Filter, Building2
+} from "lucide-react";
+import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 
 interface InvestmentParty {
   id: number;
@@ -18,7 +23,7 @@ interface InvestmentParty {
 interface InvestmentTransaction {
   id: number;
   partyId: number;
-  type: "UPAD" | "CONTRIBUTION";
+  type: "UPAD" | "CONTRIBUTION" | "INVESTMENT";
   amount: string;
   date: string;
   description: string | null;
@@ -33,13 +38,28 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Active top-level subtab: 'accounts' | 'investments' | 'payments' | 'contributions'
+  const [activeSubTab, setActiveSubTab] = useState<"accounts" | "investments" | "payments" | "contributions">("accounts");
+  const [selectedInvestor, setSelectedInvestor] = useState<InvestmentParty | null>(null);
+
+  // Modals
   const [isPartyModalOpen, setIsPartyModalOpen] = useState(false);
-  const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isContributionModalOpen, setIsContributionModalOpen] = useState(false);
+  const [isInvestmentModalOpen, setIsInvestmentModalOpen] = useState(false);
   
-  const [newPartyName, setNewPartyName] = useState("");
-  const [txData, setTxData] = useState({
+  const [editingPartyId, setEditingPartyId] = useState<number | null>(null);
+  const [editingTxId, setEditingTxId] = useState<number | null>(null);
+
+  const [partyForm, setPartyForm] = useState({
+    partyName: "",
+    initialAmount: "",
+    initialDate: new Date().toISOString().split('T')[0]
+  });
+
+  // Separate Form states for Payments, Contributions, and Project Investments (Investment Karya)
+  const [paymentForm, setPaymentForm] = useState({
     partyId: "",
-    type: "CONTRIBUTION" as "CONTRIBUTION" | "UPAD",
     amount: "",
     date: new Date().toISOString().split("T")[0],
     paymentMethod: "Bank Transfer",
@@ -47,80 +67,229 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
     description: "",
   });
 
+  const [contributionForm, setContributionForm] = useState({
+    partyId: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    paymentMethod: "Bank Transfer",
+    referenceNumber: "",
+    description: "",
+  });
+
+  const [investmentForm, setInvestmentForm] = useState({
+    partyId: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    paymentMethod: "Bank Transfer",
+    referenceNumber: "",
+    description: "Investment into Project (Investment Karya)",
+  });
+
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterPartyId, setFilterPartyId] = useState<string>("ALL");
 
-  useEffect(() => {
-    loadData();
-  }, [locationId]);
-
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (isBackground = false) => {
+    if (!isBackground && parties.length === 0) setLoading(true);
     try {
       const [partiesRes, txsRes] = await Promise.all([
-        apiFetch(`/investments/parties?locationId=${locationId}`),
-        apiFetch(`/investments/transactions?locationId=${locationId}`)
+        apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/investments/transactions?locationId=${locationId}`).catch(() => [])
       ]);
       setParties(partiesRes || []);
-      setTransactions((txsRes || []).filter((tx: any) => tx.type === "UPAD" || tx.type === "CONTRIBUTION"));
+      // Keep ALL transaction types (UPAD, CONTRIBUTION, and INVESTMENT) so Category 1 maintains complete truth
+      setTransactions(txsRes || []);
+      
+      // Update selected investor if in detail view
+      if (selectedInvestor) {
+        const updated = (partiesRes || []).find((p: any) => p.id === selectedInvestor.id);
+        if (updated) setSelectedInvestor(updated);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load investor data", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateParty = async (e: React.FormEvent) => {
+  useEffect(() => {
+    loadData(false);
+  }, [locationId]);
+
+  useLiveSync(() => {
+    loadData(true);
+  }, 3500);
+
+  // Totals calculations across all categories
+  const totalContributed = useMemo(() => {
+    return transactions
+      .filter(t => t.type === "CONTRIBUTION")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  }, [transactions]);
+
+  const totalInvestedKarya = useMemo(() => {
+    return transactions
+      .filter(t => t.type === "INVESTMENT")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  }, [transactions]);
+
+  const totalPaidOut = useMemo(() => {
+    return transactions
+      .filter(t => t.type === "UPAD")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  }, [transactions]);
+
+  // Category 1 rule: Net balance = Contributed - Investment Karya (deployed to project) - Upad (withdrawals)
+  const netBalance = useMemo(() => {
+    return Math.round((totalContributed - totalInvestedKarya - totalPaidOut) * 100) / 100;
+  }, [totalContributed, totalInvestedKarya, totalPaidOut]);
+
+  // Save Investor
+  const handleSaveParty = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await apiFetch("/investments/parties", {
-        method: "POST",
-        body: JSON.stringify({ locationId, partyName: newPartyName })
+      const url = editingPartyId ? `/investments/parties/${editingPartyId}` : "/investments/parties";
+      const method = editingPartyId ? "PUT" : "POST";
+      
+      await apiFetch(url, {
+        method,
+        body: JSON.stringify({
+          locationId,
+          partyName: partyForm.partyName,
+          initialAmount: parseFloat(partyForm.initialAmount) || 0,
+          initialDate: partyForm.initialDate
+        })
       });
-      setNewPartyName("");
+      triggerSync("investor_parties");
+      setPartyForm({ partyName: "", initialAmount: "", initialDate: new Date().toISOString().split('T')[0] });
+      setEditingPartyId(null);
       setIsPartyModalOpen(false);
       loadData();
     } catch (err) {
-      alert("Failed to create investor.");
+      alert("Failed to save investor.");
     }
   };
 
-  const handleCreateTx = async (e: React.FormEvent) => {
+  // Save Payment / Upad to Investor
+  const handleSavePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!txData.partyId || !txData.amount) return;
+    if (!paymentForm.partyId || !paymentForm.amount) return;
     try {
-      await apiFetch("/investments/transactions", {
-        method: "POST",
+      const url = editingTxId ? `/investments/transactions/${editingTxId}` : "/investments/transactions";
+      const method = editingTxId ? "PUT" : "POST";
+      
+      await apiFetch(url, {
+        method,
         body: JSON.stringify({
           locationId,
-          partyId: parseInt(txData.partyId),
-          type: txData.type,
-          amount: parseFloat(txData.amount),
-          date: txData.date,
-          paymentMethod: txData.paymentMethod,
-          referenceNumber: txData.referenceNumber,
-          description: txData.description
+          partyId: parseInt(paymentForm.partyId),
+          type: "UPAD",
+          amount: parseFloat(paymentForm.amount),
+          date: paymentForm.date,
+          paymentMethod: paymentForm.paymentMethod,
+          referenceNumber: paymentForm.referenceNumber,
+          description: paymentForm.description
         })
       });
-      setTxData({
-        partyId: "",
-        type: "CONTRIBUTION",
+      triggerSync("investor_txs");
+      setPaymentForm({
+        partyId: selectedInvestor ? selectedInvestor.id.toString() : "",
         amount: "",
         date: new Date().toISOString().split("T")[0],
         paymentMethod: "Bank Transfer",
         referenceNumber: "",
         description: "",
       });
-      setIsTxModalOpen(false);
+      setEditingTxId(null);
+      setIsPaymentModalOpen(false);
       loadData();
     } catch (err) {
-      alert("Failed to record transaction.");
+      alert("Failed to record investor payment.");
+    }
+  };
+
+  // Save Capital Contribution from Investor
+  const handleSaveContribution = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contributionForm.partyId || !contributionForm.amount) return;
+    try {
+      const url = editingTxId ? `/investments/transactions/${editingTxId}` : "/investments/transactions";
+      const method = editingTxId ? "PUT" : "POST";
+      
+      await apiFetch(url, {
+        method,
+        body: JSON.stringify({
+          locationId,
+          partyId: parseInt(contributionForm.partyId),
+          type: "CONTRIBUTION",
+          amount: parseFloat(contributionForm.amount),
+          date: contributionForm.date,
+          paymentMethod: contributionForm.paymentMethod,
+          referenceNumber: contributionForm.referenceNumber,
+          description: contributionForm.description
+        })
+      });
+      triggerSync("investor_txs");
+      setContributionForm({
+        partyId: selectedInvestor ? selectedInvestor.id.toString() : "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        paymentMethod: "Bank Transfer",
+        referenceNumber: "",
+        description: "",
+      });
+      setEditingTxId(null);
+      setIsContributionModalOpen(false);
+      loadData();
+    } catch (err) {
+      alert("Failed to record capital contribution.");
+    }
+  };
+
+  // Save Investment Deployed / Investment Karya (which cuts from this investor's balance)
+  const handleSaveInvestment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!investmentForm.partyId || !investmentForm.amount) return;
+    try {
+      const url = editingTxId ? `/investments/transactions/${editingTxId}` : "/investments/transactions";
+      const method = editingTxId ? "PUT" : "POST";
+      
+      await apiFetch(url, {
+        method,
+        body: JSON.stringify({
+          locationId,
+          partyId: parseInt(investmentForm.partyId),
+          type: "INVESTMENT",
+          amount: parseFloat(investmentForm.amount),
+          date: investmentForm.date,
+          paymentMethod: investmentForm.paymentMethod,
+          referenceNumber: investmentForm.referenceNumber,
+          description: investmentForm.description || "Investment into Project (Investment Karya)"
+        })
+      });
+      triggerSync("investor_txs");
+      triggerSync("investments");
+      setInvestmentForm({
+        partyId: selectedInvestor ? selectedInvestor.id.toString() : "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        paymentMethod: "Bank Transfer",
+        referenceNumber: "",
+        description: "Investment into Project (Investment Karya)",
+      });
+      setEditingTxId(null);
+      setIsInvestmentModalOpen(false);
+      loadData();
+    } catch (err) {
+      alert("Failed to record investment deployment.");
     }
   };
 
   const handleDeleteParty = async (id: number) => {
-    if (!confirm("Delete this investor? This removes all associated data.")) return;
+    if (!confirm("Are you sure you want to delete this investor? All associated transaction history will be removed.")) return;
     try {
       await apiFetch(`/investments/parties/${id}?locationId=${locationId}`, { method: "DELETE" });
+      triggerSync("investor_parties");
+      if (selectedInvestor?.id === id) setSelectedInvestor(null);
       loadData();
     } catch (err) {
       alert("Failed to delete investor.");
@@ -128,192 +297,1177 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
   };
 
   const handleDeleteTx = async (id: number) => {
-    if (!confirm("Delete this transaction?")) return;
+    if (!confirm("Are you sure you want to delete this transaction?")) return;
     try {
       await apiFetch(`/investments/transactions/${id}?locationId=${locationId}`, { method: "DELETE" });
+      triggerSync("investor_txs");
       loadData();
     } catch (err) {
       alert("Failed to delete transaction.");
     }
   };
+  
+  const openEditParty = (party: InvestmentParty, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPartyId(party.id);
+    setPartyForm({
+      partyName: party.partyName,
+      initialAmount: "0",
+      initialDate: new Date().toISOString().split('T')[0]
+    });
+    setIsPartyModalOpen(true);
+  };
+  
+  const openEditTx = (tx: InvestmentTransaction) => {
+    setEditingTxId(tx.id);
+    if (tx.type === "UPAD") {
+      setPaymentForm({
+        partyId: tx.partyId.toString(),
+        amount: tx.amount,
+        date: tx.date || new Date().toISOString().split("T")[0],
+        paymentMethod: tx.paymentMethod || "Bank Transfer",
+        referenceNumber: tx.referenceNumber || "",
+        description: tx.description || "",
+      });
+      setIsPaymentModalOpen(true);
+    } else if (tx.type === "INVESTMENT") {
+      setInvestmentForm({
+        partyId: tx.partyId.toString(),
+        amount: tx.amount,
+        date: tx.date || new Date().toISOString().split("T")[0],
+        paymentMethod: tx.paymentMethod || "Bank Transfer",
+        referenceNumber: tx.referenceNumber || "",
+        description: tx.description || "",
+      });
+      setIsInvestmentModalOpen(true);
+    } else {
+      setContributionForm({
+        partyId: tx.partyId.toString(),
+        amount: tx.amount,
+        date: tx.date || new Date().toISOString().split("T")[0],
+        paymentMethod: tx.paymentMethod || "Bank Transfer",
+        referenceNumber: tx.referenceNumber || "",
+        description: tx.description || "",
+      });
+      setIsContributionModalOpen(true);
+    }
+  };
 
   const filteredParties = useMemo(() => {
     if (!searchTerm) return parties;
-    const lower = searchTerm.toLowerCase();
-    return parties.filter(p => p.partyName.toLowerCase().includes(lower));
+    return parties.filter(p => p.partyName.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [parties, searchTerm]);
+
+  const paymentTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const isUpad = t.type === "UPAD";
+      if (!isUpad) return false;
+      if (filterPartyId !== "ALL" && String(t.partyId) !== filterPartyId) return false;
+      return true;
+    });
+  }, [transactions, filterPartyId]);
+
+  const contributionTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const isContribution = t.type === "CONTRIBUTION";
+      if (!isContribution) return false;
+      if (filterPartyId !== "ALL" && String(t.partyId) !== filterPartyId) return false;
+      return true;
+    });
+  }, [transactions, filterPartyId]);
+
+  const investmentTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const isInvestment = t.type === "INVESTMENT";
+      if (!isInvestment) return false;
+      if (filterPartyId !== "ALL" && String(t.partyId) !== filterPartyId) return false;
+      return true;
+    });
+  }, [transactions, filterPartyId]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <Users className="w-5 h-5 text-indigo-500" />
-            Investors
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">Manage investors, contributions, and withdrawals.</p>
+      {/* Top Banner with Clear Separation */}
+      <div className="bg-gradient-to-r from-emerald-600/10 via-teal-600/5 to-emerald-600/10 border border-emerald-200/80 p-5 rounded-2xl flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-emerald-600 text-white rounded-xl shadow-md">
+            <Users className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Investor Category & Ledgers</h2>
+            <p className="text-xs text-slate-600">Complete segregation between Investor Capital, Investor Payments (Upad), and Accounts.</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setIsPartyModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-100 transition-colors">
-            <Plus className="w-4 h-4" /> New Investor
+
+        {/* Global Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              setEditingPartyId(null);
+              setPartyForm({ partyName: "", initialAmount: "", initialDate: new Date().toISOString().split('T')[0] });
+              setIsPartyModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold shadow hover:bg-slate-900 transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Investor
           </button>
-          <button onClick={() => { setTxData({...txData, type: "CONTRIBUTION"}); setIsTxModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700 transition-colors">
-            <ArrowUpRight className="w-4 h-4" /> Add Contribution
+
+          <button
+            onClick={() => {
+              setEditingTxId(null);
+              setContributionForm({
+                partyId: selectedInvestor ? selectedInvestor.id.toString() : (parties[0]?.id?.toString() || ""),
+                amount: "",
+                date: new Date().toISOString().split("T")[0],
+                paymentMethod: "Bank Transfer",
+                referenceNumber: "",
+                description: "",
+              });
+              setIsContributionModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-emerald-700 transition-colors cursor-pointer"
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" /> + Record Capital (IN)
           </button>
-          <button onClick={() => { setTxData({...txData, type: "UPAD"}); setIsTxModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-rose-700 transition-colors">
-            <ArrowDownLeft className="w-4 h-4" /> Add Withdrawal
+
+          <button
+            onClick={() => {
+              setEditingTxId(null);
+              setInvestmentForm({
+                partyId: selectedInvestor ? selectedInvestor.id.toString() : (parties[0]?.id?.toString() || ""),
+                amount: "",
+                date: new Date().toISOString().split("T")[0],
+                paymentMethod: "Bank Transfer",
+                referenceNumber: "",
+                description: "Investment into Project (Investment Karya)",
+              });
+              setIsInvestmentModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-700 transition-colors cursor-pointer"
+          >
+            <TrendingUp className="w-3.5 h-3.5" /> + Investment Karya (OUT to Project)
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingTxId(null);
+              setPaymentForm({
+                partyId: selectedInvestor ? selectedInvestor.id.toString() : (parties[0]?.id?.toString() || ""),
+                amount: "",
+                date: new Date().toISOString().split("T")[0],
+                paymentMethod: "Bank Transfer",
+                referenceNumber: "",
+                description: "",
+              });
+              setIsPaymentModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-amber-700 transition-colors cursor-pointer"
+          >
+            <ArrowDownLeft className="w-3.5 h-3.5" /> + Record Upad / Payment (OUT)
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Investors List */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-            <h3 className="font-bold text-slate-900">Investors Overview</h3>
-            <div className="relative w-48">
-              <Search className="w-3 h-3 absolute left-2.5 top-2 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search..." 
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+      {/* Summary KPI Cards - Strictly Category 1 Investor Pool */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. Investors Total Capital */}
+        <div className="bg-emerald-50 border border-emerald-200/70 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">1. Investors Total Capital</span>
+            <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="p-4 flex-1 overflow-auto max-h-[500px]">
-            {loading ? <div className="text-center p-4 text-slate-500">Loading...</div> : (
-              <div className="space-y-3">
-                {filteredParties.map(p => (
-                  <div key={p.id} className="flex items-center justify-between p-4 rounded-lg border border-slate-200 bg-white hover:border-indigo-200 shadow-sm transition-all">
-                    <div className="flex-1">
-                      <div className="font-bold text-slate-900 text-sm mb-2">{p.partyName}</div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-emerald-50 p-2 rounded-md">
-                          <div className="text-[10px] text-emerald-600 font-semibold">Contributions</div>
-                          <div className="text-xs font-bold text-emerald-700">₹{Number(p.totalContribution || 0).toLocaleString()}</div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-emerald-800">₹{totalContributed.toLocaleString()}</div>
+            <p className="text-[11px] text-emerald-600 mt-0.5 font-medium">કુલ ઇન્વેસ્ટર મૂડી (Deposited by investors)</p>
+          </div>
+        </div>
+
+        {/* 2. Investment Karya Total (Transferred & Cut to Cat 2) */}
+        <div className="bg-indigo-50 border border-indigo-200/70 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">2. Investment Karya Total</span>
+            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-lg">
+              <Building2 className="w-4 h-4 text-indigo-600" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-indigo-800">-₹{totalInvestedKarya.toLocaleString()}</div>
+            <p className="text-[11px] text-indigo-600 mt-0.5 font-medium">કુલ ઇન્વેસ્ટમેન્ટ કર્યા (Deployed to Cat 2 Capital)</p>
+          </div>
+        </div>
+
+        {/* 3. Upad */}
+        <div className="bg-amber-50 border border-amber-200/70 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-700">3. Investor Upad Total</span>
+            <div className="p-2 bg-amber-100 text-amber-700 rounded-lg">
+              <ArrowDownLeft className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-amber-800">-₹{totalPaidOut.toLocaleString()}</div>
+            <p className="text-[11px] text-amber-600 mt-0.5 font-medium">કુલ ઉપાડ (Personal drawings & returns)</p>
+          </div>
+        </div>
+
+        {/* 4. Available Investors Balance */}
+        <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 shadow-md flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">4. Available Investors Balance</span>
+            <div className="p-2 bg-white/10 text-indigo-200 rounded-lg">
+              <Wallet className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-white">₹{netBalance.toLocaleString()}</div>
+            <p className="text-[11px] text-indigo-300 mt-0.5 font-medium">ઉપલબ્ધ ઇન્વેસ્ટર બેલેન્સ (Total Capital - Investment Karya - Upad)</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Sub-Tabs */}
+      <div className="flex bg-slate-100 p-1.5 rounded-xl gap-2 overflow-x-auto">
+        <button
+          onClick={() => { setActiveSubTab("accounts"); setSelectedInvestor(null); }}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            activeSubTab === "accounts"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Users className="w-4 h-4 text-slate-500" />
+          1. Investor Accounts & Balances ({parties.length})
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("investments")}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            activeSubTab === "investments"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          2. Investment Karya Deployed ({investmentTransactions.length})
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("contributions")}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            activeSubTab === "contributions"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <ArrowUpRight className="w-4 h-4" />
+          3. Capital Contributions ({contributionTransactions.length})
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("payments")}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
+            activeSubTab === "payments"
+              ? "bg-amber-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <ArrowDownLeft className="w-4 h-4" />
+          4. Upad & Payments ({paymentTransactions.length})
+        </button>
+      </div>
+
+      {/* SUBTAB 1: INVESTOR ACCOUNTS & BALANCES */}
+      {activeSubTab === "accounts" && (
+        <>
+          {!selectedInvestor ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search investors by name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredParties.map(party => {
+                  const partyContributed = Number(party.totalContribution || 0);
+                  const partyInvested = transactions
+                    .filter(t => t.partyId === party.id && t.type === "INVESTMENT")
+                    .reduce((s, t) => s + Number(t.amount || 0), 0);
+                  const partyUpad = Number(party.totalUpad || 0);
+                  const partyNet = Math.round((partyContributed - partyInvested - partyUpad) * 100) / 100;
+
+                  return (
+                    <div
+                      key={party.id}
+                      onClick={() => setSelectedInvestor(party)}
+                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer relative group"
+                    >
+                      <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => openEditParty(party, e)}
+                          className="p-1.5 text-slate-400 hover:text-emerald-600 bg-white rounded-md shadow-sm border border-slate-100 cursor-pointer"
+                          title="Edit Investor"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteParty(party.id); }}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 bg-white rounded-md shadow-sm border border-slate-100 cursor-pointer"
+                          title="Delete Investor"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-black flex items-center justify-center text-sm">
+                          {party.partyName.slice(0, 2).toUpperCase()}
                         </div>
-                        <div className="bg-rose-50 p-2 rounded-md">
-                          <div className="text-[10px] text-rose-600 font-semibold">Withdrawals</div>
-                          <div className="text-xs font-bold text-rose-700">₹{Number(p.totalUpad || 0).toLocaleString()}</div>
+                        <div>
+                          <h3 className="font-black text-slate-900 text-base">{party.partyName}</h3>
+                          <span className="text-[10px] text-slate-400 font-medium">Investor Account</span>
                         </div>
-                        <div className="bg-indigo-50 p-2 rounded-md">
-                          <div className="text-[10px] text-indigo-600 font-semibold">Balance</div>
-                          <div className="text-xs font-bold text-indigo-700">₹{Number(p.balance || 0).toLocaleString()}</div>
+                      </div>
+                      
+                      <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500 font-medium">Total Capital Contributed:</span>
+                          <span className="font-bold text-emerald-600">₹{partyContributed.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500 font-medium">Investment Karya (Deployed):</span>
+                          <span className="font-bold text-indigo-600">₹{partyInvested.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500 font-medium">Total Payments / Upad:</span>
+                          <span className="font-bold text-amber-600">₹{partyUpad.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-100 border-dashed">
+                          <span className="text-slate-800 font-black">Net Outstanding Balance:</span>
+                          <span className="font-black text-slate-900 text-sm">₹{partyNet.toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-xs text-emerald-600 font-bold group-hover:text-emerald-700">
+                        <span>View Detailed Ledger</span>
+                        <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredParties.length === 0 && !loading && (
+                  <div className="col-span-full p-10 text-center text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
+                    <Users className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <p className="font-semibold text-sm text-slate-700">No investors found.</p>
+                    <p className="text-xs text-slate-400 mt-1">Click "+ Add Investor" to create your first investor account.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Selected Investor Individual Ledger */
+            <div className="space-y-4">
+              <button
+                onClick={() => setSelectedInvestor(null)}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer"
+              >
+                &larr; Back to All Investors
+              </button>
+              
+              {(() => {
+                const selContributed = Number(selectedInvestor.totalContribution || 0);
+                const selInvested = transactions
+                  .filter(t => t.partyId === selectedInvestor.id && t.type === "INVESTMENT")
+                  .reduce((s, t) => s + Number(t.amount || 0), 0);
+                const selUpad = Number(selectedInvestor.totalUpad || 0);
+                const selNet = Math.round((selContributed - selInvested - selUpad) * 100) / 100;
+
+                return (
+                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-6 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-md">
+                          {selectedInvestor.partyName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-black text-slate-900">{selectedInvestor.partyName}</h2>
+                          <p className="text-xs text-slate-500 font-medium">Complete Individual Ledger & Balance Sheet</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                        <div className="text-right">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase">Total Capital IN</div>
+                          <div className="text-base sm:text-lg font-black text-emerald-600">₹{selContributed.toLocaleString()}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] font-bold text-indigo-400 uppercase">Investment Karya (OUT)</div>
+                          <div className="text-base sm:text-lg font-black text-indigo-600">₹{selInvested.toLocaleString()}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] font-bold text-amber-400 uppercase">Total Upad (OUT)</div>
+                          <div className="text-base sm:text-lg font-black text-amber-600">₹{selUpad.toLocaleString()}</div>
+                        </div>
+                        <div className="text-right pl-2 sm:pl-4 border-l border-slate-200">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase">Available Net</div>
+                          <div className="text-lg sm:text-2xl font-black text-slate-900">₹{selNet.toLocaleString()}</div>
                         </div>
                       </div>
                     </div>
-                    <div className="pl-4 border-l border-slate-100 ml-4 flex items-center">
-                      <button onClick={() => handleDeleteParty(p.id)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs whitespace-nowrap">
+                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                          <tr>
+                            <th className="p-3.5">Date</th>
+                            <th className="p-3.5">Transaction Type</th>
+                            <th className="p-3.5">Method & Reference</th>
+                            <th className="p-3.5">Notes / Purpose</th>
+                            <th className="p-3.5 text-right text-emerald-700">Capital (IN)</th>
+                            <th className="p-3.5 text-right text-indigo-700">Investment Karya (OUT)</th>
+                            <th className="p-3.5 text-right text-amber-700">Payment / Upad (OUT)</th>
+                            <th className="p-3.5 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {transactions
+                            .filter(t => t.partyId === selectedInvestor.id)
+                            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                            .map(tx => (
+                              <tr key={tx.id} className="hover:bg-slate-50">
+                                <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                                <td className="p-3.5">
+                                  <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
+                                    tx.type === 'CONTRIBUTION'
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : tx.type === 'INVESTMENT'
+                                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                      : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  }`}>
+                                    {tx.type === 'CONTRIBUTION' ? 'CAPITAL INFLOW (+)' : tx.type === 'INVESTMENT' ? 'INVESTMENT KARYA (-)' : 'UPAD / PAYOUT (-)'}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 text-slate-700">
+                                  <div className="font-semibold">{tx.paymentMethod || "Bank Transfer"}</div>
+                                  {tx.referenceNumber && <div className="text-[10px] text-slate-400 font-mono">Ref: {tx.referenceNumber}</div>}
+                                </td>
+                                <td className="p-3.5 text-slate-600 max-w-[220px] truncate">
+                                  {tx.description || '-'}
+                                </td>
+                                <td className="p-3.5 text-right font-black text-emerald-600">
+                                  {tx.type === 'CONTRIBUTION' ? `+₹${Number(tx.amount).toLocaleString()}` : '-'}
+                                </td>
+                                <td className="p-3.5 text-right font-black text-indigo-600">
+                                  {tx.type === 'INVESTMENT' ? `-₹${Number(tx.amount).toLocaleString()}` : '-'}
+                                </td>
+                                <td className="p-3.5 text-right font-black text-amber-600">
+                                  {tx.type === 'UPAD' ? `-₹${Number(tx.amount).toLocaleString()}` : '-'}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-emerald-600 p-1 mr-1 cursor-pointer" title="Edit">
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => handleDeleteTx(tx.id)} className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer" title="Delete">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          {transactions.filter(t => t.partyId === selectedInvestor.id).length === 0 && (
+                            <tr><td colSpan={8} className="p-8 text-center text-slate-500">No transactions recorded for this investor yet.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
+                );
+              })()}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* SUBTAB 2: INVESTMENTS DEPLOYED / INVESTMENT KARYA REGISTER */}
+      {activeSubTab === "investments" && (
+        <div className="space-y-4">
+          <div className="bg-indigo-500/10 border border-indigo-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+            <div>
+              <h3 className="font-black text-indigo-900 text-sm flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-indigo-700" />
+                Investments Deployed / Investment Karya Register (Linked with Cat 2)
+              </h3>
+              <p className="text-xs text-indigo-700">Records where investor capital was drawn and deployed as project investment. Automatically deducted from investor balance.</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                value={filterPartyId}
+                onChange={e => setFilterPartyId(e.target.value)}
+                className="bg-white border border-indigo-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                <option value="ALL">All Investors</option>
+                {parties.map(p => (
+                  <option key={p.id} value={p.id.toString()}>{p.partyName}</option>
                 ))}
-                {filteredParties.length === 0 && <div className="text-center text-slate-500 text-sm p-4">No investors found.</div>}
+              </select>
+
+              <button
+                onClick={() => {
+                  setEditingTxId(null);
+                  setInvestmentForm({
+                    partyId: filterPartyId !== "ALL" ? filterPartyId : (parties[0]?.id?.toString() || ""),
+                    amount: "",
+                    date: new Date().toISOString().split("T")[0],
+                    paymentMethod: "Bank Transfer",
+                    referenceNumber: "",
+                    description: "Investment into Project (Investment Karya)",
+                  });
+                  setIsInvestmentModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow hover:bg-indigo-700 transition-colors shrink-0 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Record Investment Karya
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3.5">Deployment Date</th>
+                    <th className="p-3.5">Investor Name</th>
+                    <th className="p-3.5">Payment Method</th>
+                    <th className="p-3.5">Reference / Cheque No.</th>
+                    <th className="p-3.5">Project / Purpose</th>
+                    <th className="p-3.5 text-right font-bold text-indigo-700">Amount Deployed (₹)</th>
+                    <th className="p-3.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {investmentTransactions
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map(tx => (
+                      <tr key={tx.id} className="hover:bg-slate-50">
+                        <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                        <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-semibold">
+                            {tx.paymentMethod || "Bank Transfer"}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-mono text-slate-600">{tx.referenceNumber || "-"}</td>
+                        <td className="p-3.5 text-slate-600 max-w-[200px] truncate">{tx.description || "-"}</td>
+                        <td className="p-3.5 text-right font-black text-indigo-700 text-sm">
+                          ₹{Number(tx.amount).toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-indigo-600 p-1 mr-1 cursor-pointer" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteTx(tx.id)} className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  {investmentTransactions.length === 0 && (
+                    <tr><td colSpan={7} className="p-8 text-center text-slate-500">No investment deployments recorded yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {investmentTransactions.length > 0 && (
+              <div className="p-4 bg-indigo-50/50 border-t border-indigo-100 flex justify-between items-center text-xs">
+                <span className="font-bold text-indigo-900">Total Investment Karya Deployed ({investmentTransactions.length} records):</span>
+                <span className="text-base font-black text-indigo-800">₹{investmentTransactions.reduce((s, t) => s + Number(t.amount || 0), 0).toLocaleString()}</span>
               </div>
             )}
           </div>
         </div>
+      )}
 
-        {/* Transactions Records */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 bg-slate-50">
-            <h3 className="font-bold text-slate-900">Investor Transactions</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Investor</th>
-                  <th className="p-3 text-right">Amount (₹)</th>
-                  <th className="p-3">Details</th>
-                  <th className="p-3 text-center">Act</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {transactions.map(tx => (
-                  <tr key={tx.id} className="hover:bg-slate-50">
-                    <td className="p-3 text-slate-600">{tx.date}</td>
-                    <td className="p-3 font-bold text-slate-900">{tx.partyName}</td>
-                    <td className={`p-3 text-right font-bold ${tx.type === 'CONTRIBUTION' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tx.type === 'CONTRIBUTION' ? '+' : '-'}₹{Number(tx.amount).toLocaleString()}
-                    </td>
-                    <td className="p-3">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1">
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${tx.type === 'CONTRIBUTION' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                            {tx.type === 'CONTRIBUTION' ? 'CONTRIBUTION' : 'WITHDRAWAL'}
-                          </span>
-                          {tx.paymentMethod && <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 rounded">{tx.paymentMethod}</span>}
-                        </div>
-                        {tx.description && <span className="text-slate-500 truncate max-w-[120px]">{tx.description}</span>}
-                      </div>
-                    </td>
-                    <td className="p-3 text-center">
-                      <button onClick={() => handleDeleteTx(tx.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
-                    </td>
-                  </tr>
+      {/* SUBTAB 2: INVESTOR PAYMENTS & UPAD REGISTER */}
+      {activeSubTab === "payments" && (
+        <div className="space-y-4">
+          <div className="bg-amber-500/10 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+            <div>
+              <h3 className="font-black text-amber-900 text-sm flex items-center gap-2">
+                <ArrowDownLeft className="w-4 h-4 text-amber-700" />
+                Investor Payment & Upad Register (All Payouts / Returns)
+              </h3>
+              <p className="text-xs text-amber-700">Dedicated register for all repayments, withdrawals, and payouts made to investors.</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                value={filterPartyId}
+                onChange={e => setFilterPartyId(e.target.value)}
+                className="bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                <option value="ALL">All Investors</option>
+                {parties.map(p => (
+                  <option key={p.id} value={p.id.toString()}>{p.partyName}</option>
                 ))}
-                {transactions.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-slate-500">No transactions recorded.</td></tr>}
-              </tbody>
-            </table>
+              </select>
+
+              <button
+                onClick={() => {
+                  setEditingTxId(null);
+                  setPaymentForm({
+                    partyId: filterPartyId !== "ALL" ? filterPartyId : (parties[0]?.id?.toString() || ""),
+                    amount: "",
+                    date: new Date().toISOString().split("T")[0],
+                    paymentMethod: "Bank Transfer",
+                    referenceNumber: "",
+                    description: "",
+                  });
+                  setIsPaymentModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold shadow hover:bg-amber-700 transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Record Payment / Upad
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3.5">Payment Date</th>
+                    <th className="p-3.5">Investor Name</th>
+                    <th className="p-3.5">Payment Method</th>
+                    <th className="p-3.5">Reference / Cheque No.</th>
+                    <th className="p-3.5">Purpose / Notes</th>
+                    <th className="p-3.5 text-right font-bold text-amber-700">Amount Paid (₹)</th>
+                    <th className="p-3.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paymentTransactions
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map(tx => (
+                      <tr key={tx.id} className="hover:bg-slate-50">
+                        <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                        <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-semibold">
+                            {tx.paymentMethod || "Bank Transfer"}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-mono text-slate-600">{tx.referenceNumber || "-"}</td>
+                        <td className="p-3.5 text-slate-600 max-w-[200px] truncate">{tx.description || "-"}</td>
+                        <td className="p-3.5 text-right font-black text-amber-700 text-sm">
+                          ₹{Number(tx.amount).toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-amber-600 p-1 mr-1" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteTx(tx.id)} className="text-slate-400 hover:text-rose-600 p-1" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  {paymentTransactions.length === 0 && (
+                    <tr><td colSpan={7} className="p-8 text-center text-slate-500">No investor payments / upads recorded yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {paymentTransactions.length > 0 && (
+              <div className="p-4 bg-amber-50/50 border-t border-amber-100 flex justify-between items-center text-xs">
+                <span className="font-bold text-amber-900">Total Investor Payouts ({paymentTransactions.length} records):</span>
+                <span className="text-base font-black text-amber-800">₹{paymentTransactions.reduce((s, t) => s + Number(t.amount || 0), 0).toLocaleString()}</span>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      <Modal isOpen={isPartyModalOpen} onClose={() => setIsPartyModalOpen(false)} title="Create New Investor">
-        <form onSubmit={handleCreateParty} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Investor Name</label>
-            <input type="text" required value={newPartyName} onChange={e => setNewPartyName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Rahul Patel" />
+      {/* SUBTAB 3: INVESTOR CAPITAL CONTRIBUTIONS */}
+      {activeSubTab === "contributions" && (
+        <div className="space-y-4">
+          <div className="bg-emerald-500/10 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+            <div>
+              <h3 className="font-black text-emerald-900 text-sm flex items-center gap-2">
+                <ArrowUpRight className="w-4 h-4 text-emerald-700" />
+                Investor Capital Contribution Register (Capital Inflows)
+              </h3>
+              <p className="text-xs text-emerald-700">Direct cash and bank capital brought into the business by partners / investors.</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                value={filterPartyId}
+                onChange={e => setFilterPartyId(e.target.value)}
+                className="bg-white border border-emerald-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                <option value="ALL">All Investors</option>
+                {parties.map(p => (
+                  <option key={p.id} value={p.id.toString()}>{p.partyName}</option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => {
+                  setEditingTxId(null);
+                  setContributionForm({
+                    partyId: filterPartyId !== "ALL" ? filterPartyId : (parties[0]?.id?.toString() || ""),
+                    amount: "",
+                    date: new Date().toISOString().split("T")[0],
+                    paymentMethod: "Bank Transfer",
+                    referenceNumber: "",
+                    description: "",
+                  });
+                  setIsContributionModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow hover:bg-emerald-700 transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Record Capital Contribution
+              </button>
+            </div>
           </div>
-          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg">Create Investor</button>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3.5">Date</th>
+                    <th className="p-3.5">Investor Name</th>
+                    <th className="p-3.5">Payment Method</th>
+                    <th className="p-3.5">Reference No.</th>
+                    <th className="p-3.5">Description / Purpose</th>
+                    <th className="p-3.5 text-right font-bold text-emerald-700">Capital Invested (₹)</th>
+                    <th className="p-3.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {contributionTransactions
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map(tx => (
+                      <tr key={tx.id} className="hover:bg-slate-50">
+                        <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                        <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-semibold">
+                            {tx.paymentMethod || "Bank Transfer"}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-mono text-slate-600">{tx.referenceNumber || "-"}</td>
+                        <td className="p-3.5 text-slate-600 max-w-[200px] truncate">{tx.description || "-"}</td>
+                        <td className="p-3.5 text-right font-black text-emerald-700 text-sm">
+                          ₹{Number(tx.amount).toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-emerald-600 p-1 mr-1" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteTx(tx.id)} className="text-slate-400 hover:text-rose-600 p-1" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  {contributionTransactions.length === 0 && (
+                    <tr><td colSpan={7} className="p-8 text-center text-slate-500">No investor capital contributions recorded yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {contributionTransactions.length > 0 && (
+              <div className="p-4 bg-emerald-50/50 border-t border-emerald-100 flex justify-between items-center text-xs">
+                <span className="font-bold text-emerald-900">Total Capital Contributed ({contributionTransactions.length} records):</span>
+                <span className="text-base font-black text-emerald-800">₹{contributionTransactions.reduce((s, t) => s + Number(t.amount || 0), 0).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: Add / Edit Investor Account */}
+      <Modal
+        isOpen={isPartyModalOpen}
+        onClose={() => setIsPartyModalOpen(false)}
+        title={editingPartyId ? "Edit Investor Account" : "Add New Investor Account"}
+      >
+        <form onSubmit={handleSaveParty} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Investor / Partner Full Name *</label>
+            <input
+              type="text"
+              required
+              value={partyForm.partyName}
+              onChange={e => setPartyForm({ ...partyForm, partyName: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-semibold"
+              placeholder="e.g. Rajeshbhai Patel, Shri Hari Developers"
+            />
+          </div>
+
+          {!editingPartyId && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Initial Capital (Optional)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={partyForm.initialAmount}
+                  onChange={e => setPartyForm({ ...partyForm, initialAmount: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  value={partyForm.initialDate}
+                  onChange={e => setPartyForm({ ...partyForm, initialDate: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg transition-colors text-sm shadow-md"
+          >
+            {editingPartyId ? "Save Changes" : "Create Investor Account"}
+          </button>
         </form>
       </Modal>
 
-      <Modal isOpen={isTxModalOpen} onClose={() => setIsTxModalOpen(false)} title={txData.type === 'CONTRIBUTION' ? 'Add Contribution' : 'Add Withdrawal (Upad)'}>
-        <form onSubmit={handleCreateTx} className="space-y-4">
+      {/* MODAL 2: Record Investor Payment / Upad (OUT) */}
+      <Modal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-lg">
+              <ArrowDownLeft className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="font-black text-slate-900 text-base">{editingTxId ? "Edit Investor Payment / Upad" : "Record Investor Payment / Upad (OUT)"}</span>
+              <p className="text-xs text-slate-500 font-normal">Money returned or withdrawn by investor</p>
+            </div>
+          </div>
+        }
+      >
+        <form onSubmit={handleSavePayment} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Select Investor</label>
-            <select required value={txData.partyId} onChange={e => setTxData({...txData, partyId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
-              <option value="">-- Select --</option>
-              {parties.map(p => <option key={p.id} value={p.id}>{p.partyName}</option>)}
+            <label className="block text-xs font-bold text-slate-700 mb-1">Select Investor *</label>
+            <select
+              required
+              value={paymentForm.partyId}
+              onChange={e => setPaymentForm({ ...paymentForm, partyId: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-amber-500 font-semibold"
+            >
+              <option value="">-- Choose Investor --</option>
+              {parties.map(p => (
+                <option key={p.id} value={p.id.toString()}>{p.partyName} (Bal: ₹{Number((p.totalContribution || 0) - (p.totalUpad || 0)).toLocaleString()})</option>
+              ))}
             </select>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Amount (₹)</label>
-              <input type="number" required min="1" step="0.01" value={txData.amount} onChange={e => setTxData({...txData, amount: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
+              <input
+                type="date"
+                required
+                value={paymentForm.date}
+                onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-amber-500"
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date</label>
-              <input type="date" required value={txData.date} onChange={e => setTxData({...txData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-bold text-slate-700 mb-1">Amount Paid (₹) *</label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={paymentForm.amount}
+                onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-amber-500 font-bold text-amber-800"
+                placeholder="0.00"
+              />
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
-              <select value={txData.paymentMethod} onChange={e => setTxData({...txData, paymentMethod: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                <option value="Cash">Cash</option>
+              <select
+                value={paymentForm.paymentMethod}
+                onChange={e => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-amber-500"
+              >
                 <option value="Bank Transfer">Bank Transfer</option>
                 <option value="Cheque">Cheque</option>
-                <option value="UPI">UPI</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI / NEFT">UPI / NEFT</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Reference No (Optional)</label>
-              <input type="text" value={txData.referenceNumber} onChange={e => setTxData({...txData, referenceNumber: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-bold text-slate-700 mb-1">Cheque / Reference No.</label>
+              <input
+                type="text"
+                value={paymentForm.referenceNumber}
+                onChange={e => setPaymentForm({ ...paymentForm, referenceNumber: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-amber-500 font-mono"
+                placeholder="e.g. CHQ-992101"
+              />
             </div>
           </div>
+
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Notes</label>
-            <textarea value={txData.description} onChange={e => setTxData({...txData, description: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" rows={2} />
+            <label className="block text-xs font-bold text-slate-700 mb-1">Purpose / Notes</label>
+            <input
+              type="text"
+              value={paymentForm.description}
+              onChange={e => setPaymentForm({ ...paymentForm, description: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-amber-500"
+              placeholder="e.g. Upad against profit share / Capital withdrawal"
+            />
           </div>
-          <button type="submit" className={`w-full text-white font-bold py-2.5 rounded-lg ${txData.type === 'CONTRIBUTION' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}`}>
-            Save {txData.type === 'CONTRIBUTION' ? 'Contribution' : 'Withdrawal'}
+
+          <button
+            type="submit"
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-lg transition-colors text-sm shadow-md"
+          >
+            {editingTxId ? "Update Payment Record" : "Save Investor Payment / Upad"}
+          </button>
+        </form>
+      </Modal>
+
+      {/* MODAL 3: Record Capital Contribution (IN) */}
+      <Modal
+        isOpen={isContributionModalOpen}
+        onClose={() => setIsContributionModalOpen(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg">
+              <ArrowUpRight className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="font-black text-slate-900 text-base">{editingTxId ? "Edit Capital Contribution" : "Record Capital Contribution (IN)"}</span>
+              <p className="text-xs text-slate-500 font-normal">Capital brought into business by investor</p>
+            </div>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveContribution} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Select Investor *</label>
+            <select
+              required
+              value={contributionForm.partyId}
+              onChange={e => setContributionForm({ ...contributionForm, partyId: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-semibold"
+            >
+              <option value="">-- Choose Investor --</option>
+              {parties.map(p => (
+                <option key={p.id} value={p.id.toString()}>{p.partyName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
+              <input
+                type="date"
+                required
+                value={contributionForm.date}
+                onChange={e => setContributionForm({ ...contributionForm, date: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Amount Invested (₹) *</label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={contributionForm.amount}
+                onChange={e => setContributionForm({ ...contributionForm, amount: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-800"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+              <select
+                value={contributionForm.paymentMethod}
+                onChange={e => setContributionForm({ ...contributionForm, paymentMethod: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI / RTGS">UPI / RTGS</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Reference No.</label>
+              <input
+                type="text"
+                value={contributionForm.referenceNumber}
+                onChange={e => setContributionForm({ ...contributionForm, referenceNumber: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-mono"
+                placeholder="e.g. UTR-12891823"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Description / Notes</label>
+            <input
+              type="text"
+              value={contributionForm.description}
+              onChange={e => setContributionForm({ ...contributionForm, description: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
+              placeholder="e.g. 2nd Installment towards project capital"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg transition-colors text-sm shadow-md cursor-pointer"
+          >
+            {editingTxId ? "Update Capital Record" : "Save Capital Contribution"}
+          </button>
+        </form>
+      </Modal>
+
+      {/* MODAL 4: Record Investment Deployed / Investment Karya (OUT to Project) */}
+      <Modal
+        isOpen={isInvestmentModalOpen}
+        onClose={() => setIsInvestmentModalOpen(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-indigo-100 text-indigo-800 rounded-lg">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="font-black text-slate-900 text-base">{editingTxId ? "Edit Investment Karya Deployment" : "Record Investment Karya (Deploy into Project)"}</span>
+              <p className="text-xs text-slate-500 font-normal">Capital deployed into Category 2 project. Deducted with date from investor's balance.</p>
+            </div>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveInvestment} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Select Investor (Category 1) *</label>
+            <select
+              required
+              value={investmentForm.partyId}
+              onChange={e => setInvestmentForm({ ...investmentForm, partyId: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 font-semibold"
+            >
+              <option value="">-- Choose Investor --</option>
+              {parties.map(p => {
+                const pCont = Number(p.totalContribution || 0);
+                const pInv = transactions.filter(t => t.partyId === p.id && t.type === "INVESTMENT").reduce((s, t) => s + Number(t.amount || 0), 0);
+                const pUpad = Number(p.totalUpad || 0);
+                const pNet = Math.round((pCont - pInv - pUpad) * 100) / 100;
+                return (
+                  <option key={p.id} value={p.id.toString()}>{p.partyName} (Available Balance: ₹{pNet.toLocaleString()})</option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Deployment Date *</label>
+              <input
+                type="date"
+                required
+                value={investmentForm.date}
+                onChange={e => setInvestmentForm({ ...investmentForm, date: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Amount Deployed (₹) *</label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={investmentForm.amount}
+                onChange={e => setInvestmentForm({ ...investmentForm, amount: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-800"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+              <select
+                value={investmentForm.paymentMethod}
+                onChange={e => setInvestmentForm({ ...investmentForm, paymentMethod: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI / RTGS">UPI / RTGS</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Reference / Cheque No.</label>
+              <input
+                type="text"
+                value={investmentForm.referenceNumber}
+                onChange={e => setInvestmentForm({ ...investmentForm, referenceNumber: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 font-mono"
+                placeholder="e.g. TXN-581920"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Project Purpose / Notes</label>
+            <input
+              type="text"
+              value={investmentForm.description}
+              onChange={e => setInvestmentForm({ ...investmentForm, description: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g. Investment into Site Phase 1 (Investment Karya)"
+            />
+          </div>
+
+          <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100 text-[11px] text-indigo-800 font-medium">
+            ℹ️ This records an investment deployment into the project (Category 2) and will automatically cut/deduct this amount with date from the investor's balance in Category 1.
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition-colors text-sm shadow-md cursor-pointer"
+          >
+            {editingTxId ? "Update Investment Karya" : "Save Investment Karya"}
           </button>
         </form>
       </Modal>

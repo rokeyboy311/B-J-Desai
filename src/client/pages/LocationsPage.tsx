@@ -4,6 +4,7 @@ import { Plus, MapPin, Edit2, Trash2, MapPinned, AlertTriangle } from "lucide-re
 import { apiFetch } from "../lib/api";
 import { Modal } from "../components/ui/Modal";
 import { motion } from "motion/react";
+import { useLiveSync } from "../hooks/useLiveSync";
 
 interface Location {
   id: number;
@@ -25,12 +26,9 @@ export default function LocationsPage() {
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchLocations();
-  }, []);
-
-  const fetchLocations = async () => {
+  const fetchLocations = async (isBackground = false) => {
     try {
+      if (!isBackground && locations.length === 0) setLoading(true);
       const res = await apiFetch("/locations");
       setLocations(res);
     } catch (error) {
@@ -39,6 +37,14 @@ export default function LocationsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchLocations(false);
+  }, []);
+
+  useLiveSync(() => {
+    fetchLocations(true);
+  }, 3500);
 
   const openCreateModal = () => {
     setSelectedLocation(null);

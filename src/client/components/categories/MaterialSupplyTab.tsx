@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
 import { Plus, Trash2, Pencil, Package, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
+import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 
 export default function MaterialSupplyTab({ locationId }: { locationId: number }) {
   const [records, setRecords] = useState<any[]>([]);
@@ -10,10 +12,12 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isManageMaterialOpen, setIsManageMaterialOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
+    partyName: "",
     partyId: "",
     materialId: "",
     quantity: "",
@@ -23,15 +27,11 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     discount: "0",
     referenceNumber: "",
     description: "",
-    unit: "Nos"
+    unit: "Nos", paymentStatus: "UNPAID", paymentMethod: "", notes: ""
   });
 
-  useEffect(() => {
-    loadData();
-  }, [locationId]);
-
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (isBackground = false) => {
+    if (!isBackground && records.length === 0) setLoading(true);
     try {
       const [supplies, mats, parts] = await Promise.all([
         apiFetch(`/materials/supply?locationId=${locationId}`),
@@ -48,6 +48,14 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     }
   };
 
+  useEffect(() => {
+    loadData(false);
+  }, [locationId]);
+
+  useLiveSync(() => {
+    loadData(true);
+  }, 3500);
+
   const calculations = useMemo(() => {
     const qty = parseFloat(formData.quantity) || 0;
     const rate = parseFloat(formData.rate) || 0;
@@ -56,7 +64,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     const taxPercentage = parseFloat(formData.taxPercentage) || 0;
 
     const subtotal = Math.round(qty * rate * 100) / 100;
-    const taxableAmount = subtotal - discount;
+    const taxableAmount = Math.max(0, subtotal - discount);
     const tax = Math.round(taxableAmount * (taxPercentage / 100) * 100) / 100;
     const total = Math.round((taxableAmount + tax + transport) * 100) / 100;
     
@@ -69,21 +77,26 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
       const url = editingId ? `/materials/supply/${editingId}` : "/materials/supply";
       const method = editingId ? "PUT" : "POST";
       
-      const party = parties.find(p => p.id.toString() === formData.partyId);
+      const enteredPartyName = formData.partyName.trim();
+      const matchedParty = parties.find(p => p.name.toLowerCase() === enteredPartyName.toLowerCase());
       const material = materials.find(m => m.id.toString() === formData.materialId);
 
       await apiFetch(url, {
         method, 
         body: JSON.stringify({
           ...formData,
-          partyName: party ? party.name : "",
+          partyName: enteredPartyName,
+          partyId: matchedParty ? matchedParty.id : (formData.partyId ? parseInt(formData.partyId) : null),
           materialName: material ? material.name : "",
           locationId
         }),
       });
+      triggerSync("materials");
+      triggerSync("stock");
+      triggerSync("reports");
       setIsModalOpen(false);
       resetForm();
-      loadData();
+      await loadData();
     } catch (err) {
       console.error("Failed to save supply:", err);
     }
@@ -93,6 +106,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     setEditingId(null);
     setFormData({
       date: new Date().toISOString().split("T")[0],
+      partyName: "",
       partyId: "",
       materialId: "",
       quantity: "",
@@ -102,7 +116,10 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
       discount: "0",
       referenceNumber: "",
       description: "",
-      unit: "Nos"
+      unit: "Nos",
+      paymentStatus: "UNPAID",
+      paymentMethod: "",
+      notes: ""
     });
   };
 
@@ -111,6 +128,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     setEditingId(record.id);
     setFormData({
       date: record.date || new Date().toISOString().split("T")[0],
+      partyName: record.partyName || "",
       partyId: record.partyId?.toString() || "",
       materialId: record.materialId?.toString() || "",
       quantity: record.quantity || "",
@@ -120,7 +138,10 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
       discount: record.discount || "0",
       referenceNumber: record.referenceNumber || "",
       description: record.notes || record.description || "",
-      unit: record.unit || "Nos"
+      unit: record.unit || "Nos",
+      paymentStatus: record.paymentStatus || "UNPAID",
+      paymentMethod: record.paymentMethod || "",
+      notes: record.notes || ""
     });
     setIsModalOpen(true);
   };
@@ -129,7 +150,10 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     if (!confirm("Are you sure you want to delete this supply record? Stock will be reverted.")) return;
     try {
       await apiFetch(`/materials/supply/${id}`, { method: "DELETE" });
-      loadData();
+      triggerSync("materials");
+      triggerSync("stock");
+      triggerSync("reports");
+      await loadData();
     } catch (err) {
       alert("Failed to delete supply");
     }
@@ -203,22 +227,48 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
               <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Customer / Party</label>
-              <select required value={formData.partyId} onChange={e => setFormData({...formData, partyId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                <option value="">-- Select --</option>
-                {parties.map(p => <option key={p.id} value={p.id}>{p.name} {p.gst ? `(GST: ${p.gst})` : ''}</option>)}
-              </select>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Customer / Party Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="Enter Customer / Party Name"
+                list="material-supply-party-list"
+                value={formData.partyName}
+                onChange={e => setFormData({ ...formData, partyName: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 font-medium"
+              />
+              <datalist id="material-supply-party-list">
+                {parties.map(p => (
+                  <option key={p.id} value={p.name}>
+                    {p.name} {p.gst ? `(GST: ${p.gst})` : ''}
+                  </option>
+                ))}
+              </datalist>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Material</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">Material *</label>
+                <button
+                  type="button"
+                  onClick={() => setIsManageMaterialOpen(true)}
+                  className="text-[11px] font-bold text-orange-600 hover:text-orange-800 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> Manage Material
+                </button>
+              </div>
               <select required value={formData.materialId} onChange={e => {
                   const m = materials.find(x => x.id.toString() === e.target.value);
-                  setFormData({...formData, materialId: e.target.value, unit: m?.defaultUnit || 'Nos'});
+                  setFormData(prev => ({
+                    ...prev,
+                    materialId: e.target.value,
+                    unit: m?.defaultUnit || 'Nos',
+                    rate: m?.defaultRate ? String(m.defaultRate) : prev.rate
+                  }));
                 }} 
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                <option value="">-- Select --</option>
+                <option value="">-- Select Material --</option>
                 {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
@@ -244,15 +294,71 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
             </div>
           </div>
           
-          <div className="bg-orange-50/50 p-3 rounded-lg border border-orange-100 flex flex-col gap-1">
-             <div className="flex justify-between text-xs text-slate-500"><span>Subtotal:</span> <span>₹{calculations.subtotal.toLocaleString()}</span></div>
-             <div className="flex justify-between text-xs text-slate-500"><span>GST ({formData.taxPercentage}%):</span> <span>₹{calculations.tax.toLocaleString()}</span></div>
-             <div className="flex justify-between font-bold text-slate-800 text-base pt-1 border-t border-orange-100 mt-1"><span>Total Bill Amount:</span> <span className="text-orange-700">₹{calculations.total.toLocaleString()}</span></div>
+                    <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Transport Fee (₹) (+)</label>
+              <input type="number" step="0.01" value={formData.transportCost} onChange={e => setFormData({...formData, transportCost: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+              <span className="text-[10px] text-slate-500">Excluded from GST (added separately)</span>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Discount (₹) (-)</label>
+              <input type="number" step="0.01" value={formData.discount} onChange={e => setFormData({...formData, discount: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Status</label>
+              <select value={formData.paymentStatus} onChange={e => setFormData({...formData, paymentStatus: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <option value="UNPAID">UNPAID</option>
+                <option value="PARTIAL">PARTIAL</option>
+                <option value="PAID">PAID</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+              <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <option value="">-- None --</option>
+                <option value="CASH">CASH</option>
+                <option value="BANK">BANK / ONLINE</option>
+                <option value="CHEQUE">CHEQUE</option>
+              </select>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Notes</label>
+            <input type="text" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+          </div>
+
+          <div className="bg-orange-50/50 p-3 rounded-lg border border-orange-100 flex flex-col gap-1.5 text-xs">
+             <div className="flex justify-between text-slate-500"><span>Material Subtotal:</span> <span>₹{calculations.subtotal.toLocaleString()}</span></div>
+             {Number(formData.discount) > 0 && <div className="flex justify-between text-emerald-600"><span>Discount:</span> <span>-₹{Number(formData.discount).toLocaleString()}</span></div>}
+             <div className="flex justify-between text-slate-500"><span>GST ({formData.taxPercentage}% on taxable amount):</span> <span>₹{calculations.tax.toLocaleString()}</span></div>
+             {Number(formData.transportCost) > 0 && <div className="flex justify-between text-amber-700 font-medium"><span>Transport Fee (No GST, added separately):</span> <span>+₹{Number(formData.transportCost).toLocaleString()}</span></div>}
+             <div className="flex justify-between font-bold text-slate-800 text-base pt-1.5 border-t border-orange-200 mt-1"><span>Total Bill Amount:</span> <span className="text-orange-700">₹{calculations.total.toLocaleString()}</span></div>
           </div>
 
           <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg">Save Supply & Update Stock</button>
         </form>
       </Modal>
+
+      {/* Quick Manage Material Modal */}
+      <ManageMaterialsModal
+        isOpen={isManageMaterialOpen}
+        onClose={() => setIsManageMaterialOpen(false)}
+        locationId={locationId}
+        currentSelectedId={formData.materialId}
+        onSelectMaterial={(selectedMat) => {
+          setFormData(prev => ({
+            ...prev,
+            materialId: String(selectedMat.id),
+            unit: selectedMat.defaultUnit || prev.unit || 'Nos',
+            rate: selectedMat.defaultRate ? String(selectedMat.defaultRate) : prev.rate
+          }));
+          loadData(true);
+        }}
+      />
     </div>
   );
 }

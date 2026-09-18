@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import {
   ArrowLeft, CalendarCheck, Download, Landmark, TrendingDown,
-  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart
+  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -13,8 +13,10 @@ import MaterialPurchaseTab from "../components/categories/MaterialPurchaseTab";
 import MaterialSupplyTab from "../components/categories/MaterialSupplyTab";
 import SiteSupplyTab from "../components/categories/SiteSupplyTab";
 import LabourAttendanceTab from "../components/categories/LabourAttendanceTab";
-import LabourSalaryTab from "../components/categories/LabourSalaryTab";
+import LabourRecordsTab from "../components/categories/LabourRecordsTab";
 import SupervisorCostTab from "../components/categories/SupervisorCostTab";
+import CategoryPinGate from "../components/ui/CategoryPinGate";
+import { useLiveSync } from "../hooks/useLiveSync";
 
 export default function LocationDetailsPage() {
   const { id: locationId } = useParams();
@@ -23,10 +25,6 @@ export default function LocationDetailsPage() {
   const [activeCategory, setActiveCategory] = useState<"investors" | "investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "labour_records" | "supervisor">("investors");
   
   const [locationName, setLocationName] = useState("Loading...");
-
-  useEffect(() => {
-    loadLocationDetails();
-  }, [locationId]);
 
   const loadLocationDetails = async () => {
     try {
@@ -41,6 +39,14 @@ export default function LocationDetailsPage() {
       setLocationName("Location Details");
     }
   };
+
+  useEffect(() => {
+    loadLocationDetails();
+  }, [locationId]);
+
+  useLiveSync(() => {
+    loadLocationDetails();
+  }, 3500);
 
   return (
     <motion.div 
@@ -70,16 +76,22 @@ export default function LocationDetailsPage() {
           
           <button type="button" onClick={() => setActiveCategory("investors")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "investors" ? "bg-emerald-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "investors" ? "bg-white/20" : "bg-emerald-100 text-emerald-700"}`}><Users className="w-4 h-4" /></div>
-            <div>
-              <div className="font-bold text-sm">1. Investor Category</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm flex items-center justify-between gap-1">
+                <span>1. Investor Category</span>
+                <Lock className="w-3.5 h-3.5 opacity-70 shrink-0" />
+              </div>
               <div className={`text-xs ${activeCategory === "investors" ? "text-emerald-100" : "text-slate-400"}`}>Investors & Upad</div>
             </div>
           </button>
 
           <button type="button" onClick={() => setActiveCategory("investments")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "investments" ? "bg-blue-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "investments" ? "bg-white/20" : "bg-blue-100 text-blue-700"}`}><TrendingUp className="w-4 h-4" /></div>
-            <div>
-              <div className="font-bold text-sm">2. Investment Category</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm flex items-center justify-between gap-1">
+                <span>2. Investment Category</span>
+                <Lock className="w-3.5 h-3.5 opacity-70 shrink-0" />
+              </div>
               <div className={`text-xs ${activeCategory === "investments" ? "text-blue-100" : "text-slate-400"}`}>From Investors & Bills</div>
             </div>
           </button>
@@ -112,7 +124,7 @@ export default function LocationDetailsPage() {
             <div className={`p-2 rounded-lg ${activeCategory === "labour_attendance" ? "bg-white/20" : "bg-amber-100 text-amber-700"}`}><CalendarCheck className="w-4 h-4" /></div>
             <div>
               <div className="font-bold text-sm">6. Labour Attendance</div>
-              <div className={`text-xs ${activeCategory === "labour_attendance" ? "text-amber-100" : "text-slate-400"}`}>Day & TC Wise</div>
+              <div className={`text-xs ${activeCategory === "labour_attendance" ? "text-amber-100" : "text-slate-400"}`}>Day & Work Wise</div>
             </div>
           </button>
 
@@ -144,13 +156,21 @@ export default function LocationDetailsPage() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.15 }}
             >
-              {activeCategory === "investors" && <InvestorTab locationId={Number(locationId)} />}
-              {activeCategory === "investments" && <InvestmentTab locationId={Number(locationId)} />}
+              {activeCategory === "investors" && (
+                <CategoryPinGate categoryName="Investor Category" categoryNumber={1}>
+                  <InvestorTab locationId={Number(locationId)} />
+                </CategoryPinGate>
+              )}
+              {activeCategory === "investments" && (
+                <CategoryPinGate categoryName="Investment Category" categoryNumber={2}>
+                  <InvestmentTab locationId={Number(locationId)} />
+                </CategoryPinGate>
+              )}
               {activeCategory === "material_purchase" && <MaterialPurchaseTab locationId={Number(locationId)} />}
               {activeCategory === "material_supply" && <MaterialSupplyTab locationId={Number(locationId)} />}
               {activeCategory === "site_supply" && <SiteSupplyTab locationId={Number(locationId)} />}
               {activeCategory === "labour_attendance" && <LabourAttendanceTab locationId={Number(locationId)} />}
-              {activeCategory === "labour_records" && <LabourSalaryTab locationId={Number(locationId)} />}
+              {activeCategory === "labour_records" && <LabourRecordsTab locationId={Number(locationId)} />}
               {activeCategory === "supervisor" && <SupervisorCostTab locationId={Number(locationId)} />}
             </motion.div>
           </AnimatePresence>

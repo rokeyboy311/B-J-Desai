@@ -201,6 +201,7 @@ export const labourSalaries = pgTable('labour_salaries', {
   periodFrom: text('period_from'),
   periodTo: text('period_to'),
   workType: text('work_type'),
+  unitOfMeasurement: text('unit_of_measurement'),
   tcQuantity: numeric('tc_quantity', { precision: 12, scale: 2 }).default('0').notNull(),
   tcRate: numeric('tc_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   outstandingAmount: numeric('outstanding_amount', { precision: 12, scale: 2 }).default('0').notNull(),
@@ -460,3 +461,13 @@ export const siteSupplyItemsRelations = relations(siteSupplyItems, ({ one }) => 
   siteSupply: one(siteSupplies, { fields: [siteSupplyItems.siteSupplyId], references: [siteSupplies.id] }),
   material: one(materials, { fields: [siteSupplyItems.materialId], references: [materials.id] }),
 }));
+
+// Security & Protected Categories Settings (e.g., Category 1 & 2 PIN Lock)
+export const securitySettings = pgTable('security_settings', {
+  id: serial('id').primaryKey(),
+  key: text('key').notNull().unique(), // e.g. 'CATEGORY_LOCK_PIN'
+  value: text('value').notNull(), // '190190'
+  description: text('description'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+

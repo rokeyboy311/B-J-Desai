@@ -18,6 +18,24 @@ locationRouter.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+locationRouter.get('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Valid id required' });
+    }
+    const locations = await getLocationsWithRecordCount(req.dbUser!.id);
+    const location = locations.find(l => l.id === id);
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+    res.json(location);
+  } catch (error) {
+    console.error('Failed to fetch location by id:', error);
+    res.status(500).json({ error: 'Failed to fetch location' });
+  }
+});
+
 locationRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const data = createLocationSchema.parse(req.body);

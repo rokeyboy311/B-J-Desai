@@ -1,19 +1,28 @@
 import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { LogOut, LayoutDashboard, MapPin, Receipt, FileSpreadsheet, History, User, Building2, Menu, X } from "lucide-react";
+import { Lock, LayoutDashboard, MapPin, Receipt, FileSpreadsheet, History, Building2, Menu, X, Database, ShieldCheck, RefreshCw } from "lucide-react";
 import { PWAInstallButton } from "../PWAInstallButton";
 import { motion, AnimatePresence } from "motion/react";
+import { triggerGlobalSync } from "../../hooks/useLiveSync";
 
 export default function AppLayout() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const handleLogout = async () => {
+  const handleManualSync = () => {
+    setIsSyncing(true);
+    triggerGlobalSync();
+    setTimeout(() => {
+      setIsSyncing(false);
+    }, 600);
+  };
+
+  const handleLockERP = async () => {
     await logout();
-    navigate("/login");
   };
 
   const navItems = [
@@ -30,16 +39,16 @@ export default function AppLayout() {
       {/* Desktop Sidebar */}
       <aside className="w-[280px] bg-slate-900 text-slate-100 hidden md:flex flex-col h-screen sticky top-0 shadow-2xl z-20">
         <div className="p-6 flex items-center gap-3 border-b border-slate-800">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-2 ring-indigo-500/20">
             <Building2 className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">Bina Ent.</h1>
-            <p className="text-xs text-slate-400 font-medium tracking-wide uppercase mt-0.5">Workspace</p>
+            <h1 className="text-lg font-bold tracking-tight text-white leading-tight">Bina Enterprise</h1>
+            <p className="text-[11px] text-indigo-400 font-medium tracking-wide uppercase mt-0.5">Central ERP System</p>
           </div>
         </div>
         
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto mt-4">
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto mt-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
             return (
@@ -65,34 +74,29 @@ export default function AppLayout() {
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-3">
-          <div className="bg-slate-800/50 rounded-xl p-4 flex items-center gap-3 border border-slate-700/50">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-inner shrink-0">
-              {user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
+          <div className="bg-slate-800/50 rounded-xl p-3 flex items-center gap-3 border border-slate-700/50">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <Database className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">
-                {user?.displayName || "Administrator"}
-              </p>
-              <p className="text-xs text-slate-400 truncate">
-                {user?.email}
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <p className="text-xs font-semibold text-white truncate">
+                  Central Database
+                </p>
+              </div>
+              <p className="text-[10px] text-slate-400 truncate">
+                All Devices Synced
               </p>
             </div>
           </div>
           
-          <div className="flex gap-2">
-            <button 
-              onClick={() => navigate("/profile")}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition-colors"
-            >
-              <User size={14} /> Profile
-            </button>
-            <button 
-              onClick={handleLogout}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-lg text-xs font-medium transition-colors"
-            >
-              <LogOut size={14} /> Logout
-            </button>
-          </div>
+          <button 
+            onClick={handleLockERP}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 rounded-xl text-xs font-semibold transition-colors"
+          >
+            <Lock size={14} /> Lock ERP Screen
+          </button>
         </div>
       </aside>
 
@@ -103,10 +107,25 @@ export default function AppLayout() {
         <header className="hidden md:flex h-20 items-center justify-between px-8 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-10">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-semibold text-slate-800 capitalize">
-              {location.pathname === '/' ? 'Dashboard' : location.pathname.split('/')[1]}
+              {location.pathname === '/' ? 'Accounting Dashboard' : location.pathname.split('/')[1]}
             </h2>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200/50">
+              <ShieldCheck className="w-3.5 h-3.5" /> PIN Verified
+            </span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Unified Central DB</span>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleManualSync}
+              title="Click to instantly sync data across devices"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition active:scale-95 cursor-pointer"
+            >
+              <RefreshCw size={13} className={isSyncing ? "animate-spin text-indigo-600" : "text-slate-500"} />
+              <span>{isSyncing ? "Syncing..." : "Sync Data"}</span>
+            </button>
             <PWAInstallButton />
           </div>
         </header>
@@ -117,11 +136,33 @@ export default function AppLayout() {
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
               <Building2 size={18} />
             </div>
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight">Bina Ent.</h1>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-base font-bold text-slate-900 tracking-tight">Bina Enterprise</h1>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live Synced" />
+              </div>
+              <p className="text-[10px] text-slate-500">Central ERP • Live Sync</p>
+            </div>
           </div>
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -mr-2 text-slate-600">
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleManualSync}
+              title="Refresh Data"
+              className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition"
+            >
+              <RefreshCw size={18} className={isSyncing ? "animate-spin text-indigo-600" : ""} />
+            </button>
+            <button
+              onClick={handleLockERP}
+              title="Lock Screen"
+              className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+            >
+              <Lock size={18} />
+            </button>
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 -mr-1 text-slate-600">
+              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
+          </div>
         </header>
 
         {/* Mobile Dropdown Menu */}
@@ -150,18 +191,11 @@ export default function AppLayout() {
                 })}
                 <div className="h-px bg-slate-100 my-4" />
                 <button 
-                  onClick={() => { navigate("/profile"); setMobileMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm text-slate-600 hover:bg-slate-50"
-                >
-                  <User size={18} className="text-slate-400" />
-                  Profile Settings
-                </button>
-                <button 
-                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                  onClick={() => { handleLockERP(); setMobileMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm text-rose-600 hover:bg-rose-50"
                 >
-                  <LogOut size={18} className="text-rose-400" />
-                  Sign Out
+                  <Lock size={18} className="text-rose-400" />
+                  Lock ERP Screen
                 </button>
             </motion.div>
           )}
@@ -182,7 +216,7 @@ export default function AppLayout() {
         </div>
       </main>
       
-      {/* Mobile Bottom Navigation - Keep for quick access */}
+      {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around z-40 px-1 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pt-1">
         {navItems.slice(0, 4).map((item) => {
           const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));

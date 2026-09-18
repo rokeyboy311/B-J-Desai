@@ -1,93 +1,131 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { auth, googleProvider } from "../lib/firebase";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { 
-  onAuthStateChanged, 
-  User, 
-  signOut as firebaseSignOut,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  sendPasswordResetEmail,
-  UserCredential
-} from "firebase/auth";
-import { apiFetch } from "../lib/api";
+  apiFetch, 
+  getStoredPinToken, 
+  setStoredPinToken, 
+  clearStoredPinToken 
+} from "../lib/api";
 
-interface DBUser {
+export interface SystemUser {
   id: number;
-  uid: string;
   email: string;
-  name: string | null;
+  name: string;
 }
 
-interface AuthContextType {
-  user: User | null;
-  dbUser: DBUser | null;
+export interface AuthContextType {
+  isUnlocked: boolean;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<UserCredential>;
-  registerUser: (email: string, pass: string) => Promise<UserCredential>;
-  signInWithGoogle: () => Promise<UserCredential>;
-  resetPassword: (email: string) => Promise<void>;
+  error: string | null;
+  user: SystemUser | null;
+  dbUser: SystemUser | null;
+  unlockWithPin: (pin: string) => Promise<boolean>;
+  lockApp: () => void;
+  // Compatibility helpers
+  login?: (email: string, pass: string) => Promise<any>;
+  registerUser?: (email: string, pass: string) => Promise<any>;
+  signInWithGoogle?: () => Promise<any>;
+  resetPassword?: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [dbUser, setDbUser] = useState<DBUser | null>(null);
-  const [loading, setLoading] = useState(true);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [systemUser, setSystemUser] = useState<SystemUser | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        try {
-          // Sync with our backend to get Postgres ID
-          const data = await apiFetch("/auth/me");
-          setDbUser(data.user);
-        } catch (err) {
-          console.error("Failed to fetch user from DB:", err);
-          setDbUser(null);
-        }
-      } else {
-        setDbUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+  const lockApp = useCallback(() => {
+    clearStoredPinToken();
+    setIsUnlocked(false);
+    setSystemUser(null);
+    setError(null);
   }, []);
 
-  const login = (email: string, pass: string) => {
-    return signInWithEmailAndPassword(auth, email, pass);
-  };
+  const verifyCurrentSession = useCallback(async () => {
+    const token = getStoredPinToken();
+    if (!token) {
+      setIsUnlocked(false);
+      setLoading(false);
+      return;
+    }
 
-  const registerUser = (email: string, pass: string) => {
-    return createUserWithEmailAndPassword(auth, email, pass);
-  };
+    try {
+      const res = await apiFetch('/auth/verify-session', {
+        method: 'POST',
+        body: JSON.stringify({ token })
+      });
 
-  const signInWithGoogle = () => {
-    return signInWithPopup(auth, googleProvider);
-  };
+      if (res.valid) {
+        setIsUnlocked(true);
+        setSystemUser(res.user || { id: 1, email: 'admin@bina.enterprise', name: 'B_D Administrator' });
+      } else {
+        clearStoredPinToken();
+        setIsUnlocked(false);
+      }
+    } catch (err) {
+      console.warn('Session verification check failed:', err);
+      // If server unreachable or error, keep lock screen
+      clearStoredPinToken();
+      setIsUnlocked(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const resetPassword = (email: string) => {
-    return sendPasswordResetEmail(auth, email);
+  useEffect(() => {
+    verifyCurrentSession();
+
+    const handleUnauthorized = () => {
+      lockApp();
+    };
+
+    window.addEventListener('bd_erp_unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('bd_erp_unauthorized', handleUnauthorized);
+    };
+  }, [verifyCurrentSession, lockApp]);
+
+  const unlockWithPin = async (pin: string): Promise<boolean> => {
+    setError(null);
+    try {
+      const res = await apiFetch('/auth/verify-pin', {
+        method: 'POST',
+        body: JSON.stringify({ pin: pin.trim() })
+      });
+
+      if (res.success && res.token) {
+        setStoredPinToken(res.token);
+        setIsUnlocked(true);
+        setSystemUser(res.user || { id: 1, email: 'admin@bina.enterprise', name: 'B_D Administrator' });
+        setError(null);
+        return true;
+      } else {
+        setError(res.error || 'Invalid Access PIN');
+        return false;
+      }
+    } catch (err: any) {
+      console.error('PIN verification error:', err);
+      setError(err.message || 'Incorrect PIN. Access Denied.');
+      return false;
+    }
   };
 
   const logout = async () => {
-    await firebaseSignOut(auth);
+    lockApp();
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        dbUser,
+        isUnlocked,
         loading,
-        login,
-        registerUser,
-        signInWithGoogle,
-        resetPassword,
+        error,
+        user: systemUser,
+        dbUser: systemUser,
+        unlockWithPin,
+        lockApp,
         logout,
       }}
     >
@@ -103,3 +141,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export const usePinAccess = useAuth;

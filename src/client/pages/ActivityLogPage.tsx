@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../lib/api";
 import { History, FileText, MapPin } from "lucide-react";
+import { useLiveSync } from "../hooks/useLiveSync";
 
 interface AuditLog {
   id: number;
@@ -15,19 +16,25 @@ export default function ActivityLogPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchLogs = async (isBackground = false) => {
+    try {
+      if (!isBackground && logs.length === 0) setLoading(true);
+      const data = await apiFetch("/audit-logs");
+      setLogs(data || []);
+    } catch (error) {
+      console.error("Failed to load audit logs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const data = await apiFetch("/audit-logs");
-        setLogs(data);
-      } catch (error) {
-        console.error("Failed to load audit logs");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLogs();
+    fetchLogs(false);
   }, []);
+
+  useLiveSync(() => {
+    fetchLogs(true);
+  }, 3500);
 
   const formatAction = (action: string) => {
     return action.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');

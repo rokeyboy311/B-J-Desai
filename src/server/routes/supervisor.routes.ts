@@ -9,12 +9,10 @@ supervisorRouter.use(requireAuth);
 
 supervisorRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.dbUser!.id;
     const { locationId } = req.query;
     
     let query = db.select().from(supervisorCosts)
       .where(and(
-        eq(supervisorCosts.userId, userId),
         eq(supervisorCosts.isDeleted, 0),
         locationId ? eq(supervisorCosts.locationId, Number(locationId)) : undefined
       ))
@@ -30,7 +28,7 @@ supervisorRouter.get('/', async (req: AuthRequest, res: Response) => {
 
 supervisorRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.dbUser!.id;
+    const userId = req.dbUser?.id || 1;
     const { 
       locationId, date, supervisorName, amount, 
       description, paymentMethod, referenceNumber 
@@ -56,7 +54,6 @@ supervisorRouter.post('/', async (req: AuthRequest, res: Response) => {
 
 supervisorRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.dbUser!.id;
     const { id } = req.params;
     const { 
       date, supervisorName, amount, 
@@ -74,7 +71,7 @@ supervisorRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       })
       .where(and(
         eq(supervisorCosts.id, Number(id)),
-        eq(supervisorCosts.userId, userId)
+        eq(supervisorCosts.isDeleted, 0)
       ))
       .returning();
       
@@ -88,15 +85,11 @@ supervisorRouter.put('/:id', async (req: AuthRequest, res: Response) => {
 
 supervisorRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.dbUser!.id;
     const { id } = req.params;
     
     await db.update(supervisorCosts)
       .set({ isDeleted: 1 })
-      .where(and(
-        eq(supervisorCosts.id, Number(id)),
-        eq(supervisorCosts.userId, userId)
-      ));
+      .where(eq(supervisorCosts.id, Number(id)));
       
     res.json({ success: true });
   } catch (error) {

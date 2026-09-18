@@ -7,9 +7,10 @@ import { PurchaseIcon } from "../icons/PurchaseIcon";
 import MaterialPurchaseTab from "./MaterialPurchaseTab";
 import MaterialSupplyTab from "./MaterialSupplyTab";
 import SiteSupplyTab from "./SiteSupplyTab";
-import LabourSalaryTab from "./LabourSalaryTab";
+
 import IncomeExpenseTab from "./IncomeExpenseTab";
 import { apiFetch } from "../../lib/api";
+import { useLiveSync } from "../../hooks/useLiveSync";
 
 export type ExpenseSubCategory = 
   | "material-purchase" 
@@ -52,6 +53,10 @@ export default function ExpenseTab({
     loadExpenseMetrics();
   }, [locationId]);
 
+  useLiveSync(() => {
+    loadExpenseMetrics();
+  }, 3500);
+
   const loadExpenseMetrics = async () => {
     try {
       const [purchases, supplies, labourSupplies, salaries, incomeExpense] = await Promise.all([
@@ -62,7 +67,21 @@ export default function ExpenseTab({
         apiFetch(`/records?locationId=${locationId}`).catch(() => []),
       ]);
 
-      const purTotal = (purchases || []).reduce((acc: number, r: any) => acc + (parseFloat(r.totalAmount) || 0), 0);
+      const purTotal = (purchases || []).reduce((acc: number, r: any) => {
+        const qty = parseFloat(r.quantity) || 0;
+        const rate = parseFloat(r.rate) || 0;
+        const sub = parseFloat(r.subtotal) || Math.round(qty * rate * 100) / 100;
+        const disc = parseFloat(r.discount) || 0;
+        const trans = parseFloat(r.transportCost) || 0;
+        const taxRate = parseFloat(r.taxPercentage) || 0;
+        const taxable = Math.max(0, sub - disc);
+        const tax = parseFloat(r.tax) || Math.round(taxable * (taxRate / 100) * 100) / 100;
+        const calculated = Math.round((taxable + tax + trans) * 100) / 100;
+        const rowTot = (parseFloat(r.totalAmount) > 0 && Math.abs(parseFloat(r.totalAmount) - (taxable + tax + trans)) < 1)
+          ? parseFloat(r.totalAmount)
+          : calculated;
+        return acc + rowTot;
+      }, 0);
       const supTotal = (supplies || []).reduce((acc: number, r: any) => acc + (parseFloat(r.totalAmount) || 0), 0);
       const labSupTotal = (labourSupplies || []).reduce((acc: number, r: any) => acc + (parseFloat(r.totalAmount) || 0), 0);
       const salTotal = (salaries || []).reduce((acc: number, r: any) => acc + (parseFloat(r.paymentAmount || r.netSalary) || 0), 0);
@@ -219,7 +238,7 @@ export default function ExpenseTab({
           <SiteSupplyTab locationId={locationId} />
         )}
         {subCategory === "labour-salary" && (
-          <LabourSalaryTab locationId={locationId} />
+          <div className="p-4 bg-red-50 text-red-600 rounded">Labour operations moved to dedicated tab</div>
         )}
         {subCategory === "site-expenses" && (
           <IncomeExpenseTab locationId={locationId} />

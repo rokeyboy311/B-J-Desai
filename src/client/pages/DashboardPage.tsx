@@ -7,19 +7,16 @@ import {
 import { apiFetch } from "../lib/api";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
+import { useLiveSync } from "../hooks/useLiveSync";
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
+  const loadDashboard = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground && !metrics) setLoading(true);
       const res = await apiFetch(`/reports/dashboard?locationId=ALL`);
       setMetrics(res || null);
     } catch (err) {
@@ -28,6 +25,14 @@ export default function DashboardPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadDashboard(false);
+  }, []);
+
+  useLiveSync(() => {
+    loadDashboard(true);
+  }, 3500);
 
   const getMetric = (val: any) => Number(val || 0).toLocaleString();
 

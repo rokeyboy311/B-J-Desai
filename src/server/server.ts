@@ -14,6 +14,9 @@ import labourRouter from "./routes/labour.routes.ts";
 import supervisorRouter from "./routes/supervisor.routes.ts";
 import masterRouter from "./routes/master.routes.ts";
 import siteSupplyRouter from "./routes/siteSupply.routes.ts";
+import syncRouter from "./routes/sync.routes.ts";
+import incomeRouter from "./routes/income.routes.ts";
+import { realtimeSyncMiddleware } from "./lib/realtimeSync.ts";
 
 async function startServer() {
   const app = express();
@@ -24,13 +27,27 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // Prevent caching for all API responses so all devices see latest live data immediately
+  app.use("/api", (req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+    next();
+  });
+
+  // Real-time mutation interception middleware
+  app.use(realtimeSyncMiddleware);
+
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
 
   // Register domain routers
+  app.use("/api/sync", syncRouter);
   app.use("/api/auth", authRouter);
+  app.use("/api/access", authRouter);
   app.use("/api/locations", locationRouter);
   app.use("/api/records", recordRouter);
   app.use("/api/reports", reportRouter);
@@ -41,6 +58,7 @@ async function startServer() {
   app.use("/api/labour", labourRouter);
   app.use("/api/supervisor-costs", supervisorRouter);
   app.use("/api/master", masterRouter);
+  app.use("/api/incomes", incomeRouter);
   
   // Register global error handler (must be after routes)
   app.use(errorHandler);

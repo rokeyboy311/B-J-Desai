@@ -5,13 +5,15 @@ import { stockLedger } from '../../db/schema.js';
 
 export class StockManager {
   static async addStockMovement(dbTx: any, userId: number, locationId: number, materialId: number, type: 'IN'|'OUT'|'ADJUST', quantity: number, refId: number, refType: string, notes?: string) {
-    if (!materialId || isNaN(quantity)) throw new Error("Invalid stock movement details");
+    const parsedQty = parseFloat(String(quantity));
+    if (!materialId || isNaN(parsedQty)) throw new Error("Invalid stock movement details");
+    const finalQty = type === 'OUT' ? -Math.abs(parsedQty) : Math.abs(parsedQty);
     await dbTx.insert(stockLedger).values({
       userId,
       locationId,
       materialId,
       transactionType: type,
-      quantity: type === 'OUT' ? -Math.abs(quantity) : Math.abs(quantity),
+      quantity: finalQty.toString(),
       referenceId: refId,
       referenceType: refType,
       notes
