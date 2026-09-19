@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { 
   MASTER_PIN, 
   generatePinToken, 
+  generateCategoryPinToken,
   verifyPinToken, 
   requireAuth, 
   AuthRequest, 
@@ -112,9 +113,11 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
     // Verify against DB/configured category PIN or MASTER_PIN using timing-safe comparison
     if (timingSafeCompare(trimmedPin, categoryPin) || timingSafeCompare(trimmedPin, MASTER_PIN)) {
       resetPinRateLimit(rateKey);
+      const categoryToken = generateCategoryPinToken(req.dbUser?.id);
       return res.json({
         success: true,
         verified: true,
+        categoryToken,
         message: 'Category PIN verified successfully. Access granted.'
       });
     }

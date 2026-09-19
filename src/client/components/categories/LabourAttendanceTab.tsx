@@ -603,9 +603,9 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                         {r.workType && <div className="text-[11px] text-slate-700 font-semibold mt-0.5">{r.workType}</div>}
                       </td>
                       <td className="p-3 text-right font-bold">
-                        {isWork ? `${r.tcQuantity || r.notes || 0} ${r.unitOfMeasurement || ''}` : `${r.days} Days`}
+                        {isWork ? `${r.quantity || r.workQuantity || r.tcQuantity || 0} ${r.unitOfMeasurement || ''}` : `${r.days} Days`}
                       </td>
-                      <td className="p-3 text-right text-slate-600">₹{isWork ? (r.tcRate || r.dailyRate) : r.dailyRate}</td>
+                      <td className="p-3 text-right text-slate-600">₹{isWork ? (r.rate || r.workRate || r.tcRate || r.dailyRate) : r.dailyRate}</td>
                       <td className="p-3 text-right font-black text-slate-900">₹{Number(r.grossSalary).toLocaleString()}</td>
                       <td className="p-3 text-center">
                         <button
@@ -655,15 +655,43 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 <input type="text" value={editingRecord.attendanceType || ""} onChange={e => setEditingRecord({...editingRecord, attendanceType: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Days / Qty</label>
-                <input type="number" step="0.01" value={editingRecord.days || editingRecord.tcQuantity || 0} onChange={e => setEditingRecord({...editingRecord, days: e.target.value, tcQuantity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {(editingRecord.attendanceType || '').includes('Work') ? 'Work Quantity' : 'Days'}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingRecord.quantity ?? editingRecord.workQuantity ?? editingRecord.days ?? editingRecord.tcQuantity ?? 0}
+                  onChange={e => setEditingRecord({
+                    ...editingRecord,
+                    days: e.target.value,
+                    quantity: e.target.value,
+                    workQuantity: e.target.value,
+                    tcQuantity: e.target.value
+                  })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Rate (₹)</label>
-                <input type="number" step="0.01" value={editingRecord.dailyRate || editingRecord.tcRate || 0} onChange={e => setEditingRecord({...editingRecord, dailyRate: e.target.value, tcRate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {(editingRecord.attendanceType || '').includes('Work') ? 'Rate per Unit (₹)' : 'Daily Rate (₹)'}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingRecord.rate ?? editingRecord.workRate ?? editingRecord.dailyRate ?? editingRecord.tcRate ?? 0}
+                  onChange={e => setEditingRecord({
+                    ...editingRecord,
+                    dailyRate: e.target.value,
+                    rate: e.target.value,
+                    workRate: e.target.value,
+                    tcRate: e.target.value
+                  })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Deduction (₹)</label>

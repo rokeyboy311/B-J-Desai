@@ -37,7 +37,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
     const validLocIds = locIds.map(l => l.id);
     if (validLocIds.length === 0) {
       return res.json({
-        totalIncome: 0, totalBillInvestment: 0, actualExpense: 0, totalRefundable: 0, totalRefunded: 0, pendingRefundable: 0, netIncome: 0,
+        totalIncome: 0, totalBillInvestment: 0, grossExpense: 0, actualExpense: 0, totalRefundable: 0, totalRefunded: 0, pendingRefundable: 0, netIncome: 0,
         totalInvestment: 0, totalInvestmentPayment: 0, totalInvestmentUpad: 0, investmentBalance: 0,
         totalMaterialPurchase: 0, totalMaterialPurchasePaid: 0, totalMaterialPurchaseOutstanding: 0,
         totalMaterialSupply: 0, totalMaterialSupplyPaid: 0, totalMaterialSupplyOutstanding: 0,
@@ -95,7 +95,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       GROUP BY type, category
     `);
     
-    let totalIncome = 0, actualExpense = 0, totalRefundable = 0, totalRefunded = 0, totalBillInvestment = 0;
+    let totalIncome = 0, grossExpense = 0, totalRefundable = 0, totalRefunded = 0, totalBillInvestment = 0;
     for (const r of ieQuery.rows) {
       const amt = parseFloat(r.amt as string || '0');
       if (r.type === 'INCOME') {
@@ -105,13 +105,15 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
         }
       }
       if (r.type === 'EXPENSE') {
-        actualExpense += amt;
+        grossExpense += amt;
         totalRefundable += parseFloat(r.ref_amt as string || '0');
         totalRefunded += parseFloat(r.refd_amt as string || '0');
       }
     }
-    const pendingRefundable = totalRefundable - totalRefunded;
-    const netIncome = totalIncome - actualExpense;
+    // Accounting Rule: Refundable amounts are NOT expenses (assets/receivables until refunded)
+    const actualExpense = Math.max(0, Math.round((grossExpense - totalRefundable) * 100) / 100);
+    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
+    const netIncome = Math.round((totalIncome - actualExpense) * 100) / 100;
 
     // 2. Investment & Investor Transactions Breakdown
     const invQuery = await db.execute(sql`
@@ -363,7 +365,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
     };
 
     res.json({
-      totalIncome, totalBillInvestment, actualExpense, totalRefundable, totalRefunded, pendingRefundable, netIncome,
+      totalIncome, totalBillInvestment, grossExpense, actualExpense, totalRefundable, totalRefunded, pendingRefundable, netIncome,
       totalInvestment: totalProjectCapital,
       totalInvestmentPayment,
       totalInvestmentUpad,
@@ -540,9 +542,9 @@ reportRouter.get('/analytics', async (req: AuthRequest, res: Response) => {
       return monthlyMap[m];
     };
 
-    // Records
+    // Records (Income & Expenses, with refundable amounts excluded from expense)
     const recordsRows = await db.execute(sql`
-      SELECT substring(date from 1 for 7) as m, type, SUM(amount) as amt
+      SELECT substring(date from 1 for 7) as m, type, SUM(amount) as amt, SUM(refundable_amount) as ref_amt
       FROM records
       WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
       GROUP BY m, type
@@ -551,8 +553,9 @@ reportRouter.get('/analytics', async (req: AuthRequest, res: Response) => {
       if (!r.m) continue;
       const entry = getOrInitMonth(r.m as string);
       const amt = parseFloat(r.amt as string || '0');
+      const refAmt = parseFloat(r.ref_amt as string || '0');
       if (r.type === 'INCOME') entry.Income += amt;
-      else if (r.type === 'EXPENSE') entry.Expense += amt;
+      else if (r.type === 'EXPENSE') entry.Expense += Math.max(0, amt - refAmt);
     }
 
     // Material Supplies (Income)

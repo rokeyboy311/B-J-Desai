@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../middleware/auth.ts';
 import { createRecordSchema, updateRecordSchema } from '../validators/record.validator.ts';
 import { getRecords, getAllRecords, getRecordMetrics, createRecord, updateRecord, deleteRecord } from '../../db/records.ts';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const recordRouter = Router();
 
@@ -29,6 +30,7 @@ recordRouter.get('/', async (req: AuthRequest, res: Response) => {
     if (isNaN(locationId)) {
       return res.status(400).json({ error: 'locationId query parameter is required' });
     }
+    await assertLocationAccess(req.dbUser!.id, locationId);
 
     const filters = {
       startDate: req.query.startDate as string,
@@ -38,7 +40,8 @@ recordRouter.get('/', async (req: AuthRequest, res: Response) => {
 
     const data = await getRecords(req.dbUser!.id, locationId, filters);
     res.json(data);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to fetch records:', error);
     res.status(500).json({ error: 'Failed to fetch records' });
   }
@@ -50,10 +53,12 @@ recordRouter.get('/metrics', async (req: AuthRequest, res: Response) => {
     if (isNaN(locationId)) {
       return res.status(400).json({ error: 'locationId query parameter is required' });
     }
+    await assertLocationAccess(req.dbUser!.id, locationId);
 
     const metrics = await getRecordMetrics(req.dbUser!.id, locationId);
     res.json(metrics);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to fetch metrics:', error);
     res.status(500).json({ error: 'Failed to fetch metrics' });
   }
@@ -62,9 +67,11 @@ recordRouter.get('/metrics', async (req: AuthRequest, res: Response) => {
 recordRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const data = createRecordSchema.parse(req.body);
+    await assertLocationAccess(req.dbUser!.id, data.locationId);
     const record = await createRecord(req.dbUser!.id, data);
     res.status(201).json(record);
   } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     if (error.name === 'ZodError') throw error;
     console.error('Failed to create record:', error);
     res.status(500).json({ error: 'Failed to create record' });
@@ -75,6 +82,9 @@ recordRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const data = updateRecordSchema.parse(req.body);
+    if (data.locationId) {
+      await assertLocationAccess(req.dbUser!.id, data.locationId);
+    }
     
     const record = await updateRecord(req.dbUser!.id, id, data);
     if (!record) {
@@ -82,6 +92,7 @@ recordRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     }
     res.json(record);
   } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     if (error.name === 'ZodError') throw error;
     console.error('Failed to update record:', error);
     res.status(500).json({ error: 'Failed to update record' });
@@ -96,7 +107,8 @@ recordRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Record not found' });
     }
     res.json({ success: true, message: 'Record deleted' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to delete record:', error);
     res.status(500).json({ error: 'Failed to delete record' });
   }

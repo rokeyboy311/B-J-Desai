@@ -79,6 +79,19 @@ export function generatePinToken(): string {
   return `${encodedPayload}.${signature}`;
 }
 
+// Generate secure HMAC token for Category 1 & 2 access
+export function generateCategoryPinToken(userId?: number): string {
+  const payload = JSON.stringify({
+    app: 'B_D_ACCOUNTING_ERP_CATEGORY_ACCESS',
+    userId: userId || 0,
+    iat: Date.now(),
+    exp: Date.now() + 24 * 60 * 60 * 1000 // 24 hours valid session
+  });
+  const encodedPayload = Buffer.from(payload).toString('base64url');
+  const signature = crypto.createHmac('sha256', PIN_SECRET).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+}
+
 // Verify HMAC token using timing-safe comparison
 export function verifyPinToken(token: string): boolean {
   try {
@@ -90,6 +103,24 @@ export function verifyPinToken(token: string): boolean {
     
     const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
     if (payload.app !== 'B_D_ACCOUNTING_ERP') return false;
+    if (payload.exp && Date.now() > payload.exp) return false;
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Verify Category PIN HMAC token
+export function verifyCategoryPinToken(token: string): boolean {
+  try {
+    if (!token || !token.includes('.')) return false;
+    const [encodedPayload, signature] = token.split('.');
+    if (!encodedPayload || !signature) return false;
+    const expectedSig = crypto.createHmac('sha256', PIN_SECRET).update(encodedPayload).digest('base64url');
+    if (!timingSafeCompare(signature, expectedSig)) return false;
+    
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+    if (payload.app !== 'B_D_ACCOUNTING_ERP_CATEGORY_ACCESS') return false;
     if (payload.exp && Date.now() > payload.exp) return false;
     return true;
   } catch (err) {
@@ -144,4 +175,38 @@ export const requireAuth = async (
     console.error('Failed to attach authenticated user to request:', err);
     res.status(503).json({ error: 'Database service unavailable. Access denied.' });
   }
+};
+
+/**
+ * Backend-enforced authorization for Category 1 & Category 2 data.
+ * Checks for valid category token or master PIN override.
+ */
+export const requireCategoryAuth = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const catToken = (req.headers['x-category-pin-token'] as string) || (req.headers['x-category-token'] as string);
+  
+  if (catToken && verifyCategoryPinToken(catToken)) {
+    return next();
+  }
+
+  // Also allow if master PIN session has bypassed
+  const authHeader = req.headers.authorization || (req.headers['x-app-pin-token'] as string);
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split('Bearer ')[1] : authHeader;
+  if (token && verifyPinToken(token)) {
+    // If category token is not explicitly provided, we require unlock unless in preview mode without cat pin
+    if (!process.env.CATEGORY_ACCESS_PIN && !catToken) {
+      return next();
+    }
+    if (catToken && verifyCategoryPinToken(catToken)) {
+      return next();
+    }
+  }
+
+  res.status(403).json({
+    error: 'Forbidden: Category 1 / 2 PIN verification required to access this data.',
+    requiresCategoryUnlock: true
+  });
 };

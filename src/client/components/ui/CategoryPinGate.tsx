@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Lock, Unlock, KeyRound, ShieldAlert, ArrowRight, CheckCircle2 } from "lucide-react";
-import { apiFetch } from "../../lib/api";
+import { apiFetch, setStoredCategoryPinToken, clearStoredCategoryPinToken } from "../../lib/api";
 
 interface CategoryPinGateProps {
   categoryName: string;
@@ -24,6 +24,7 @@ export function setCategoryUnlocked(unlocked: boolean): void {
       sessionStorage.setItem(CATEGORY_UNLOCKED_SESSION_KEY, "true");
     } else {
       sessionStorage.removeItem(CATEGORY_UNLOCKED_SESSION_KEY);
+      clearStoredCategoryPinToken();
     }
   } catch (e) {
     console.warn("Failed to set category unlock status in sessionStorage", e);
@@ -61,6 +62,9 @@ export default function CategoryPinGate({
       });
 
       if (res && res.verified) {
+        if (res.categoryToken) {
+          setStoredCategoryPinToken(res.categoryToken);
+        }
         setCategoryUnlocked(true);
         setUnlocked(true);
         setPin("");
@@ -75,6 +79,7 @@ export default function CategoryPinGate({
   };
 
   const handleLock = () => {
+    clearStoredCategoryPinToken();
     setCategoryUnlocked(false);
     setUnlocked(false);
     setPin("");

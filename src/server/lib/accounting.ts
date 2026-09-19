@@ -135,6 +135,8 @@ export interface LabourSalaryCalculation {
   dailyRate: number;
   tcQuantity: number;
   tcRate: number;
+  quantity?: number;
+  rate?: number;
   otherEarnings: number;
   grossSalary: number;
   deduction: number;
@@ -150,32 +152,38 @@ export function calculateLabourSalaryTotals(input: {
   dailyRate?: number | string;
   tcQuantity?: number | string;
   tcRate?: number | string;
+  quantity?: number | string;
+  rate?: number | string;
   otherEarnings?: number | string;
   deduction?: number | string;
   upad?: number | string;
   paymentAmount?: number | string;
 }): LabourSalaryCalculation {
-  const isTc = String(input.attendanceType || '').toUpperCase() === 'TC';
+  const attUpper = String(input.attendanceType || '').toUpperCase();
+  const isWork = attUpper.includes('WORK') || attUpper === 'TC';
   const days = Math.max(0, parseFloat(String(input.days || 0)) || 0);
   const dailyRate = Math.max(0, parseFloat(String(input.dailyRate || 0)) || 0);
-  const tcQuantity = Math.max(0, parseFloat(String(input.tcQuantity || 0)) || 0);
-  const tcRate = Math.max(0, parseFloat(String(input.tcRate || 0)) || 0);
+  const workQuantity = Math.max(0, parseFloat(String(input.quantity ?? input.tcQuantity ?? 0)) || 0);
+  const workRate = Math.max(0, parseFloat(String(input.rate ?? input.tcRate ?? dailyRate)) || 0);
   const otherEarnings = Math.max(0, parseFloat(String(input.otherEarnings || 0)) || 0);
   const deduction = Math.max(0, parseFloat(String(input.deduction || 0)) || 0);
   const upad = Math.max(0, parseFloat(String(input.upad || 0)) || 0);
   const paymentAmount = Math.max(0, parseFloat(String(input.paymentAmount || 0)) || 0);
 
-  const baseSalary = isTc ? round2(tcQuantity * tcRate) : round2(days * dailyRate);
+  const baseSalary = isWork ? round2(workQuantity * workRate) : round2(days * dailyRate);
   const grossSalary = round2(baseSalary + otherEarnings);
   const netSalary = Math.max(0, round2(grossSalary - deduction));
   const totalPaidOut = round2(upad + paymentAmount);
-  const balance = Math.max(0, round2(netSalary - totalPaidOut));
+  // Allow negative balance to track excess advance/upad
+  const balance = round2(netSalary - totalPaidOut);
 
   return {
     days,
     dailyRate,
-    tcQuantity,
-    tcRate,
+    tcQuantity: workQuantity,
+    tcRate: workRate,
+    quantity: workQuantity,
+    rate: workRate,
     otherEarnings,
     grossSalary,
     deduction,

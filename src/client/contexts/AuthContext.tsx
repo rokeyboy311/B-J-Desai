@@ -3,7 +3,8 @@ import {
   apiFetch, 
   getStoredPinToken, 
   setStoredPinToken, 
-  clearStoredPinToken 
+  clearStoredPinToken,
+  clearStoredCategoryPinToken
 } from "../lib/api";
 
 export interface SystemUser {
@@ -38,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const lockApp = useCallback(() => {
     clearStoredPinToken();
+    clearStoredCategoryPinToken();
     setIsUnlocked(false);
     setSystemUser(null);
     setError(null);

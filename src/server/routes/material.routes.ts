@@ -96,6 +96,10 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
     
     if (type === 'purchase' || type === 'supply') {
       const data = req.body;
+      const locId = parseInt(String(data.locationId), 10);
+      if (!locId || isNaN(locId)) return res.status(400).json({ error: 'locationId is required' });
+      await assertLocationAccess(userId, locId);
+
       const qty = parseFloat(String(data.quantity)) || 0;
       const rate = parseFloat(String(data.rate)) || 0;
       const discount = parseFloat(String(data.discount || 0)) || 0;
@@ -169,6 +173,10 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
       
     } else if (type === 'labour-supply') {
        const data = req.body;
+       const locId = parseInt(String(data.locationId), 10);
+       if (!locId || isNaN(locId)) return res.status(400).json({ error: 'locationId is required' });
+       await assertLocationAccess(userId, locId);
+
        const subtotal = Math.round(((data.materialAmount||0) + (data.labourAmount||0)) * 100) / 100;
        const taxAmount = Math.round(subtotal * ((data.taxPercentage||0) / 100) * 100) / 100;
        const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
@@ -176,7 +184,7 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
        const outstanding = data.outstandingAmount !== undefined ? data.outstandingAmount : Math.max(0, totalAmount - paid);
        
        const result = await db.insert(materialLabourSupplies).values({
-        userId, locationId: data.locationId, date: data.date, partyName: data.partyName || '', workDescription: data.workDescription || '',
+        userId, locationId: locId, date: data.date, partyName: data.partyName || '', workDescription: data.workDescription || '',
         materialQuantity: (data.materialQuantity||0).toString(), materialAmount: (data.materialAmount||0).toString(),
         labourAmount: (data.labourAmount||0).toString(), subtotal: subtotal.toString(), taxPercentage: (data.taxPercentage||0).toString(),
         tax: taxAmount.toString(), totalAmount: totalAmount.toString(), paidAmount: paid.toString(), outstandingAmount: outstanding.toString()
@@ -184,7 +192,9 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
        return res.json(result[0]);
     }
     res.status(400).json({ error: 'Invalid type' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Material route error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

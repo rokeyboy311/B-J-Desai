@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { requireAuth, requireCategoryAuth, AuthRequest } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { records, auditLogs } from '../../db/schema.ts';
 import { eq, and, desc } from 'drizzle-orm';
@@ -8,6 +8,7 @@ import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const incomeRouter = Router();
 incomeRouter.use(requireAuth);
+incomeRouter.use(requireCategoryAuth);
 
 const incomeBillSchema = z.object({
   locationId: z.number().int().positive(),

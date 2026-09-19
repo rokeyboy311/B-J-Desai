@@ -67,8 +67,8 @@ export default function LabourRecordsTab({ locationId }: { locationId: number })
         myRecords.forEach((r: any) => {
           if (r.attendanceType === 'Full Day') totalFullDays += (parseFloat(r.days) || 1);
           else if (r.attendanceType === 'Half Day') totalHalfDays += 1;
-          else if (r.attendanceType && r.attendanceType.includes('Work')) {
-            totalWorkQty += (parseFloat(r.tcQuantity) || parseFloat(r.quantity) || parseFloat(r.notes) || 0);
+          else if (r.attendanceType && (r.attendanceType.includes('Work') || r.attendanceType.toUpperCase() === 'TC')) {
+            totalWorkQty += (parseFloat(r.quantity) || parseFloat(r.workQuantity) || parseFloat(r.tcQuantity) || 0);
           }
           
           totalGross += parseFloat(r.grossSalary || 0);
@@ -446,9 +446,9 @@ export default function LabourRecordsTab({ locationId }: { locationId: number })
                         <div className="font-medium text-slate-800">
                           {record.notes || record.description || record.workType || '-'}
                         </div>
-                        {record.tcQuantity && parseFloat(record.tcQuantity) > 0 && (
+                        {(((record.quantity && parseFloat(record.quantity) > 0) || (record.tcQuantity && parseFloat(record.tcQuantity) > 0))) && (
                           <div className="text-[11px] text-slate-500">
-                            Qty: {record.tcQuantity} {record.unitOfMeasurement || 'Nos'} @ ₹{record.tcRate || record.dailyRate}
+                            Qty: {record.quantity || record.tcQuantity} {record.unitOfMeasurement || 'Nos'} @ ₹{record.rate || record.tcRate || record.dailyRate}
                           </div>
                         )}
                         {record.days && parseFloat(record.days) > 0 && (

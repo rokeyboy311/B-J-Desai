@@ -31,14 +31,28 @@ async function startServer() {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile webviews, curl, same-origin)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-        return callback(null, true);
+
+      // If specific allowed origins are configured
+      if (allowedOrigins.length > 0 && !allowedOrigins.includes('*')) {
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        // Always allow AI Studio preview / localhost environments
+        const isLocalOrPreview = origin.includes('localhost') || 
+                                 origin.includes('127.0.0.1') || 
+                                 origin.endsWith('.googleusercontent.com') ||
+                                 origin.endsWith('.run.app');
+        if (isLocalOrPreview) {
+          return callback(null, true);
+        }
+        return callback(new Error(`CORS policy error: Origin ${origin} not allowed.`));
       }
+
       return callback(null, true); // Safe for iframe preview environments
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-app-pin-token', 'Cache-Control', 'Pragma']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-app-pin-token', 'x-category-pin-token', 'Cache-Control', 'Pragma']
   }));
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));

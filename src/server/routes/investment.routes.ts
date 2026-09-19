@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { requireAuth, requireCategoryAuth, AuthRequest } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { 
   investmentParties, investmentTransactions, auditLogs,
@@ -12,6 +12,7 @@ import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const investmentRouter = Router();
 investmentRouter.use(requireAuth);
+investmentRouter.use(requireCategoryAuth);
 
 const partySchema = z.object({
   locationId: z.number().int().positive(),

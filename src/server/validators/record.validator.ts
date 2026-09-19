@@ -18,5 +18,5 @@ export const createRecordSchema = z.object({
   refundStatus: z.string().max(50).optional().default('N/A'),
 });
 
-export const updateRecordSchema = createRecordSchema.omit({ locationId: true });
+export const updateRecordSchema = createRecordSchema.partial();
 

@@ -4,9 +4,24 @@ import { labourSalaries, auditLogs } from '../../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { assertLocationAccess } from '../lib/locationAuth.js';
+import { calculateLabourSalaryTotals } from '../lib/accounting.js';
 
 const labourRouter = Router();
 labourRouter.use(requireAuth);
+
+function transformLabourRecord(r: any) {
+  if (!r) return r;
+  const isWork = String(r.attendanceType || '').toUpperCase().includes('WORK') || String(r.attendanceType || '').toUpperCase() === 'TC';
+  return {
+    ...r,
+    quantity: r.tcQuantity,
+    workQuantity: r.tcQuantity,
+    rate: r.tcRate,
+    workRate: r.tcRate,
+    workName: r.workType || r.tcNumber,
+    isWorkWise: isWork
+  };
+}
 
 labourRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -23,7 +38,7 @@ labourRouter.get('/', async (req: AuthRequest, res: Response) => {
     const records = await db.select().from(labourSalaries)
       .where(and(...conditions))
       .orderBy(desc(labourSalaries.date), desc(labourSalaries.id));
-    res.json(records);
+    res.json(records.map(transformLabourRecord));
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Fetch labour records error:', error);
@@ -52,24 +67,24 @@ labourRouter.post('/', async (req: AuthRequest, res: Response) => {
     const dailyRate = String(data.dailyRate || data.rate || '0');
 
     // Work-wise fields
-    const isWorkWise = attendanceType.includes('Work');
+    const isWorkWise = attendanceType.includes('Work') || attendanceType.toUpperCase() === 'TC';
     const workName = data.workName ? String(data.workName) : (data.notes || '');
     const unitOfMeasurement = data.unitOfMeasurement ? String(data.unitOfMeasurement) : (isWorkWise ? 'Nos' : null);
     const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : '0');
     const rate = data.rate ? String(data.rate) : (data.tcRate ? String(data.tcRate) : dailyRate);
 
-    let grossSalary = 0;
-    if (isWorkWise) {
-      grossSalary = Math.round(parseFloat(quantity) * parseFloat(rate) * 100) / 100;
-    } else {
-      grossSalary = Math.round(parseFloat(days) * parseFloat(dailyRate) * 100) / 100;
-    }
-
-    const upad = String(data.upad || '0');
-    const paymentAmount = String(data.paymentAmount || '0');
-    const deduction = String(data.deduction || '0');
-    const netSalary = (grossSalary - parseFloat(deduction)).toFixed(2);
-    const balance = (parseFloat(netSalary) - parseFloat(upad) - parseFloat(paymentAmount)).toFixed(2);
+    const calc = calculateLabourSalaryTotals({
+      attendanceType,
+      days: isWorkWise ? '0' : days,
+      dailyRate: isWorkWise ? '0' : dailyRate,
+      quantity,
+      rate,
+      tcQuantity: quantity,
+      tcRate: rate,
+      deduction: data.deduction,
+      upad: data.upad,
+      paymentAmount: data.paymentAmount
+    });
 
     const result = await db.insert(labourSalaries).values({
       userId,
@@ -87,12 +102,12 @@ labourRouter.post('/', async (req: AuthRequest, res: Response) => {
       tcQuantity: isWorkWise ? quantity : '0',
       tcRate: isWorkWise ? rate : '0',
       tcNumber: workName,
-      grossSalary: grossSalary.toString(),
-      upad,
-      deduction,
-      paymentAmount,
-      netSalary,
-      balance,
+      grossSalary: calc.grossSalary.toString(),
+      upad: calc.upad.toString(),
+      deduction: calc.deduction.toString(),
+      paymentAmount: calc.paymentAmount.toString(),
+      netSalary: calc.netSalary.toString(),
+      balance: calc.balance.toString(),
       notes: isWorkWise ? `${workName} (${quantity} ${unitOfMeasurement || 'Nos'})` : (data.notes || null),
     }).returning();
 
@@ -101,10 +116,10 @@ labourRouter.post('/', async (req: AuthRequest, res: Response) => {
       action: 'CREATE_LABOUR_ATTENDANCE',
       entityType: 'LABOUR_ATTENDANCE',
       entityId: result[0].id,
-      metadata: JSON.stringify({ labourName, attendanceType, grossSalary, siteLocationName })
+      metadata: JSON.stringify({ labourName, attendanceType, grossSalary: calc.grossSalary, siteLocationName })
     });
 
-    res.json(result[0]);
+    res.json(transformLabourRecord(result[0]));
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Create labour attendance error:', error);
@@ -125,7 +140,7 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
 
     const data = req.body;
     const attendanceType = String(data.attendanceType || 'Full Day');
-    const isWorkWise = attendanceType.includes('Work');
+    const isWorkWise = attendanceType.includes('Work') || attendanceType.toUpperCase() === 'TC';
     const workName = data.workName ? String(data.workName) : (data.notes || '');
     const unitOfMeasurement = data.unitOfMeasurement ? String(data.unitOfMeasurement) : (isWorkWise ? 'Nos' : null);
     const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : '0');
@@ -133,18 +148,18 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const days = data.days !== undefined ? String(data.days) : (attendanceType === 'Half Day' ? '0.5' : '1');
     const dailyRate = String(data.dailyRate || '0');
 
-    let grossSalary = 0;
-    if (isWorkWise) {
-      grossSalary = Math.round(parseFloat(quantity) * parseFloat(rate) * 100) / 100;
-    } else {
-      grossSalary = Math.round(parseFloat(days) * parseFloat(dailyRate) * 100) / 100;
-    }
-
-    const upad = String(data.upad || '0');
-    const paymentAmount = String(data.paymentAmount || '0');
-    const deduction = String(data.deduction || '0');
-    const netSalary = (grossSalary - parseFloat(deduction)).toFixed(2);
-    const balance = (parseFloat(netSalary) - parseFloat(upad) - parseFloat(paymentAmount)).toFixed(2);
+    const calc = calculateLabourSalaryTotals({
+      attendanceType,
+      days: isWorkWise ? '0' : days,
+      dailyRate: isWorkWise ? '0' : dailyRate,
+      quantity,
+      rate,
+      tcQuantity: quantity,
+      tcRate: rate,
+      deduction: data.deduction,
+      upad: data.upad,
+      paymentAmount: data.paymentAmount
+    });
 
     const updatePayload: any = {
       date: data.date,
@@ -157,12 +172,12 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       tcQuantity: isWorkWise ? quantity : '0',
       tcRate: isWorkWise ? rate : '0',
       tcNumber: workName,
-      grossSalary: grossSalary.toString(),
-      upad,
-      deduction,
-      paymentAmount,
-      netSalary,
-      balance,
+      grossSalary: calc.grossSalary.toString(),
+      upad: calc.upad.toString(),
+      deduction: calc.deduction.toString(),
+      paymentAmount: calc.paymentAmount.toString(),
+      netSalary: calc.netSalary.toString(),
+      balance: calc.balance.toString(),
       notes: isWorkWise ? `${workName} (${quantity} ${unitOfMeasurement || 'Nos'})` : (data.notes || null),
     };
 
@@ -175,7 +190,7 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       .where(and(eq(labourSalaries.id, id), eq(labourSalaries.isDeleted, 0)))
       .returning();
 
-    res.json(result[0]);
+    res.json(transformLabourRecord(result[0]));
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Update labour record error:', error);
