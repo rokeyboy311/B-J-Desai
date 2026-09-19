@@ -3,9 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import {
   ArrowLeft, CalendarCheck, Download, Landmark, TrendingDown,
-  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock
+  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock, Trash2, AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { Modal } from "../components/ui/Modal";
 
 import InvestorTab from "../components/categories/InvestorTab";
 import InvestmentTab from "../components/categories/InvestmentTab";
@@ -25,6 +26,8 @@ export default function LocationDetailsPage() {
   const [activeCategory, setActiveCategory] = useState<"investors" | "investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "labour_records" | "supervisor">("investors");
   
   const [locationName, setLocationName] = useState("Loading...");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadLocationDetails = async () => {
     try {
@@ -37,6 +40,20 @@ export default function LocationDetailsPage() {
     } catch (err) {
       console.error("Failed to load location", err);
       setLocationName("Location Details");
+    }
+  };
+
+  const handleDeleteLocation = async () => {
+    try {
+      setDeleting(true);
+      await apiFetch(`/locations/${locationId}`, { method: "DELETE" });
+      setIsDeleteModalOpen(false);
+      navigate("/locations");
+    } catch (err) {
+      console.error("Failed to delete location", err);
+      alert("Failed to delete location. Please try again.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -54,7 +71,7 @@ export default function LocationDetailsPage() {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-7xl mx-auto space-y-6 pb-20"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button 
             type="button"
@@ -68,6 +85,16 @@ export default function LocationDetailsPage() {
             <p className="text-sm text-slate-500 font-medium">Manage investments, supplies, and supervisor costs</p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsDeleteModalOpen(true)}
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all shadow-xs w-fit"
+          title="Delete this location"
+        >
+          <Trash2 className="w-4 h-4 text-rose-600" />
+          Delete Location
+        </button>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -176,6 +203,43 @@ export default function LocationDetailsPage() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Location"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+            <AlertTriangle className="w-6 h-6 text-rose-600 shrink-0" />
+            <div className="text-xs">
+              <p className="font-bold">Are you sure you want to delete this location?</p>
+              <p className="text-rose-600 mt-0.5">Location: <span className="font-bold">{locationName}</span></p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">
+            This will remove this location from your active sites list. This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleDeleteLocation}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors"
+            >
+              {deleting ? "Deleting..." : "Yes, Delete Location"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

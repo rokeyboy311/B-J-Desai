@@ -4,6 +4,7 @@ import { materialPurchases, materialSupplies, materialLabourSupplies, auditLogs,
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { StockManager } from '../lib/accounting.js';
+import { assertLocationAccess } from '../lib/locationAuth.js';
 
 const materialRouter = express.Router();
 materialRouter.use(requireAuth);
@@ -60,9 +61,14 @@ async function resolveMaterialInfo(
 
 materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const { type } = req.params;
     const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
     if (!locationId) return res.status(400).json({ error: 'Location ID is required' });
+
+    await assertLocationAccess(userId, locationId);
 
     let data;
     if (type === 'purchase') {
@@ -75,15 +81,18 @@ materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid type' });
     }
     res.json(data);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: 'Failed to fetch material records' });
   }
 });
 
 materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const { type } = req.params;
-    const userId = req.dbUser?.id || 1;
     
     if (type === 'purchase' || type === 'supply') {
       const data = req.body;
@@ -182,12 +191,19 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
 
 materialRouter.put('/:type/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const { type, id } = req.params;
     const numId = parseInt(id as string, 10);
-    const userId = req.dbUser?.id || 1;
+    if (isNaN(numId)) return res.status(400).json({ error: 'Invalid record ID' });
     
     if (type === 'purchase' || type === 'supply') {
       const data = req.body;
+      const locationId = parseInt(String(data.locationId), 10);
+      if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+      await assertLocationAccess(userId, locationId);
+
       const qty = parseFloat(String(data.quantity)) || 0;
       const rate = parseFloat(String(data.rate)) || 0;
       const discount = parseFloat(String(data.discount || 0)) || 0;
@@ -267,41 +283,55 @@ materialRouter.put('/:type/:id', async (req: AuthRequest, res: Response) => {
       return res.json(result);
     }
     res.status(400).json({ error: 'Invalid type' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 materialRouter.delete('/:type/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const { type, id } = req.params;
     const numId = parseInt(id as string, 10);
-    const userId = req.dbUser?.id || 1;
+    if (isNaN(numId)) return res.status(400).json({ error: 'Invalid record ID' });
     
     await db.transaction(async (tx) => {
       let table: any;
       if (type === 'purchase') {
         table = materialPurchases;
         const rec = await tx.select().from(table).where(and(eq(table.id, numId), eq(table.isDeleted, 0)));
-        if (rec.length && rec[0].materialId) {
-           await StockManager.addStockMovement(tx, userId, rec[0].locationId, rec[0].materialId, 'OUT', parseFloat(rec[0].quantity), numId, 'PURCHASE_DELETE', 'Reversed from delete');
+        if (rec.length) {
+           await assertLocationAccess(userId, rec[0].locationId);
+           if (rec[0].materialId) {
+             await StockManager.addStockMovement(tx, userId, rec[0].locationId, rec[0].materialId, 'OUT', parseFloat(rec[0].quantity), numId, 'PURCHASE_DELETE', 'Reversed from delete');
+           }
         }
       } else if (type === 'supply') {
         table = materialSupplies;
         const rec = await tx.select().from(table).where(and(eq(table.id, numId), eq(table.isDeleted, 0)));
-        if (rec.length && rec[0].materialId) {
-           await StockManager.addStockMovement(tx, userId, rec[0].locationId, rec[0].materialId, 'IN', parseFloat(rec[0].quantity), numId, 'MATERIAL_SUPPLY_DELETE', 'Reversed from delete');
+        if (rec.length) {
+           await assertLocationAccess(userId, rec[0].locationId);
+           if (rec[0].materialId) {
+             await StockManager.addStockMovement(tx, userId, rec[0].locationId, rec[0].materialId, 'IN', parseFloat(rec[0].quantity), numId, 'MATERIAL_SUPPLY_DELETE', 'Reversed from delete');
+           }
         }
       } else if (type === 'labour-supply') {
         table = materialLabourSupplies;
+        const rec = await tx.select().from(table).where(and(eq(table.id, numId), eq(table.isDeleted, 0)));
+        if (rec.length) {
+           await assertLocationAccess(userId, rec[0].locationId);
+        }
       }
       
       await tx.update(table).set({ isDeleted: 1 }).where(eq(table.id, numId));
       await tx.insert(auditLogs).values({ userId, action: `DELETE_${String(type).toUpperCase()}`, entityType: 'MATERIAL_TRANSACTION', entityId: numId });
     });
-    
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: 'Failed to delete record' });
   }
 });

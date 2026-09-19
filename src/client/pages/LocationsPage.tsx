@@ -204,6 +204,21 @@ export default function LocationsPage() {
                   <p className="text-sm text-slate-400 mt-2 italic">No address provided</p>
                 )}
               </div>
+
+              {/* Bottom Card Footer: Record Count & Bottom-Right Delete Button */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between relative z-10">
+                <span className="text-xs font-semibold text-slate-400">
+                  {loc.recordCount !== undefined ? `${loc.recordCount} records` : "Active Site"}
+                </span>
+                <button
+                  type="button"
+                  title="Delete this location"
+                  onClick={(e) => openDeleteModal(loc, e)}
+                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200 cursor-pointer shadow-none hover:shadow-sm"
+                >
+                  <Trash2 size={17} className="text-rose-500" />
+                </button>
+              </div>
               
             </motion.div>
           ))}

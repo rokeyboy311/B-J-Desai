@@ -3,22 +3,29 @@ import { db } from '../../db/index.js';
 import { labourSalaries, auditLogs } from '../../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { assertLocationAccess } from '../lib/locationAuth.js';
 
 const labourRouter = Router();
 labourRouter.use(requireAuth);
 
 labourRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const locationId = req.query.locationId;
     const conditions = [eq(labourSalaries.isDeleted, 0)];
     if (locationId) {
-      conditions.push(eq(labourSalaries.locationId, parseInt(String(locationId), 10)));
+      const locId = parseInt(String(locationId), 10);
+      await assertLocationAccess(userId, locId);
+      conditions.push(eq(labourSalaries.locationId, locId));
     }
     const records = await db.select().from(labourSalaries)
       .where(and(...conditions))
       .orderBy(desc(labourSalaries.date), desc(labourSalaries.id));
     res.json(records);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Fetch labour records error:', error);
     res.status(500).json({ error: 'Failed to fetch labour records' });
   }
@@ -26,9 +33,14 @@ labourRouter.get('/', async (req: AuthRequest, res: Response) => {
 
 labourRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const data = req.body;
-    const userId = req.dbUser?.id || 1;
     const locationId = parseInt(String(data.locationId), 10);
+    if (!locationId || isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    await assertLocationAccess(userId, locationId);
+
     const date = String(data.date || new Date().toISOString().split('T')[0]);
     const labourMasterId = data.labourMasterId ? parseInt(String(data.labourMasterId), 10) : null;
     const labourName = String(data.labourName || 'Unknown');
@@ -93,7 +105,8 @@ labourRouter.post('/', async (req: AuthRequest, res: Response) => {
     });
 
     res.json(result[0]);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Create labour attendance error:', error);
     res.status(500).json({ error: 'Failed to record attendance' });
   }
@@ -101,8 +114,15 @@ labourRouter.post('/', async (req: AuthRequest, res: Response) => {
 
 labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const rawId = req.params.id;
     const id = parseInt(Array.isArray(rawId) ? rawId[0] : rawId, 10);
+    const existing = await db.select().from(labourSalaries).where(and(eq(labourSalaries.id, id), eq(labourSalaries.isDeleted, 0))).limit(1);
+    if (!existing.length) return res.status(404).json({ error: 'Labour record not found' });
+    await assertLocationAccess(userId, existing[0].locationId);
+
     const data = req.body;
     const attendanceType = String(data.attendanceType || 'Full Day');
     const isWorkWise = attendanceType.includes('Work');
@@ -156,7 +176,8 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       .returning();
 
     res.json(result[0]);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Update labour record error:', error);
     res.status(500).json({ error: 'Failed to update attendance' });
   }
@@ -164,13 +185,23 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
 
 labourRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const rawId = req.params.id;
     const id = parseInt(Array.isArray(rawId) ? rawId[0] : rawId, 10);
+
+    const existing = await db.select().from(labourSalaries).where(eq(labourSalaries.id, id)).limit(1);
+    if (existing.length) {
+      await assertLocationAccess(userId, existing[0].locationId);
+    }
+
     await db.update(labourSalaries)
       .set({ isDeleted: 1 })
       .where(eq(labourSalaries.id, id));
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Delete labour record error:', error);
     res.status(500).json({ error: 'Failed to delete record' });
   }

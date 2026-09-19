@@ -5,14 +5,21 @@ import { siteSupplies, siteSupplyItems, auditLogs } from '../../db/schema.js';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { StockManager } from '../lib/accounting.js';
+import { assertLocationAccess } from '../lib/locationAuth.js';
 
 const siteSupplyRouter = express.Router();
 siteSupplyRouter.use(requireAuth);
 
 siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
     if (!locationId) return res.status(400).json({ error: 'Location ID required' });
+
+    await assertLocationAccess(userId, locationId);
+
     const records = await db.select().from(siteSupplies)
       .where(and(eq(siteSupplies.locationId, locationId), eq(siteSupplies.isDeleted, 0)))
       .orderBy(desc(siteSupplies.date), desc(siteSupplies.id));
@@ -29,26 +36,31 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
     }));
     
     res.json(combined);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: 'Failed to fetch site supplies' });
   }
 });
 
 siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const { locationId, date, teamId, responsiblePerson, workDescription, referenceNumber, notes, investorId, items } = req.body;
-    const userId = req.dbUser?.id || 1;
     
     if (!locationId || !date || !items || !items.length) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+    const locId = parseInt(String(locationId), 10);
+    await assertLocationAccess(userId, locId);
 
     const totalAmount = items.reduce((sum: number, item: any) => sum + (parseFloat(item.quantity) * parseFloat(item.rate)), 0);
 
     const result = await db.transaction(async (tx) => {
       const supply = await tx.insert(siteSupplies).values({
         userId,
-        locationId, date, teamId: teamId || null, responsiblePerson, workDescription, referenceNumber, notes,
+        locationId: locId, date, teamId: teamId || null, responsiblePerson, workDescription, referenceNumber, notes,
         investorId: investorId || null, totalAmount: totalAmount.toString()
       }).returning();
       
@@ -65,7 +77,7 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
             amount: amount.toString()
           });
           
-          await StockManager.addStockMovement(tx, userId, locationId, item.materialId, 'OUT', parseFloat(item.quantity), supplyId, 'SITE_SUPPLY', notes);
+          await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'OUT', parseFloat(item.quantity), supplyId, 'SITE_SUPPLY', notes);
         }
       }
       
@@ -76,7 +88,8 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
     });
 
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to create site supply:', error);
     res.status(500).json({ error: 'Failed to create site supply' });
   }
@@ -84,13 +97,17 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
 
 siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const id = parseInt(req.params.id as string, 10);
     const { locationId, date, teamId, responsiblePerson, workDescription, referenceNumber, notes, investorId, items } = req.body;
-    const userId = req.dbUser?.id || 1;
     
     if (!locationId || !date || !items || !items.length) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+    const locId = parseInt(String(locationId), 10);
+    await assertLocationAccess(userId, locId);
 
     const totalAmount = items.reduce((sum: number, item: any) => sum + (parseFloat(item.quantity) * parseFloat(item.rate)), 0);
 
@@ -98,13 +115,13 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       // Revert old stock
       const oldItems = await tx.select().from(siteSupplyItems).where(eq(siteSupplyItems.siteSupplyId, id));
       for (const item of oldItems) {
-         await StockManager.addStockMovement(tx, userId, locationId, item.materialId, 'IN', parseFloat(item.quantity as any), id, 'SITE_SUPPLY_UPDATE_REVERT', 'Reversed for update');
+         await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'IN', parseFloat(item.quantity as any), id, 'SITE_SUPPLY_UPDATE_REVERT', 'Reversed for update');
       }
       
       await tx.delete(siteSupplyItems).where(eq(siteSupplyItems.siteSupplyId, id));
 
       const supply = await tx.update(siteSupplies).set({
-        locationId, date, teamId: teamId || null, responsiblePerson, workDescription, referenceNumber, notes,
+        locationId: locId, date, teamId: teamId || null, responsiblePerson, workDescription, referenceNumber, notes,
         investorId: investorId || null, totalAmount: totalAmount.toString()
       }).where(and(eq(siteSupplies.id, id), eq(siteSupplies.isDeleted, 0))).returning();
       
@@ -119,7 +136,7 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
             amount: amount.toString()
           });
           
-          await StockManager.addStockMovement(tx, userId, locationId, item.materialId, 'OUT', parseFloat(item.quantity), id, 'SITE_SUPPLY', notes);
+          await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'OUT', parseFloat(item.quantity), id, 'SITE_SUPPLY', notes);
         }
       }
       
@@ -131,21 +148,27 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     });
 
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: 'Failed to update record' });
   }
 });
 
 siteSupplyRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const id = parseInt(req.params.id as string, 10);
-    const userId = req.dbUser?.id || 1;
     
     await db.transaction(async (tx) => {
+      const record = await tx.select().from(siteSupplies).where(eq(siteSupplies.id, id));
+      if (!record.length) return;
+      const locId = record[0].locationId;
+      await assertLocationAccess(userId, locId);
+
       await tx.update(siteSupplies).set({ isDeleted: 1 }).where(eq(siteSupplies.id, id));
       // Delete child items
-      const record = await tx.select().from(siteSupplies).where(eq(siteSupplies.id, id));
-      const locId = record.length > 0 ? record[0].locationId : 0;
       const items = await tx.select().from(siteSupplyItems).where(eq(siteSupplyItems.siteSupplyId, id));
       await tx.update(siteSupplyItems).set({ isDeleted: 1 }).where(eq(siteSupplyItems.siteSupplyId, id));
       
@@ -154,13 +177,12 @@ siteSupplyRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
          await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'IN', parseFloat(item.quantity as any), id, 'SITE_SUPPLY_DELETE', 'Reversed from delete');
       }
       
-      await tx.insert(auditLogs).values({
-        userId, action: 'DELETE_SITE_SUPPLY', entityType: 'SITE_SUPPLY', entityId: id
-      });
+      await tx.insert(auditLogs).values({ userId, action: 'DELETE_SITE_SUPPLY', entityType: 'SITE_SUPPLY', entityId: id });
     });
     
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: 'Failed to delete record' });
   }
 });

@@ -112,22 +112,8 @@ export const PinScreen: React.FC = () => {
               CENTRAL SHARED SYSTEM
             </p>
             <p className="text-sm text-slate-400 mt-2">
-              Enter master PIN to access unified database
+              Enter authorized PIN to access unified enterprise database
             </p>
-            <div className="mt-2.5 flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setPin('199198197');
-                  handleSubmit('199198197');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 border border-indigo-500/30 transition-all cursor-pointer"
-                title="Click to autofill master PIN"
-              >
-                <span>Master PIN: <strong>199198197</strong></span>
-                <span className="text-[10px] bg-indigo-500/30 px-1.5 py-0.5 rounded text-indigo-200">Auto-fill</span>
-              </button>
-            </div>
           </div>
 
           {/* PIN Input & Dots display */}

@@ -143,7 +143,7 @@ export default function CategoryPinGate({
               setPin(e.target.value);
               if (errorMsg) setErrorMsg("");
             }}
-            placeholder="Enter Category PIN (e.g. 190190)"
+            placeholder="Enter Category PIN"
             className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-base tracking-widest font-mono font-black text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-inner"
             autoFocus
           />

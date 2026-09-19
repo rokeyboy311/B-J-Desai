@@ -8,6 +8,7 @@ import {
 } from '../../db/schema.ts';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const investmentRouter = Router();
 investmentRouter.use(requireAuth);
@@ -31,8 +32,13 @@ const txSchema = z.object({
 
 investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const locationId = parseInt(req.query.locationId as string, 10);
     if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+
+    await assertLocationAccess(userId, locationId);
 
     const parties = await db.select().from(investmentParties).where(
       and(
@@ -83,7 +89,8 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
     });
 
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch investment parties' });
   }
@@ -91,8 +98,12 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
 
 investmentRouter.post('/parties', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const data = partySchema.parse(req.body);
-    const userId = req.dbUser?.id || 1;
+    await assertLocationAccess(userId, data.locationId);
+
     const result = await db.insert(investmentParties).values({
       userId,
       locationId: data.locationId,
@@ -128,8 +139,9 @@ investmentRouter.post('/parties', async (req: AuthRequest, res: Response) => {
     }
     
     res.json(result[0]);
-  } catch (error) {
-    res.status(400).json({ error: 'Validation failed' });
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    res.status(400).json({ error: error?.message || 'Validation failed' });
   }
 });
 
@@ -200,8 +212,16 @@ investmentRouter.get('/transactions', async (req: AuthRequest, res: Response) =>
 
 investmentRouter.post('/transactions', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const data = txSchema.parse(req.body);
-    const userId = req.dbUser?.id || 1;
+    
+    // Validate party belongs to active location
+    const party = await db.select().from(investmentParties).where(and(eq(investmentParties.id, data.partyId), eq(investmentParties.isDeleted, 0))).limit(1);
+    if (!party.length) return res.status(404).json({ error: 'Investor party not found' });
+    await assertLocationAccess(userId, party[0].locationId);
+
     const result = await db.insert(investmentTransactions).values({
       userId,
       partyId: data.partyId,
@@ -222,17 +242,24 @@ investmentRouter.post('/transactions', async (req: AuthRequest, res: Response) =
     });
     
     res.json(result[0]);
-  } catch (error) {
-    res.status(400).json({ error: 'Validation failed' });
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    res.status(400).json({ error: error?.message || 'Validation failed' });
   }
 });
 
 investmentRouter.put('/transactions/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
     const data = txSchema.parse(req.body);
-    const userId = req.dbUser?.id || 1;
+
+    const party = await db.select().from(investmentParties).where(and(eq(investmentParties.id, data.partyId), eq(investmentParties.isDeleted, 0))).limit(1);
+    if (!party.length) return res.status(404).json({ error: 'Investor party not found' });
+    await assertLocationAccess(userId, party[0].locationId);
 
     const [updated] = await db.update(investmentTransactions)
       .set({
@@ -261,16 +288,27 @@ investmentRouter.put('/transactions/:id', async (req: AuthRequest, res: Response
     });
 
     res.json(updated);
-  } catch (error) {
-    res.status(400).json({ error: 'Validation failed' });
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    res.status(400).json({ error: error?.message || 'Validation failed' });
   }
 });
 
 investmentRouter.delete('/transactions/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-    const userId = req.dbUser?.id || 1;
+
+    const tx = await db.select().from(investmentTransactions).where(eq(investmentTransactions.id, id)).limit(1);
+    if (tx.length) {
+      const party = await db.select().from(investmentParties).where(eq(investmentParties.id, tx[0].partyId)).limit(1);
+      if (party.length) {
+        await assertLocationAccess(userId, party[0].locationId);
+      }
+    }
 
     await db.update(investmentTransactions)
       .set({ isDeleted: 1 })
@@ -285,7 +323,8 @@ investmentRouter.delete('/transactions/:id', async (req: AuthRequest, res: Respo
     });
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error(error);
     res.status(500).json({ error: 'Failed to delete transaction' });
   }
@@ -293,9 +332,16 @@ investmentRouter.delete('/transactions/:id', async (req: AuthRequest, res: Respo
 
 investmentRouter.delete('/parties/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-    const userId = req.dbUser?.id || 1;
+
+    const party = await db.select().from(investmentParties).where(eq(investmentParties.id, id)).limit(1);
+    if (party.length) {
+      await assertLocationAccess(userId, party[0].locationId);
+    }
 
     await db.update(investmentParties)
       .set({ isDeleted: 1 })
@@ -314,7 +360,8 @@ investmentRouter.delete('/parties/:id', async (req: AuthRequest, res: Response) 
     });
 
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error(error);
     res.status(500).json({ error: 'Failed to delete party' });
   }
@@ -323,8 +370,13 @@ investmentRouter.delete('/parties/:id', async (req: AuthRequest, res: Response) 
 // Category 2 Linkage: Project Investment Capital & Categories 3, 4, 5, 6, 7 Linked Utilization
 investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const locationId = parseInt(req.query.locationId as string, 10);
     if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+
+    await assertLocationAccess(userId, locationId);
 
     // 1. Investment Capital from Investors (INVESTMENT type) & Upad
     const invTxs = await db.select({
@@ -369,9 +421,11 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const billCount = Number(billRecords[0]?.count || 0);
 
     // 1st category capital is separate (investors' personal pool) and 2nd category capital is separate:
-    // Category 2 Capital is strictly "Investment from Investors Capital" (amount cut from investors in Cat 1 to fund this project)
-    const investmentFromInvestorsCapital = Math.round((fromInvestmentKarya + fromContributions) * 100) / 100;
-    const netInvestmentCapital = Math.round((investmentFromInvestorsCapital - returnsToInvestors) * 100) / 100;
+    // Category 2 Capital: Investment from Investors Capital is strictly Investment Karya total
+    const investmentFromInvestorsCapital = Math.round(fromInvestmentKarya * 100) / 100;
+    // Full Capital = Investment from Investors + Bill Investment
+    const fullCapital = Math.round((investmentFromInvestorsCapital + fromBills) * 100) / 100;
+    const netInvestmentCapital = Math.round((fullCapital - returnsToInvestors) * 100) / 100;
 
     // 3. Category 3: Material Purchases
     const matPurchases = await db.select({
@@ -463,11 +517,11 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const totalProjectExpenditure = Math.round((cat3Total + cat4Total + cat5Total + cat67Total + cat8Total) * 100) / 100;
     const totalCashPaidExpenditure = Math.round((cat3Paid + cat4Paid + cat5Total + cat67CashPaid + cat8Total) * 100) / 100;
     
-    // Category 2 formula: Remaining Capital = Investment from Investors Capital - Deductions - Investor Upad / Return
-    const remainingInvestmentCapital = Math.round((investmentFromInvestorsCapital - totalProjectExpenditure - returnsToInvestors) * 100) / 100;
+    // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions - Investor Upad / Return
+    const remainingInvestmentCapital = Math.round((fullCapital - totalProjectExpenditure - returnsToInvestors) * 100) / 100;
     
-    const utilizationRate = investmentFromInvestorsCapital > 0
-      ? Math.round((totalProjectExpenditure / investmentFromInvestorsCapital) * 100)
+    const utilizationRate = fullCapital > 0
+      ? Math.round((totalProjectExpenditure / fullCapital) * 100)
       : (totalProjectExpenditure > 0 ? 100 : 0);
 
     let status = 'HEALTHY';
@@ -603,9 +657,11 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
         fromContributions,
         fromInvestors: investmentFromInvestorsCapital,
         fromBills,
+        billInvestment: fromBills,
+        fullCapital,
         billCount,
         returnsToInvestors,
-        grossInvestmentCapital: investmentFromInvestorsCapital,
+        grossInvestmentCapital: fullCapital,
         netInvestmentCapital
       },
       linkedExpenditures: {
@@ -641,7 +697,9 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       },
       budgetBalance: {
         investmentFromInvestorsCapital,
-        grossInvestmentCapital: investmentFromInvestorsCapital,
+        billInvestment: fromBills,
+        fullCapital,
+        grossInvestmentCapital: fullCapital,
         netInvestmentCapital,
         totalProjectExpenditure,
         totalCashPaidExpenditure,

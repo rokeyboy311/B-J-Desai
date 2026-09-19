@@ -4,6 +4,7 @@ import { CalendarCheck, List, Users, CheckSquare, Settings, Pencil, Trash2, Hard
 import { Modal } from "../ui/Modal";
 import { ManageLabourModal } from "../ui/ManageLabourModal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
+import { LabourSelectCombobox, LabourWorker } from "../ui/LabourSelectCombobox";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 
 const COMMON_UNITS = ["Nos", "Brass", "Sq.Ft", "R.Ft", "Cu.Ft", "Bags", "Kg", "Ton", "Hours", "Days"];
@@ -11,7 +12,7 @@ const COMMON_UNITS = ["Nos", "Brass", "Sq.Ft", "R.Ft", "Cu.Ft", "Bags", "Kg", "T
 export default function LabourAttendanceTab({ locationId }: { locationId: number }) {
   const [activeSubTab, setActiveSubTab] = useState<"daywise" | "workwise" | "records">("daywise");
 
-  const [workers, setWorkers] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<LabourWorker[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
@@ -31,6 +32,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
     date: new Date().toISOString().split("T")[0],
     teamId: "",
     labourId: "",
+    labourName: "",
     attendanceType: "Full Day",
     rate: "",
     notes: ""
@@ -41,6 +43,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
     date: new Date().toISOString().split("T")[0],
     teamId: "",
     labourId: "",
+    labourName: "",
     workName: "",
     attendanceType: "Full Day",
     quantity: "",
@@ -59,7 +62,28 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         apiFetch(`/labour?locationId=${locationId}`).catch(() => []),
         apiFetch(`/locations`).catch(() => [])
       ]);
-      setWorkers(workersData || []);
+
+      // Combine master workers with any distinct past workers from records
+      const masterList = (workersData || []) as LabourWorker[];
+      const seenNames = new Set(masterList.map((w: any) => w.name?.trim().toLowerCase()));
+      const synthesized: LabourWorker[] = [];
+
+      (attendanceData || []).forEach((r: any) => {
+        const name = (r.labourName || "").trim();
+        if (name && name.toLowerCase() !== "unknown" && !seenNames.has(name.toLowerCase())) {
+          seenNames.add(name.toLowerCase());
+          synthesized.push({
+            id: r.labourMasterId || `hist-${r.id}`,
+            name: name,
+            dailyRate: r.dailyRate || "0",
+            teamName: r.labourTeam || "General",
+            teamId: null,
+            locationId
+          });
+        }
+      });
+
+      setWorkers([...masterList, ...synthesized]);
       setTeams(teamsData || []);
       setRecords(attendanceData || []);
       setLocations(locsData || []);
@@ -85,11 +109,39 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   const handleDaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const worker = workers.find(w => w.id.toString() === dayForm.labourId);
-      const team = teams.find(t => t.id.toString() === dayForm.teamId);
-      
+      const worker = workers.find(w => String(w.id) === String(dayForm.labourId));
+      let workerName = worker?.name || dayForm.labourName?.trim();
+      if (!workerName && dayForm.labourId) workerName = String(dayForm.labourId);
+
+      if (!workerName) {
+        alert("Please select or enter a labour worker name.");
+        return;
+      }
+
+      const team = teams.find(t => String(t.id) === String(dayForm.teamId));
       const days = dayForm.attendanceType === "Full Day" ? "1" : "0.5";
       const rate = parseFloat(dayForm.rate) || 0;
+
+      // Auto-save to master if not in master yet
+      let masterId = worker?.id && !String(worker.id).startsWith("hist-") ? Number(worker.id) : null;
+      if (!masterId) {
+        try {
+          const created = await apiFetch("/master/labour", {
+            method: "POST",
+            body: JSON.stringify({
+              locationId,
+              name: workerName,
+              dailyRate: dayForm.rate || "0",
+              teamId: dayForm.teamId ? Number(dayForm.teamId) : null,
+              workType: "Worker"
+            })
+          });
+          masterId = created.id;
+          triggerSync("master_labour");
+        } catch {
+          // continue even if master creation had conflict
+        }
+      }
 
       await apiFetch("/labour", {
         method: "POST",
@@ -97,8 +149,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           locationId,
           siteLocationName: currentLocationName,
           date: dayForm.date,
-          labourMasterId: worker?.id || null,
-          labourName: worker ? worker.name : "Unknown",
+          labourMasterId: masterId,
+          labourName: workerName,
           labourTeam: team ? team.name : (worker?.teamName || "General"),
           attendanceType: dayForm.attendanceType,
           days,
@@ -107,25 +159,27 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
       triggerSync("labour_attendance");
-      loadData();
+      loadData(true);
       setDayForm({
         date: new Date().toISOString().split("T")[0],
         teamId: "",
         labourId: "",
+        labourName: "",
         attendanceType: "Full Day",
         rate: "",
         notes: ""
       });
-    } catch (err) {
-      alert("Failed to save day-wise attendance.");
+    } catch (err: any) {
+      alert("Failed to save day-wise attendance: " + (err?.message || ""));
     }
   };
 
   const handleWorkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const team = teams.find(t => t.id.toString() === workForm.teamId);
-      const worker = workers.find(w => w.id.toString() === workForm.labourId);
+      const team = teams.find(t => String(t.id) === String(workForm.teamId));
+      const worker = workers.find(w => String(w.id) === String(workForm.labourId));
+      let workerName = worker?.name || workForm.labourName?.trim();
       const qty = parseFloat(workForm.quantity) || 0;
       const rate = parseFloat(workForm.rate) || 0;
 
@@ -135,8 +189,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           locationId,
           siteLocationName: currentLocationName,
           date: workForm.date,
-          labourMasterId: worker?.id || null,
-          labourName: worker ? worker.name : (team ? `${team.name} Crew` : "Work-wise Crew"),
+          labourMasterId: worker?.id && !String(worker.id).startsWith("hist-") ? Number(worker.id) : null,
+          labourName: workerName || (team ? `${team.name} Crew` : "Work-wise Crew"),
           labourTeam: team ? team.name : "Work Team",
           workName: workForm.workName || "General Work",
           attendanceType: workForm.attendanceType + " (Work)",
@@ -147,11 +201,12 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
       triggerSync("labour_attendance");
-      loadData();
+      loadData(true);
       setWorkForm({
         date: new Date().toISOString().split("T")[0],
         teamId: "",
         labourId: "",
+        labourName: "",
         workName: "",
         attendanceType: "Full Day",
         quantity: "",
@@ -159,8 +214,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         rate: "",
         notes: ""
       });
-    } catch (err) {
-      alert("Failed to save work-wise attendance.");
+    } catch (err: any) {
+      alert("Failed to save work-wise attendance: " + (err?.message || ""));
     }
   };
 
@@ -266,7 +321,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Select Labour</label>
+                  <label className="block text-xs font-bold text-slate-700">Select Labour *</label>
                   <button
                     type="button"
                     onClick={() => {
@@ -278,15 +333,38 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                     <Plus className="w-3 h-3" /> Manage Labour
                   </button>
                 </div>
-                <select required value={dayForm.labourId} onChange={e => {
-                   const w = workers.find(x => x.id.toString() === e.target.value);
-                   setDayForm({...dayForm, labourId: e.target.value, rate: w?.dailyRate || ""});
-                }} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500">
-                  <option value="">-- Select Labour --</option>
-                  {workers.filter(w => !dayForm.teamId || w.teamId?.toString() === dayForm.teamId).map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
+                <LabourSelectCombobox
+                  workers={workers}
+                  selectedId={dayForm.labourId}
+                  selectedName={dayForm.labourName}
+                  selectedTeamId={dayForm.teamId}
+                  locationId={locationId}
+                  placeholder="-- Select or type labour name --"
+                  required={true}
+                  onSelect={(w) => {
+                    setDayForm(prev => ({
+                      ...prev,
+                      labourId: String(w.id),
+                      labourName: w.name,
+                      rate: w.dailyRate && Number(w.dailyRate) > 0 ? String(w.dailyRate) : prev.rate,
+                      teamId: w.teamId ? String(w.teamId) : prev.teamId
+                    }));
+                  }}
+                  onClear={() => {
+                    setDayForm(prev => ({
+                      ...prev,
+                      labourId: "",
+                      labourName: ""
+                    }));
+                  }}
+                  onWorkerCreated={(newW) => {
+                    setWorkers(prev => [newW, ...prev]);
+                  }}
+                  onOpenManageModal={() => {
+                    setTargetFormType("day");
+                    setIsManageLabourOpen(true);
+                  }}
+                />
               </div>
             </div>
 
@@ -374,12 +452,38 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                     <Plus className="w-3 h-3" /> Manage Labour
                   </button>
                 </div>
-                <select value={workForm.labourId} onChange={e => setWorkForm({...workForm, labourId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500">
-                  <option value="">-- Entire Team / Specific Labour --</option>
-                  {workers.filter(w => !workForm.teamId || w.teamId?.toString() === workForm.teamId).map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
+                <LabourSelectCombobox
+                  workers={workers}
+                  selectedId={workForm.labourId}
+                  selectedName={workForm.labourName}
+                  selectedTeamId={workForm.teamId}
+                  locationId={locationId}
+                  placeholder="-- Entire Team / Select Labour (Optional) --"
+                  required={false}
+                  onSelect={(w) => {
+                    setWorkForm(prev => ({
+                      ...prev,
+                      labourId: String(w.id),
+                      labourName: w.name,
+                      rate: w.dailyRate && Number(w.dailyRate) > 0 ? String(w.dailyRate) : prev.rate,
+                      teamId: w.teamId ? String(w.teamId) : prev.teamId
+                    }));
+                  }}
+                  onClear={() => {
+                    setWorkForm(prev => ({
+                      ...prev,
+                      labourId: "",
+                      labourName: ""
+                    }));
+                  }}
+                  onWorkerCreated={(newW) => {
+                    setWorkers(prev => [newW, ...prev]);
+                  }}
+                  onOpenManageModal={() => {
+                    setTargetFormType("work");
+                    setIsManageLabourOpen(true);
+                  }}
+                />
               </div>
             </div>
 
@@ -542,16 +646,27 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         locationId={locationId}
         currentSelectedId={targetFormType === "day" ? dayForm.labourId : workForm.labourId}
         onSelectLabour={(selectedLabour) => {
+          setWorkers(prev => {
+            const exists = prev.some(w => String(w.id) === String(selectedLabour.id));
+            if (exists) return prev.map(w => String(w.id) === String(selectedLabour.id) ? selectedLabour : w);
+            return [selectedLabour, ...prev];
+          });
+
           if (targetFormType === "day") {
             setDayForm(prev => ({
               ...prev,
               labourId: String(selectedLabour.id),
-              rate: selectedLabour.dailyRate ? String(selectedLabour.dailyRate) : prev.rate
+              labourName: selectedLabour.name,
+              rate: selectedLabour.dailyRate && Number(selectedLabour.dailyRate) > 0 ? String(selectedLabour.dailyRate) : prev.rate,
+              teamId: selectedLabour.teamId ? String(selectedLabour.teamId) : prev.teamId
             }));
           } else {
             setWorkForm(prev => ({
               ...prev,
-              labourId: String(selectedLabour.id)
+              labourId: String(selectedLabour.id),
+              labourName: selectedLabour.name,
+              rate: selectedLabour.dailyRate && Number(selectedLabour.dailyRate) > 0 ? String(selectedLabour.dailyRate) : prev.rate,
+              teamId: selectedLabour.teamId ? String(selectedLabour.teamId) : prev.teamId
             }));
           }
           loadData(true);

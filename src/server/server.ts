@@ -22,8 +22,24 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Middleware
-  app.use(cors());
+  // Middleware & CORS configuration
+  const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : [];
+
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile webviews, curl, same-origin)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Safe for iframe preview environments
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-app-pin-token', 'Cache-Control', 'Pragma']
+  }));
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 

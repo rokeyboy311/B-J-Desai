@@ -126,17 +126,16 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     loadData(true);
   }, 3500);
 
-  // Categorized Transactions - Includes both INVESTMENT (Investment Karya from Cat 1) and CONTRIBUTION
+  // Categorized Transactions - Strictly INVESTMENT (Investment Karya from Category 1)
   const capitalInflowTxs = useMemo(() => {
-    return investorTxs.filter(t => t.type === "INVESTMENT" || t.type === "CONTRIBUTION");
+    return investorTxs.filter(t => t.type === "INVESTMENT");
   }, [investorTxs]);
 
   const investorPaymentTxs = useMemo(() => {
     return investorTxs.filter(t => t.type === "UPAD" || t.type === "PAYMENT");
   }, [investorTxs]);
 
-  // Aggregate Capital Totals: Category 2 Capital is strictly Investment from Investors Capital
-  // (Transferred/cut from Category 1 investors to fund this project's operational deductions)
+  // Aggregate Capital Totals: Category 2 Capital - Investment from Investors Capital is strictly Investment Karya total
   const investmentFromInvestorsCapital = useMemo(() => {
     return capitalInflowTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
   }, [capitalInflowTxs]);
@@ -152,10 +151,18 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     return billIncomes.reduce((sum, b) => sum + Number(b.totalAmount || b.amount || 0), 0);
   }, [billIncomes]);
 
-  // Category 2 Capital is strictly Investment from Investors Capital
-  const totalGrossInvestment = investmentFromInvestorsCapital;
+  // Full Capital = Investment from Investors (Investment Karya) + Bill Investment
+  const fullCapital = useMemo(() => {
+    if (projectUtilization?.budgetBalance?.fullCapital !== undefined) {
+      return Number(projectUtilization.budgetBalance.fullCapital || 0);
+    }
+    return investmentFromInvestorsCapital + totalBillInvestments;
+  }, [projectUtilization, investmentFromInvestorsCapital, totalBillInvestments]);
 
-  // Operational Deductions from Categories 3 to 7
+  // Category 2 Capital Pool
+  const totalGrossInvestment = fullCapital;
+
+  // Operational Deductions from Categories 3 to 8
   const cat3Data = projectUtilization?.linkedExpenditures?.category3MaterialPurchases || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat4Data = projectUtilization?.linkedExpenditures?.category4MaterialSupplies || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat5Data = projectUtilization?.linkedExpenditures?.category5SiteSupplies || { total: 0, count: 0 };
@@ -169,18 +176,18 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     return (Number(cat3Data.total || 0) + Number(cat4Data.total || 0) + Number(cat5Data.total || 0) + Number(cat67Data.totalNetSalary || 0) + Number(cat8Data.total || 0));
   }, [projectUtilization, cat3Data, cat4Data, cat5Data, cat67Data, cat8Data]);
 
-  // Category 2 formula: Remaining Capital = Investment from Investors Capital - Deductions (Cat 3-7) - Investor Upad / Return
+  // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Cat 3-8) - Investor Upad / Return
   const netRemainingCapital = useMemo(() => {
     if (projectUtilization?.budgetBalance?.remainingInvestmentCapital !== undefined) {
       return Number(projectUtilization.budgetBalance.remainingInvestmentCapital || 0);
     }
-    return investmentFromInvestorsCapital - totalDeductions - totalInvestorPayments;
-  }, [projectUtilization, investmentFromInvestorsCapital, totalDeductions, totalInvestorPayments]);
+    return fullCapital - totalDeductions - totalInvestorPayments;
+  }, [projectUtilization, fullCapital, totalDeductions, totalInvestorPayments]);
 
   const capitalUtilizationRate = useMemo(() => {
-    if (investmentFromInvestorsCapital <= 0) return 0;
-    return Math.min(100, Math.round((totalDeductions / investmentFromInvestorsCapital) * 1000) / 10);
-  }, [totalDeductions, investmentFromInvestorsCapital]);
+    if (fullCapital <= 0) return 0;
+    return Math.min(100, Math.round((totalDeductions / fullCapital) * 1000) / 10);
+  }, [totalDeductions, fullCapital]);
 
   const itemizedDeductionsList = useMemo(() => {
     const list: any[] = projectUtilization?.itemizedDeductions || [];
@@ -489,56 +496,70 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       </div>
 
-      {/* 4 Executive Summary Stat Cards - Strictly Category 2 Pillars */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 5 Executive Summary Stat Cards - Category 2 Full Capital & Deductions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* 1. Investment from Investors Capital */}
         <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-emerald-800">
-            <span className="text-xs font-bold uppercase tracking-wider">1. Investment from Investors Capital</span>
+            <span className="text-xs font-bold uppercase tracking-wider">1. Investment from Investors</span>
             <div className="p-1.5 bg-emerald-100 rounded-lg"><ArrowUpRight className="w-4 h-4 text-emerald-700" /></div>
           </div>
           <div className="mt-3">
             <div className="text-xl font-black text-emerald-900">₹{investmentFromInvestorsCapital.toLocaleString()}</div>
             <p className="text-[11px] text-emerald-700 mt-0.5 font-medium">
-              ઇન્વેસ્ટર્સ પાસેથી આવેલ મૂડી (Cut from Cat 1 into Cat 2)
+              ઇન્વેસ્ટમેન્ટ કર્યા (Cat 1 માંથી આવેલી રકમ)
             </p>
           </div>
         </div>
 
-        {/* 2. Deductions (Cat 3 to 7) */}
+        {/* 2. Bill Investment */}
+        <div className="bg-cyan-50/90 border border-cyan-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-cyan-800">
+            <span className="text-xs font-bold uppercase tracking-wider">2. Bill Investment</span>
+            <div className="p-1.5 bg-cyan-100 rounded-lg"><FileText className="w-4 h-4 text-cyan-700" /></div>
+          </div>
+          <div className="mt-3">
+            <div className="text-xl font-black text-cyan-900">+₹{totalBillInvestments.toLocaleString()}</div>
+            <p className="text-[11px] text-cyan-700 mt-0.5 font-medium">
+              બિલ ઇન્વેસ્ટમેન્ટ ({billIncomes.length} bills recorded)
+            </p>
+          </div>
+        </div>
+
+        {/* 3. Full Capital */}
+        <div className="bg-blue-50/90 border border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-blue-800">
+            <span className="text-xs font-bold uppercase tracking-wider">3. Full Capital</span>
+            <div className="p-1.5 bg-blue-100 rounded-lg"><Building2 className="w-4 h-4 text-blue-700" /></div>
+          </div>
+          <div className="mt-3">
+            <div className="text-xl font-black text-blue-900">₹{fullCapital.toLocaleString()}</div>
+            <p className="text-[11px] text-blue-700 mt-0.5 font-medium">
+              કુલ મૂડી = ઇન્વેસ્ટમેન્ટ કર્યા + બિલ
+            </p>
+          </div>
+        </div>
+
+        {/* 4. Deductions (Cat 3 to 8 & Upad) */}
         <div className="bg-rose-50/90 border border-rose-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-rose-800">
-            <span className="text-xs font-bold uppercase tracking-wider">2. Deductions (Cat 3–7)</span>
+            <span className="text-xs font-bold uppercase tracking-wider">4. Deductions & Upad</span>
             <div className="p-1.5 bg-rose-100 rounded-lg"><TrendingUp className="w-4 h-4 text-rose-700" /></div>
           </div>
           <div className="mt-3">
-            <div className="text-xl font-black text-rose-900">-₹{totalDeductions.toLocaleString()}</div>
+            <div className="text-xl font-black text-rose-900">-₹{(totalDeductions + totalInvestorPayments).toLocaleString()}</div>
             <p className="text-[11px] text-rose-700 mt-0.5 font-medium">
-              કપાત / ખર્ચ (Materials, Supplies, Labour & Sites)
+              ખર્ચ: ₹{totalDeductions.toLocaleString()} + ઉપાડ: ₹{totalInvestorPayments.toLocaleString()}
             </p>
           </div>
         </div>
 
-        {/* 3. Investor Upad / Returns */}
-        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-amber-800">
-            <span className="text-xs font-bold uppercase tracking-wider">3. Investor Upad / Return</span>
-            <div className="p-1.5 bg-amber-100 rounded-lg"><ArrowDownLeft className="w-4 h-4 text-amber-700" /></div>
-          </div>
-          <div className="mt-3">
-            <div className="text-xl font-black text-amber-900">-₹{totalInvestorPayments.toLocaleString()}</div>
-            <p className="text-[11px] text-amber-700 mt-0.5 font-medium">
-              ઇન્વેસ્ટર ઉપાડ / રિટર્ન ({investorPaymentTxs.length} payouts & drawings)
-            </p>
-          </div>
-        </div>
-
-        {/* 4. Remaining Capital */}
+        {/* 5. Remaining Capital */}
         <div className={`rounded-2xl p-4 shadow-md flex flex-col justify-between text-white ${
           netRemainingCapital >= 0 ? "bg-gradient-to-br from-slate-900 to-indigo-950" : "bg-gradient-to-br from-rose-900 to-slate-900"
         }`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">4. Remaining Capital</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">5. Remaining Capital</span>
             <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
               netRemainingCapital >= 0 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/30 text-rose-200 border border-rose-500/50"
             }`}>
@@ -548,7 +569,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           <div className="mt-3">
             <div className="text-xl font-black text-white">₹{netRemainingCapital.toLocaleString()}</div>
             <p className="text-[11px] text-indigo-200 mt-0.5 font-medium">
-              બાકી મૂડી ({capitalUtilizationRate}% Utilized • Capital - Deductions - Upad)
+              બાકી મૂડી (Full Capital માંથી: {capitalUtilizationRate}% Utilized)
             </p>
           </div>
         </div>
@@ -924,11 +945,19 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   
                   <div className="mt-3 text-xs space-y-1.5">
                     <div className="flex justify-between text-emerald-400">
-                      <span>(+) Gross Investment:</span>
-                      <span className="font-bold">+₹{totalGrossInvestment.toLocaleString()}</span>
+                      <span>(+) Investment from Investors:</span>
+                      <span className="font-bold">+₹{investmentFromInvestorsCapital.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-cyan-400">
+                      <span>(+) Bill Investment:</span>
+                      <span className="font-bold">+₹{totalBillInvestments.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-white font-bold border-t border-slate-800 pt-1">
+                      <span>(=) Full Capital:</span>
+                      <span>₹{fullCapital.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-rose-400">
-                      <span>(-) Cat 3–7 Deductions:</span>
+                      <span>(-) Cat 3–8 Deductions:</span>
                       <span className="font-bold">-₹{totalDeductions.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-amber-400">
@@ -1523,74 +1552,32 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       )}
 
-      {/* MODAL: Record Investment from Investors / Capital Inflow (IN) */}
+      {/* MODAL: Record Investment from Investors (Investment Karya) */}
       <Modal
         isOpen={isCapitalModalOpen}
         onClose={() => setIsCapitalModalOpen(false)}
         title={
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><ArrowUpRight className="w-5 h-5" /></div>
+            <div className="p-2 bg-indigo-100 text-indigo-800 rounded-lg"><Building2 className="w-5 h-5" /></div>
             <div>
               <span className="font-black text-slate-900 text-base">
-                {editingTxId ? "Edit Investment Record" : "Add Investment from Investors (Investment Karya)"}
+                {editingTxId ? "Edit Investment Record" : "Add Investment from Investors (ઇન્વેસ્ટમેન્ટ કર્યા)"}
               </span>
               <p className="text-xs text-slate-500 font-normal">
-                Category 1 linked capital deployment or direct investor capital contribution
+                Category 1 (Investor) માંથી રકમ કટ થશે અને Category 2 (Project Capital) માં ઉમેરાશે
               </p>
             </div>
           </div>
         }
       >
         <form onSubmit={handleSaveCapital} className="space-y-4">
-          {/* Transaction Type Choice */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Flow Type / Linkage Mode *</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setCapitalFormData({ ...capitalFormData, type: "INVESTMENT" })}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  capitalFormData.type === "INVESTMENT"
-                    ? "border-blue-500 bg-blue-50/70 ring-2 ring-blue-500/20"
-                    : "border-slate-200 hover:border-slate-300 bg-white"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-black text-blue-900">Investment from Investor</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">Cat 1 Linked</span>
-                </div>
-                <p className="text-[11px] text-blue-700 leading-tight">
-                  Adds to Project Investment Capital & deducts from Investor's active balance in Cat 1.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCapitalFormData({ ...capitalFormData, type: "CONTRIBUTION" })}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  capitalFormData.type === "CONTRIBUTION"
-                    ? "border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20"
-                    : "border-slate-200 hover:border-slate-300 bg-white"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-black text-emerald-900">Direct Capital Contribution</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Direct Inflow</span>
-                </div>
-                <p className="text-[11px] text-emerald-700 leading-tight">
-                  Direct partner contribution or bank funding credited straight to project capital.
-                </p>
-              </button>
-            </div>
-          </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Select Investor *</label>
             <select
               required
               value={capitalFormData.partyId}
               onChange={e => setCapitalFormData({ ...capitalFormData, partyId: e.target.value })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">-- Choose Investor --</option>
               {parties.map(p => (
@@ -1601,14 +1588,54 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             </select>
           </div>
 
-          <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
-            <div className="font-bold flex items-center gap-1.5 text-blue-800">
-              <Building2 className="w-3.5 h-3.5" /> Investment from Investors Rule:
-            </div>
-            <p className="text-[11px] text-blue-800 leading-relaxed font-medium">
-              આ રકમ પસંદ કરેલ ઇન્વેસ્ટરના Category 1 મૂડી બેલેન્સમાંથી કટ (Deduct) થશે અને Category 2 ના Investment Capital માં ઉમેરાશે. આ કેપિટલમાંથી Category 3 થી 7 ની કપાત (ખર્ચ) બાદ થશે.
-            </p>
-          </div>
+          {/* Live Deduction & Addition Preview */}
+          {(() => {
+            const selectedParty = parties.find(p => p.id.toString() === capitalFormData.partyId);
+            const currentBal = selectedParty ? Number(selectedParty.balance || 0) : 0;
+            const enteredAmt = parseFloat(capitalFormData.amount) || 0;
+            const newBal = currentBal - enteredAmt;
+
+            return (
+              <div className="p-3.5 bg-indigo-50/90 border border-indigo-200 rounded-xl space-y-2">
+                <div className="font-bold flex items-center justify-between text-xs text-indigo-900">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    Investor to Project Capital Transfer Rule
+                  </span>
+                  <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-indigo-200/80 text-indigo-900">
+                    Cat 1 &rarr; Cat 2
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-200/60 text-xs">
+                  <div className="bg-white/90 p-2.5 rounded-lg border border-indigo-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Investor Cat 1 Balance</span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-slate-700 font-bold">₹{currentBal.toLocaleString()}</span>
+                      {enteredAmt > 0 && (
+                        <>
+                          <span className="text-rose-600 font-black text-[11px]">- ₹{enteredAmt.toLocaleString()}</span>
+                          <span className="text-indigo-950 font-black ml-auto">= ₹{newBal.toLocaleString()}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white/90 p-2.5 rounded-lg border border-indigo-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Project Cat 2 Capital</span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-emerald-700 font-bold">+ ₹{enteredAmt.toLocaleString()}</span>
+                      <span className="text-[10px] text-slate-500 ml-auto">Added to Investment</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-indigo-800 leading-tight font-medium">
+                  આ રકમ ઇન્વેસ્ટરના ખાતામાંથી કટ થશે અને પ્રોજેક્ટના "Investment Karya" રેકોર્ડમાં ઉમેરાશે, જેમાંથી Category 3 થી 8 ના ખર્ચ બાદ થાય છે.
+                </p>
+              </div>
+            );
+          })()}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1626,10 +1653,11 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <input
                 type="number"
                 step="any"
+                min="0.01"
                 required
                 value={capitalFormData.amount}
                 onChange={e => setCapitalFormData({ ...capitalFormData, amount: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-800"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-indigo-900"
                 placeholder="0.00"
               />
             </div>

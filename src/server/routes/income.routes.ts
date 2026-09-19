@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts';
 import { records, auditLogs } from '../../db/schema.ts';
 import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const incomeRouter = Router();
 incomeRouter.use(requireAuth);
@@ -67,6 +68,9 @@ function parseRecordToBill(r: any) {
 
 incomeRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const locationId = req.query.locationId ? parseInt(req.query.locationId as string, 10) : undefined;
     const conditions = [
       eq(records.isDeleted, 0),
@@ -75,6 +79,7 @@ incomeRouter.get('/', async (req: AuthRequest, res: Response) => {
     ];
 
     if (locationId && !isNaN(locationId)) {
+      await assertLocationAccess(userId, locationId);
       conditions.push(eq(records.locationId, locationId));
     }
 
@@ -85,7 +90,8 @@ incomeRouter.get('/', async (req: AuthRequest, res: Response) => {
 
     const result = rows.map(parseRecordToBill);
     res.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to fetch incomes:', error);
     res.status(500).json({ error: 'Failed to fetch incomes' });
   }
@@ -93,8 +99,11 @@ incomeRouter.get('/', async (req: AuthRequest, res: Response) => {
 
 incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const data = incomeBillSchema.parse(req.body);
-    const userId = req.dbUser?.id || 1;
+    await assertLocationAccess(userId, data.locationId);
 
     // Ensure transport cost is strictly kept separate from taxable base amount & GST
     const subtotal = Math.round(data.quantity * data.rate * 100) / 100;
@@ -147,6 +156,7 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(parseRecordToBill(inserted[0]));
   } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to create income:', error);
     res.status(500).json({ error: error.message || 'Failed to create income' });
   }
@@ -154,14 +164,17 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
 
 incomeRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id as string, 10);
-    const data = incomeBillSchema.partial().parse(req.body);
-    const userId = req.dbUser?.id || 1;
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
+    const id = parseInt(req.params.id as string, 10);
     const existing = await db.select().from(records).where(and(eq(records.id, id), eq(records.isDeleted, 0)));
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Income record not found' });
     }
+    await assertLocationAccess(userId, existing[0].locationId);
+
+    const data = incomeBillSchema.partial().parse(req.body);
 
     const prevBill = parseRecordToBill(existing[0]);
     const finalQuantity = data.quantity !== undefined ? data.quantity : prevBill.quantity;
@@ -211,6 +224,7 @@ incomeRouter.put('/:id', async (req: AuthRequest, res: Response) => {
 
     res.json(parseRecordToBill(updated[0]));
   } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to update income:', error);
     res.status(500).json({ error: error.message || 'Failed to update income' });
   }
@@ -218,17 +232,20 @@ incomeRouter.put('/:id', async (req: AuthRequest, res: Response) => {
 
 incomeRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
     const id = parseInt(req.params.id as string, 10);
-    const userId = req.dbUser?.id || 1;
+    const existing = await db.select().from(records).where(and(eq(records.id, id), eq(records.isDeleted, 0)));
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Income record not found' });
+    }
+    await assertLocationAccess(userId, existing[0].locationId);
 
     const updated = await db.update(records).set({
       isDeleted: 1,
       updatedAt: new Date(),
     }).where(and(eq(records.id, id), eq(records.isDeleted, 0))).returning();
-
-    if (updated.length === 0) {
-      return res.status(404).json({ error: 'Income record not found' });
-    }
 
     await db.insert(auditLogs).values({
       userId,
@@ -239,6 +256,7 @@ incomeRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
 
     res.json({ success: true, message: 'Income deleted successfully' });
   } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to delete income:', error);
     res.status(500).json({ error: error.message || 'Failed to delete income' });
   }
