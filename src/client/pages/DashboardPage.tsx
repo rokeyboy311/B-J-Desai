@@ -471,7 +471,7 @@ export default function DashboardPage() {
                 <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl"><CalendarCheck className="w-5 h-5" /></div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">6 & 7. Labour Records</h3>
-                  <p className="text-[11px] text-slate-500">Wages, TC & Payments</p>
+                  <p className="text-[11px] text-slate-500">Wages, Attendance & Payments</p>
                 </div>
               </div>
               <div className="space-y-2.5 pt-3 border-t border-slate-100">

@@ -7,6 +7,7 @@ import {
   CreditCard, CheckCircle2, ChevronRight, Filter, Building2
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 interface InvestmentParty {
   id: number;
@@ -34,6 +35,7 @@ interface InvestmentTransaction {
 }
 
 export default function InvestorTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [parties, setParties] = useState<InvestmentParty[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,9 +165,10 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       setPartyForm({ partyName: "", initialAmount: "", initialDate: new Date().toISOString().split('T')[0] });
       setEditingPartyId(null);
       setIsPartyModalOpen(false);
+      showToast(editingPartyId ? "Investor updated" : "Investor added successfully", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to save investor.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to save investor.", "error");
     }
   };
 
@@ -201,9 +204,10 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       });
       setEditingTxId(null);
       setIsPaymentModalOpen(false);
+      showToast(editingTxId ? "Payment updated" : "Investor payment recorded", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to record investor payment.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to record investor payment.", "error");
     }
   };
 
@@ -239,9 +243,10 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       });
       setEditingTxId(null);
       setIsContributionModalOpen(false);
+      showToast(editingTxId ? "Contribution updated" : "Capital contribution recorded", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to record capital contribution.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to record capital contribution.", "error");
     }
   };
 
@@ -278,32 +283,47 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       });
       setEditingTxId(null);
       setIsInvestmentModalOpen(false);
+      showToast(editingTxId ? "Investment updated" : "Investment recorded successfully", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to record investment deployment.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to record investment deployment.", "error");
     }
   };
 
   const handleDeleteParty = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this investor? All associated transaction history will be removed.")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Investor",
+      message: "Are you sure you want to delete this investor? All associated transaction history will be removed.",
+      confirmLabel: "Delete Investor",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/investments/parties/${id}?locationId=${locationId}`, { method: "DELETE" });
       triggerSync("investor_parties");
       if (selectedInvestor?.id === id) setSelectedInvestor(null);
+      showToast("Investor deleted", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to delete investor.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete investor.", "error");
     }
   };
 
   const handleDeleteTx = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this transaction?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Transaction",
+      message: "Are you sure you want to delete this transaction?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/investments/transactions/${id}?locationId=${locationId}`, { method: "DELETE" });
       triggerSync("investor_txs");
+      showToast("Transaction deleted", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to delete transaction.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete transaction.", "error");
     }
   };
   

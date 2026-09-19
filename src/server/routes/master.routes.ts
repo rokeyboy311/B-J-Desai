@@ -260,14 +260,50 @@ masterRouter.get('/labour', async (req: AuthRequest, res) => {
     let records;
     if (locationId) {
       await assertLocationAccess(userId, locationId);
-      records = await db.select().from(labourMaster).where(
+      records = await db.select({
+        id: labourMaster.id,
+        userId: labourMaster.userId,
+        locationId: labourMaster.locationId,
+        name: labourMaster.name,
+        mobile: labourMaster.mobile,
+        address: labourMaster.address,
+        teamId: labourMaster.teamId,
+        teamName: labourTeams.name,
+        workType: labourMaster.workType,
+        dailyRate: labourMaster.dailyRate,
+        tcRate: labourMaster.tcRate,
+        isActive: labourMaster.isActive,
+        createdAt: labourMaster.createdAt,
+        isDeleted: labourMaster.isDeleted,
+      })
+      .from(labourMaster)
+      .leftJoin(labourTeams, eq(labourMaster.teamId, labourTeams.id))
+      .where(
         and(
           eq(labourMaster.isDeleted, 0),
           or(eq(labourMaster.locationId, locationId), eq(labourMaster.userId, userId))
         )
       );
     } else {
-      records = await db.select().from(labourMaster).where(
+      records = await db.select({
+        id: labourMaster.id,
+        userId: labourMaster.userId,
+        locationId: labourMaster.locationId,
+        name: labourMaster.name,
+        mobile: labourMaster.mobile,
+        address: labourMaster.address,
+        teamId: labourMaster.teamId,
+        teamName: labourTeams.name,
+        workType: labourMaster.workType,
+        dailyRate: labourMaster.dailyRate,
+        tcRate: labourMaster.tcRate,
+        isActive: labourMaster.isActive,
+        createdAt: labourMaster.createdAt,
+        isDeleted: labourMaster.isDeleted,
+      })
+      .from(labourMaster)
+      .leftJoin(labourTeams, eq(labourMaster.teamId, labourTeams.id))
+      .where(
         and(eq(labourMaster.isDeleted, 0), eq(labourMaster.userId, userId))
       );
     }

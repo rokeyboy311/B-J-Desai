@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
+import { useToast } from "../../contexts/ToastContext";
 
 const PRESET_UNITS = [
   "Nos", "Bags", "Ton", "Kg", "Brass", "CFT", "Cum", "Sq.ft", "Sq.m",
@@ -18,6 +19,7 @@ const PRESET_UNITS = [
 const GST_PRESETS = ["0", "5", "12", "18", "28"];
 
 export default function InvestmentTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   // 6 Distinct Sub-Tabs:
   // 1. "analytics" - Executive Category 3-7 Deductions & Capital Analytics Dashboard
   // 2. "investor_capital" - Direct Investment from Investors (Investment Karya from Cat 1)
@@ -265,9 +267,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       });
       setEditingTxId(null);
       setIsCapitalModalOpen(false);
+      showToast(editingTxId ? "Capital investment updated" : "Capital investment saved", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to save capital investment.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to save capital investment.", "error");
     }
   };
 
@@ -304,9 +307,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       });
       setEditingTxId(null);
       setIsPaymentModalOpen(false);
+      showToast(editingTxId ? "Payment updated" : "Investor payment recorded", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to record investor payment.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to record investor payment.", "error");
     }
   };
 
@@ -314,7 +318,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   const handleCreateBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!billData.partyName || !billData.materialName || !billData.quantity || !billData.rate) {
-      alert("Please fill in Party, Material, Quantity and Rate.");
+      showToast("Please fill in Party, Material, Quantity and Rate.", "error");
       return;
     }
 
@@ -358,9 +362,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       triggerSync("incomes");
       resetBillForm();
       setIsBillModalOpen(false);
+      showToast(editingBillId ? "Bill investment updated" : "Bill investment recorded", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to save bill investment.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to save bill investment.", "error");
     }
   };
 
@@ -410,24 +415,38 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   };
 
   const handleDeleteBill = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this bill investment?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Bill Investment",
+      message: "Are you sure you want to delete this bill investment?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/incomes/${id}?locationId=${locationId}`, { method: "DELETE" });
       triggerSync("incomes");
+      showToast("Bill investment deleted", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to delete bill investment.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete bill investment.", "error");
     }
   };
 
   const handleDeleteTx = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this transaction?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Transaction",
+      message: "Are you sure you want to delete this transaction?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/investments/transactions/${id}?locationId=${locationId}`, { method: "DELETE" });
       triggerSync("investments");
+      showToast("Transaction deleted", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to delete transaction.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete transaction.", "error");
     }
   };
 

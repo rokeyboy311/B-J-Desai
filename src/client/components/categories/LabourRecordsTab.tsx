@@ -4,8 +4,10 @@ import { Wallet, Users, History, FileText, ArrowRight, Plus, Trash2, Search, Arr
 import { Modal } from "../ui/Modal";
 import { ManageLabourModal } from "../ui/ManageLabourModal";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 export default function LabourRecordsTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [loading, setLoading] = useState(true);
   const [labourList, setLabourList] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -149,20 +151,28 @@ export default function LabourRecordsTab({ locationId }: { locationId: number })
       triggerSync("labour_records");
       setIsPaymentModalOpen(false);
       setPaymentForm({ date: new Date().toISOString().split("T")[0], amount: "", description: "", isUpad: false });
+      showToast("Payment recorded successfully", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to process payment");
+    } catch (err: any) {
+      showToast(err.message || "Failed to process payment", "error");
     }
   };
 
   const handleDeleteRecord = async (recordId: number) => {
-    if (!confirm("Are you sure you want to delete this labour attendance / payment entry?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Labour Entry",
+      message: "Are you sure you want to delete this labour attendance / payment entry?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/labour/${recordId}`, { method: "DELETE" });
       triggerSync("labour_records");
+      showToast("Record deleted", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to delete record");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete record", "error");
     }
   };
 

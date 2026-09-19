@@ -5,8 +5,10 @@ import { Pencil, Plus, Trash2, HardHat, ArrowRightCircle } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
+import { useToast } from "../../contexts/ToastContext";
 
 export default function SiteSupplyTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [records, setRecords] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -91,7 +93,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       // Validate items
       const validItems = formData.items.filter(i => i.materialId && i.quantity && parseFloat(i.quantity) > 0);
       if (validItems.length === 0) {
-        alert("Please add at least one material with a valid quantity");
+        showToast("Please add at least one material with a valid quantity", "error");
         return;
       }
       
@@ -119,10 +121,11 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       triggerSync("reports");
       setIsModalOpen(false);
       resetForm();
+      showToast(editingId ? "Site supply updated successfully" : "Site supply recorded successfully", "success");
       await loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save supply:", err);
-      alert("Failed to save site supply");
+      showToast(err.message || "Failed to save site supply", "error");
     }
   };
 
@@ -158,16 +161,23 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this site supply record? Stock will be reverted.")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Site Supply",
+      message: "Are you sure you want to delete this site supply record? Stock will be automatically restored.",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/site-supplies/${id}`, { method: "DELETE" });
       triggerSync("site_supplies");
       triggerSync("stock");
       triggerSync("materials");
       triggerSync("reports");
+      showToast("Site supply deleted and stock restored", "success");
       await loadData();
-    } catch (err) {
-      alert("Failed to delete supply");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete supply", "error");
     }
   };
 

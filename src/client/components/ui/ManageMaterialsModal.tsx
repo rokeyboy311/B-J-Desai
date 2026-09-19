@@ -3,6 +3,7 @@ import { apiFetch } from "../../lib/api";
 import { Modal } from "./Modal";
 import { Package, Plus, Search, Pencil, Trash2, Check, X, Sparkles } from "lucide-react";
 import { triggerSync, useLiveSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 interface MaterialItem {
   id: number;
@@ -30,6 +31,7 @@ export function ManageMaterialsModal({
   onSelectMaterial,
   currentSelectedId
 }: ManageMaterialsModalProps) {
+  const { showToast, confirmAction } = useToast();
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -88,7 +90,13 @@ export function ManageMaterialsModal({
   };
 
   const handleDeleteClick = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete material "${name}"?`)) return;
+    const confirmed = await confirmAction({
+      title: "Delete Material",
+      message: `Are you sure you want to delete material "${name}"?`,
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/master/materials/${id}`, { method: "DELETE" });
       triggerSync("master_materials");
@@ -96,9 +104,10 @@ export function ManageMaterialsModal({
       if (editingId === id) {
         handleCancelEdit();
       }
+      showToast("Material deleted", "success");
       loadMaterials();
-    } catch (err) {
-      alert("Failed to delete material");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete material", "error");
     }
   };
 

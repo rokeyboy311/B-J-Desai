@@ -18,8 +18,10 @@ import LabourRecordsTab from "../components/categories/LabourRecordsTab";
 import SupervisorCostTab from "../components/categories/SupervisorCostTab";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { useLiveSync } from "../hooks/useLiveSync";
+import { useToast } from "../contexts/ToastContext";
 
 export default function LocationDetailsPage() {
+  const { showToast } = useToast();
   const { id: locationId } = useParams();
   const navigate = useNavigate();
 
@@ -48,10 +50,11 @@ export default function LocationDetailsPage() {
       setDeleting(true);
       await apiFetch(`/locations/${locationId}`, { method: "DELETE" });
       setIsDeleteModalOpen(false);
+      showToast("Location deleted successfully", "success");
       navigate("/locations");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete location", err);
-      alert("Failed to delete location. Please try again.");
+      showToast(err.message || "Failed to delete location. Please try again.", "error");
     } finally {
       setDeleting(false);
     }

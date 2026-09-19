@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Users, Check, Plus, Search, ChevronDown, X, HardHat, Loader2 } from "lucide-react";
+import { Users, Check, Plus, ChevronDown, X, HardHat, Loader2, Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { triggerSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 export interface LabourWorker {
   id: number | string;
@@ -42,24 +43,26 @@ export function LabourSelectCombobox({
   onWorkerCreated,
   className = ""
 }: LabourSelectComboboxProps) {
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [inputValue, setInputValue] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Find currently selected worker
-  const currentWorker = useMemo(() => {
+  // Sync internal input value with incoming props
+  useEffect(() => {
     if (selectedId) {
       const found = workers.find(w => String(w.id) === String(selectedId));
-      if (found) return found;
+      if (found) {
+        setInputValue(found.name);
+        return;
+      }
     }
-    if (selectedName) {
-      const found = workers.find(w => w.name.trim().toLowerCase() === selectedName.trim().toLowerCase());
-      if (found) return found;
+    if (selectedName !== undefined) {
+      setInputValue(selectedName || "");
     }
-    return null;
-  }, [workers, selectedId, selectedName]);
+  }, [selectedId, selectedName, workers]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -72,46 +75,111 @@ export function LabourSelectCombobox({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter workers based on search term and optionally team
+  // Find currently matched worker by ID or exact Name
+  const matchedWorker = useMemo(() => {
+    if (selectedId) {
+      const found = workers.find(w => String(w.id) === String(selectedId));
+      if (found) return found;
+    }
+    if (inputValue.trim()) {
+      const found = workers.find(w => w.name.trim().toLowerCase() === inputValue.trim().toLowerCase());
+      if (found) return found;
+    }
+    return null;
+  }, [workers, selectedId, inputValue]);
+
+  // Filter workers based on input
   const filteredWorkers = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+    const term = inputValue.trim().toLowerCase();
+    if (!term) return workers;
     return workers.filter(w => {
-      if (!term) return true;
       return (
         w.name.toLowerCase().includes(term) ||
         (w.teamName && w.teamName.toLowerCase().includes(term)) ||
         (w.workType && w.workType.toLowerCase().includes(term))
       );
     });
-  }, [workers, searchTerm]);
+  }, [workers, inputValue]);
 
-  // Group or prioritize workers by team if selectedTeamId is active
-  const prioritizedWorkers = useMemo(() => {
-    if (!selectedTeamId) return filteredWorkers;
+  // Group into team members vs others if selectedTeamId is active
+  const { teamMembers, otherWorkers } = useMemo(() => {
+    if (!selectedTeamId) {
+      return { teamMembers: [], otherWorkers: filteredWorkers };
+    }
     const teamIdStr = String(selectedTeamId);
-    const teamMembers: LabourWorker[] = [];
-    const otherWorkers: LabourWorker[] = [];
+    const members: LabourWorker[] = [];
+    const others: LabourWorker[] = [];
 
     filteredWorkers.forEach(w => {
       if (w.teamId && String(w.teamId) === teamIdStr) {
-        teamMembers.push(w);
+        members.push(w);
       } else {
-        otherWorkers.push(w);
+        others.push(w);
       }
     });
 
-    return [...teamMembers, ...otherWorkers];
+    return { teamMembers: members, otherWorkers: others };
   }, [filteredWorkers, selectedTeamId]);
 
-  // Exact match check for search term
-  const exactMatchExists = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return true;
+  // Check if current typed input is already an exact match in workers
+  const isExactMatch = useMemo(() => {
+    const term = inputValue.trim().toLowerCase();
+    if (!term) return false;
     return workers.some(w => w.name.trim().toLowerCase() === term);
-  }, [workers, searchTerm]);
+  }, [workers, inputValue]);
 
-  const handleQuickAdd = async () => {
-    const trimmed = searchTerm.trim();
+  // When user types in the input
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+    setIsOpen(true);
+
+    // Look for immediate exact or close match
+    const match = workers.find(w => w.name.trim().toLowerCase() === val.trim().toLowerCase());
+    if (match) {
+      onSelect({
+        id: match.id,
+        name: match.name,
+        dailyRate: match.dailyRate,
+        teamId: match.teamId
+      });
+    } else {
+      // Pass typed name directly so attendance submission works even for new names!
+      onSelect({
+        id: "",
+        name: val,
+        dailyRate: "",
+        teamId: selectedTeamId ? Number(selectedTeamId) : null
+      });
+    }
+  };
+
+  // When user selects a worker from dropdown
+  const handleSelectWorker = (worker: LabourWorker) => {
+    setInputValue(worker.name);
+    setIsOpen(false);
+    onSelect({
+      id: worker.id,
+      name: worker.name,
+      dailyRate: worker.dailyRate,
+      teamId: worker.teamId
+    });
+  };
+
+  // Clear button handler
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setInputValue("");
+    setIsOpen(false);
+    if (onClear) onClear();
+    else onSelect({ id: "", name: "", dailyRate: "", teamId: null });
+    inputRef.current?.focus();
+  };
+
+  // Quick Add to Master
+  const handleQuickAdd = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const trimmed = inputValue.trim();
     if (!trimmed || isCreating) return;
 
     try {
@@ -136,6 +204,8 @@ export function LabourSelectCombobox({
         name: created.name,
         dailyRate: created.dailyRate || "0",
         teamId: created.teamId || null,
+        teamName: created.teamName || null,
+        workType: "Worker",
         locationId
       };
 
@@ -143,200 +213,160 @@ export function LabourSelectCombobox({
         onWorkerCreated(newWorkerItem);
       }
 
-      onSelect({
-        id: created.id,
-        name: created.name,
-        dailyRate: created.dailyRate || "0",
-        teamId: created.teamId || null
-      });
-
-      setSearchTerm("");
-      setIsOpen(false);
+      handleSelectWorker(newWorkerItem);
+      showToast(`Labour worker "${trimmed}" added to master!`, "success");
     } catch (err: any) {
-      alert("Failed to quick add labour: " + (err.message || "Unknown error"));
+      showToast(err.message || "Failed to add labour worker", "error");
     } finally {
       setIsCreating(false);
     }
   };
 
-  const displayName = currentWorker ? currentWorker.name : (selectedName || "");
-
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      {/* Trigger Button / Box */}
+      {/* Hidden input for HTML5 form validation if required */}
+      {required && (
+        <input
+          type="text"
+          value={inputValue}
+          required={required}
+          onChange={() => {}}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Main Input Field */}
       <div
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen) {
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-          }
-        }}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm bg-slate-50 border rounded-lg cursor-pointer transition-all shadow-xs ${
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm bg-slate-50 border rounded-lg transition-all shadow-xs ${
           isOpen ? "border-amber-500 ring-2 ring-amber-500/20 bg-white" : "border-slate-200 hover:border-slate-300"
-        } ${!displayName && required ? "border-dashed" : ""}`}
+        } ${!inputValue && required ? "border-dashed" : ""}`}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Users className={`w-4 h-4 shrink-0 ${displayName ? "text-amber-600" : "text-slate-400"}`} />
-          {displayName ? (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-bold text-slate-900 truncate">{displayName}</span>
-              {currentWorker?.dailyRate && Number(currentWorker.dailyRate) > 0 && (
-                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.2 rounded shrink-0">
-                  ₹{Number(currentWorker.dailyRate).toLocaleString()}/day
-                </span>
-              )}
-            </div>
-          ) : (
-            <span className="text-slate-400 text-sm select-none">{placeholder}</span>
+          <Users className={`w-4 h-4 shrink-0 ${inputValue ? "text-amber-600" : "text-slate-400"}`} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onFocus={() => setIsOpen(true)}
+            placeholder={placeholder}
+            className="w-full bg-transparent text-slate-900 placeholder:text-slate-400 font-medium focus:outline-none text-sm"
+          />
+          {matchedWorker?.dailyRate && Number(matchedWorker.dailyRate) > 0 && (
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded shrink-0 select-none">
+              ₹{Number(matchedWorker.dailyRate).toLocaleString()}/day
+            </span>
           )}
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {displayName && (
+          {inputValue && (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onClear) onClear();
-                setSearchTerm("");
-              }}
+              onClick={handleClear}
               className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-md transition-colors"
               title="Clear selection"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(!isOpen);
+              if (!isOpen) inputRef.current?.focus();
+            }}
+            className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-transform"
+            title="Toggle list"
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform duration-150 ${isOpen ? "rotate-180 text-amber-600" : ""}`} />
+          </button>
         </div>
       </div>
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-          {/* Search Bar */}
-          <div className="p-2 border-b border-slate-100 bg-slate-50/50">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (!exactMatchExists && searchTerm.trim()) {
-                      handleQuickAdd();
-                    } else if (prioritizedWorkers.length > 0) {
-                      const first = prioritizedWorkers[0];
-                      onSelect({
-                        id: first.id,
-                        name: first.name,
-                        dailyRate: first.dailyRate,
-                        teamId: first.teamId
-                      });
-                      setIsOpen(false);
-                      setSearchTerm("");
-                    }
-                  }
-                }}
-                placeholder="Search or type worker name..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium"
-              />
-            </div>
-          </div>
-
-          {/* Quick Add Button if typed name doesn't match */}
-          {searchTerm.trim() && !exactMatchExists && (
-            <div className="p-2 bg-amber-50 border-b border-amber-100">
+        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-72 flex flex-col">
+          {/* Quick Add Banner if typed name is not registered in master */}
+          {inputValue.trim() && !isExactMatch && (
+            <div className="p-2 bg-amber-50/90 border-b border-amber-100 flex items-center justify-between gap-2 shrink-0">
+              <div className="text-[11px] text-amber-900 font-medium truncate">
+                New worker: <span className="font-bold">&quot;{inputValue.trim()}&quot;</span>
+              </div>
               <button
                 type="button"
                 disabled={isCreating}
                 onClick={handleQuickAdd}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-bold shadow-xs transition-colors cursor-pointer"
               >
                 {isCreating ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Adding labour...</span>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Saving...</span>
                   </>
                 ) : (
                   <>
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Quick Add & Select &quot;{searchTerm.trim()}&quot;</span>
+                    <Plus className="w-3 h-3" />
+                    <span>Add to Master</span>
                   </>
                 )}
               </button>
             </div>
           )}
 
-          {/* Workers List */}
-          <div className="max-h-56 overflow-y-auto divide-y divide-slate-50">
-            {prioritizedWorkers.map((w) => {
-              const isSelected = String(w.id) === String(selectedId) || (displayName && w.name.trim().toLowerCase() === displayName.trim().toLowerCase());
-              const isTeamMember = selectedTeamId && w.teamId && String(w.teamId) === String(selectedTeamId);
-
-              return (
-                <div
-                  key={w.id}
-                  onClick={() => {
-                    onSelect({
-                      id: w.id,
-                      name: w.name,
-                      dailyRate: w.dailyRate,
-                      teamId: w.teamId
-                    });
-                    setIsOpen(false);
-                    setSearchTerm("");
-                  }}
-                  className={`px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-amber-50/70 cursor-pointer transition-colors ${
-                    isSelected ? "bg-amber-50 font-bold" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? "bg-amber-600" : isTeamMember ? "bg-blue-500" : "bg-slate-300"}`} />
-                    <span className={`text-xs truncate ${isSelected ? "text-amber-900 font-black" : "text-slate-800"}`}>
-                      {w.name}
-                    </span>
-                    {w.teamName ? (
-                      <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-medium shrink-0 flex items-center gap-0.5">
-                        <HardHat className="w-2.5 h-2.5 text-slate-400" />
-                        {w.teamName}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {w.dailyRate && Number(w.dailyRate) > 0 ? (
-                      <span className="text-[10px] font-semibold text-slate-500">
-                        ₹{Number(w.dailyRate).toLocaleString()}
-                      </span>
-                    ) : null}
-                    {isSelected && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                  </div>
+          {/* Workers List Container */}
+          <div className="overflow-y-auto flex-1 divide-y divide-slate-50">
+            {/* Team Members Section if team is selected */}
+            {selectedTeamId && teamMembers.length > 0 && (
+              <div>
+                <div className="px-3 py-1.5 bg-amber-500/10 text-amber-900 font-bold text-[10px] tracking-wider uppercase flex items-center gap-1">
+                  <HardHat className="w-3 h-3 text-amber-700" />
+                  Selected Team Members ({teamMembers.length})
                 </div>
-              );
-            })}
+                {teamMembers.map(w => renderWorkerItem(w, true))}
+              </div>
+            )}
 
-            {prioritizedWorkers.length === 0 && (
+            {/* Other Workers Section */}
+            {otherWorkers.length > 0 && (
+              <div>
+                {selectedTeamId && teamMembers.length > 0 && (
+                  <div className="px-3 py-1.5 bg-slate-100/80 text-slate-600 font-bold text-[10px] tracking-wider uppercase">
+                    All Other Workers ({otherWorkers.length})
+                  </div>
+                )}
+                {otherWorkers.map(w => renderWorkerItem(w, false))}
+              </div>
+            )}
+
+            {/* Empty State */}
+            {filteredWorkers.length === 0 && (
               <div className="p-4 text-center">
-                <p className="text-xs text-slate-400">
-                  {searchTerm ? `No labour worker matching "${searchTerm}"` : "No registered labour workers found."}
+                <p className="text-xs text-slate-500 font-medium">
+                  {inputValue.trim()
+                    ? `No existing worker matches "${inputValue.trim()}".`
+                    : "No labour workers registered yet."}
                 </p>
-                {searchTerm.trim() ? null : (
-                  <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                    Type a worker name above to quick-add, or use Manage Labour.
+                {inputValue.trim() ? (
+                  <p className="text-[11px] text-amber-800 font-medium mt-1">
+                    You can still use this name for attendance or click &quot;Add to Master&quot; above.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-800 font-medium mt-1">
+                    Type a worker name above to select or add them.
                   </p>
                 )}
               </div>
             )}
           </div>
 
-          {/* Footer with Manage Labour Modal Link */}
+          {/* Footer with Manage Labour Shortcut */}
           {onOpenManageModal && (
-            <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+            <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs shrink-0">
               <span className="text-slate-400 text-[11px] font-medium">
-                {workers.length} {workers.length === 1 ? "worker" : "workers"} in master
+                {workers.length} {workers.length === 1 ? "worker" : "workers"} in directory
               </span>
               <button
                 type="button"
@@ -344,9 +374,9 @@ export function LabourSelectCombobox({
                   setIsOpen(false);
                   onOpenManageModal();
                 }}
-                className="text-amber-700 hover:text-amber-900 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                className="text-amber-700 hover:text-amber-900 font-bold flex items-center gap-1 hover:underline cursor-pointer text-xs"
               >
-                <Plus className="w-3 h-3" /> Manage All Labour
+                <Sparkles className="w-3 h-3" /> Manage Directory
               </button>
             </div>
           )}
@@ -354,4 +384,50 @@ export function LabourSelectCombobox({
       )}
     </div>
   );
+
+  function renderWorkerItem(w: LabourWorker, isTeamMember: boolean) {
+    const isSelected =
+      String(w.id) === String(selectedId) ||
+      (inputValue.trim() && w.name.trim().toLowerCase() === inputValue.trim().toLowerCase());
+
+    return (
+      <div
+        key={w.id}
+        onMouseDown={(e) => {
+          // Use onMouseDown so it fires before onBlur / click-outside
+          e.preventDefault();
+          handleSelectWorker(w);
+        }}
+        className={`px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-amber-50/80 cursor-pointer transition-colors ${
+          isSelected ? "bg-amber-50/90 font-bold" : ""
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              isSelected ? "bg-amber-600" : isTeamMember ? "bg-blue-500" : "bg-slate-300"
+            }`}
+          />
+          <span className={`text-xs truncate ${isSelected ? "text-amber-950 font-black" : "text-slate-800"}`}>
+            {w.name}
+          </span>
+          {w.teamName ? (
+            <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded font-medium shrink-0 flex items-center gap-0.5">
+              <HardHat className="w-2.5 h-2.5 text-slate-400" />
+              {w.teamName}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {w.dailyRate && Number(w.dailyRate) > 0 ? (
+            <span className="text-[10px] font-semibold text-slate-500">
+              ₹{Number(w.dailyRate).toLocaleString()}/day
+            </span>
+          ) : null}
+          {isSelected && <Check className="w-3.5 h-3.5 text-amber-600" />}
+        </div>
+      </div>
+    );
+  }
 }

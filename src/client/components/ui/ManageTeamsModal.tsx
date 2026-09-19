@@ -3,6 +3,7 @@ import { apiFetch } from "../../lib/api";
 import { Modal } from "./Modal";
 import { HardHat, Plus, Search, Pencil, Trash2, Check, X } from "lucide-react";
 import { triggerSync, useLiveSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 interface TeamItem {
   id: number;
@@ -26,6 +27,7 @@ export function ManageTeamsModal({
   onSelectTeam,
   currentSelectedId
 }: ManageTeamsModalProps) {
+  const { showToast, confirmAction } = useToast();
   const [teams, setTeams] = useState<TeamItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,7 +86,13 @@ export function ManageTeamsModal({
   };
 
   const handleDeleteClick = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete team "${name}"?`)) return;
+    const confirmed = await confirmAction({
+      title: "Delete Team",
+      message: `Are you sure you want to delete team "${name}"?`,
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/master/teams/${id}`, { method: "DELETE" });
       triggerSync("master_teams");
@@ -92,9 +100,10 @@ export function ManageTeamsModal({
       if (editingId === id) {
         handleCancelEdit();
       }
+      showToast("Team deleted", "success");
       loadTeams();
-    } catch (err) {
-      alert("Failed to delete team");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete team", "error");
     }
   };
 

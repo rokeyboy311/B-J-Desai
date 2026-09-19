@@ -4,8 +4,10 @@ import { Modal } from "../ui/Modal";
 import { Plus, Trash2, Pencil, Package, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
+import { useToast } from "../../contexts/ToastContext";
 
 export default function MaterialSupplyTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [records, setRecords] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
@@ -96,9 +98,11 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
       triggerSync("reports");
       setIsModalOpen(false);
       resetForm();
+      showToast(editingId ? "Material supply updated successfully" : "Material supply added successfully", "success");
       await loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save supply:", err);
+      showToast(err.message || "Failed to save material supply", "error");
     }
   };
 
@@ -147,15 +151,22 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this supply record? Stock will be reverted.")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Material Supply",
+      message: "Are you sure you want to delete this supply record? Stock will be automatically restored.",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/materials/supply/${id}`, { method: "DELETE" });
       triggerSync("materials");
       triggerSync("stock");
       triggerSync("reports");
+      showToast("Supply record deleted and stock restored", "success");
       await loadData();
-    } catch (err) {
-      alert("Failed to delete supply");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete supply", "error");
     }
   };
 

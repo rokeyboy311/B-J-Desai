@@ -4,6 +4,7 @@ import { Receipt, Search, Filter, Download } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
 import { useLiveSync } from "../hooks/useLiveSync";
+import { useToast } from "../contexts/ToastContext";
 
 interface GlobalRecord {
   id: number;
@@ -18,6 +19,7 @@ interface GlobalRecord {
 }
 
 export default function GlobalRecordsPage() {
+  const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const [records, setRecords] = useState<GlobalRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,9 +76,10 @@ export default function GlobalRecordsPage() {
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
       setIsExportModalOpen(false);
-    } catch (error) {
+      showToast("Export file downloaded successfully", "success");
+    } catch (error: any) {
       console.error('Export failed:', error);
-      alert('Failed to generate export file.');
+      showToast('Failed to generate export file.', 'error');
     }
   };
 

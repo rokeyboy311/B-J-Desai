@@ -3,8 +3,10 @@ import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
 import { Plus, Pencil, Trash2, Box, Users, HardHat, Building2, Search, Check } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 export default function MasterDataTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [activeTab, setActiveTab] = useState<'materials'|'labour'|'teams'|'parties'>('materials');
   const [data, setData] = useState<any[]>([]);
   const [teamsList, setTeamsList] = useState<any[]>([]);
@@ -78,7 +80,7 @@ export default function MasterDataTab({ locationId }: { locationId: number }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.trim()) {
-      alert("Name is required");
+      showToast("Name is required", "error");
       return;
     }
 
@@ -95,9 +97,10 @@ export default function MasterDataTab({ locationId }: { locationId: number }) {
       triggerSync("master_data");
       setIsModalOpen(false);
       resetForm();
+      showToast(editingId ? "Master record updated" : "Master record created", "success");
       fetchData();
-    } catch (err) {
-      alert("Failed to save master record.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to save master record.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -124,7 +127,13 @@ export default function MasterDataTab({ locationId }: { locationId: number }) {
   };
   
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this master record?')) return;
+    const confirmed = await confirmAction({
+      title: "Delete Master Record",
+      message: "Are you sure you want to delete this master record?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       let endpoint = '';
       if (activeTab === 'materials') endpoint = `/master/materials/${id}`;
@@ -134,9 +143,10 @@ export default function MasterDataTab({ locationId }: { locationId: number }) {
       
       await apiFetch(endpoint, { method: "DELETE" });
       triggerSync("master_data");
+      showToast("Record deleted", "success");
       fetchData();
-    } catch (e) {
-      alert("Error deleting record");
+    } catch (e: any) {
+      showToast(e.message || "Error deleting record", "error");
     }
   };
 

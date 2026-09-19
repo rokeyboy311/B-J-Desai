@@ -6,8 +6,10 @@ import {
   AlertTriangle, ArrowRightLeft, ShieldAlert, Eye 
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 export default function SupervisorCostTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [records, setRecords] = useState<any[]>([]);
   const [siteSupplies, setSiteSupplies] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,23 +84,31 @@ export default function SupervisorCostTab({ locationId }: { locationId: number }
       triggerSync("supervisor_costs");
       setIsModalOpen(false);
       resetForm();
+      showToast(editingId ? "Supervisor cost updated" : "Supervisor cost recorded", "success");
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Failed to save supervisor record");
+      showToast(error.message || "Failed to save supervisor record", "error");
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this supervisor record?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Supervisor Cost",
+      message: "Are you sure you want to delete this supervisor record?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     setIsDeleting(id);
     try {
       await apiFetch(`/supervisor-costs/${id}`, { method: "DELETE" });
       triggerSync("supervisor_costs");
+      showToast("Supervisor record deleted", "success");
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Failed to delete record");
+      showToast(error.message || "Failed to delete record", "error");
     } finally {
       setIsDeleting(null);
     }

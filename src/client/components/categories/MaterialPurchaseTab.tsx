@@ -5,10 +5,12 @@ import { Plus, Trash2, Pencil, Package, ArrowDownRight, ArrowUpRight, Search, Re
 import { PurchaseIcon } from "../icons/PurchaseIcon";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
+import { useToast } from "../../contexts/ToastContext";
 
 const PRESET_UNITS = ["Nos", "Bags", "Ton", "Kg", "Brass", "CFT", "Cum", "Sq.ft", "Sq.m", "Trip", "Load", "Ltr", "Mtr", "Custom"];
 
 export default function MaterialPurchaseTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [activeSubTab, setActiveSubTab] = useState<"purchases" | "stock">("purchases");
   
   const [records, setRecords] = useState<any[]>([]);
@@ -161,10 +163,11 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       triggerSync("reports");
       setIsModalOpen(false);
       resetForm();
+      showToast(editingId ? "Purchase updated successfully" : "Purchase recorded successfully", "success");
       await loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save purchase:", err);
-      alert("Failed to save purchase");
+      showToast(err.message || "Failed to save purchase", "error");
     }
   };
 
@@ -218,15 +221,22 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this purchase? Stock will be reversed.")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Material Purchase",
+      message: "Are you sure you want to delete this purchase? Stock will be reversed automatically.",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/materials/purchase/${id}`, { method: "DELETE" });
       triggerSync("materials");
       triggerSync("stock");
       triggerSync("reports");
+      showToast("Purchase deleted and stock reversed", "success");
       await loadData();
-    } catch (err) {
-      alert("Failed to delete purchase");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete purchase", "error");
     }
   };
 

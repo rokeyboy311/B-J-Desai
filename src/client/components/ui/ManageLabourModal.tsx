@@ -3,6 +3,7 @@ import { apiFetch } from "../../lib/api";
 import { Modal } from "./Modal";
 import { Users, Plus, Search, Pencil, Trash2, Check, X } from "lucide-react";
 import { triggerSync, useLiveSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 interface LabourItem {
   id: number;
@@ -29,6 +30,7 @@ export function ManageLabourModal({
   onSelectLabour,
   currentSelectedId
 }: ManageLabourModalProps) {
+  const { showToast, confirmAction } = useToast();
   const [labourList, setLabourList] = useState<LabourItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,7 +89,13 @@ export function ManageLabourModal({
   };
 
   const handleDeleteClick = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete worker "${name}"?`)) return;
+    const confirmed = await confirmAction({
+      title: "Delete Worker",
+      message: `Are you sure you want to delete worker "${name}"?`,
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/master/labour/${id}`, { method: "DELETE" });
       triggerSync("master_labour");
@@ -95,9 +103,10 @@ export function ManageLabourModal({
       if (editingId === id) {
         handleCancelEdit();
       }
+      showToast("Worker deleted", "success");
       loadLabour();
-    } catch (err) {
-      alert("Failed to delete labour worker");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete labour worker", "error");
     }
   };
 

@@ -6,10 +6,12 @@ import { ManageLabourModal } from "../ui/ManageLabourModal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
 import { LabourSelectCombobox, LabourWorker } from "../ui/LabourSelectCombobox";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
 
 const COMMON_UNITS = ["Nos", "Brass", "Sq.Ft", "R.Ft", "Cu.Ft", "Bags", "Kg", "Ton", "Hours", "Days"];
 
 export default function LabourAttendanceTab({ locationId }: { locationId: number }) {
+  const { showToast, confirmAction } = useToast();
   const [activeSubTab, setActiveSubTab] = useState<"daywise" | "workwise" | "records">("daywise");
 
   const [workers, setWorkers] = useState<LabourWorker[]>([]);
@@ -110,11 +112,11 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
     e.preventDefault();
     try {
       const worker = workers.find(w => String(w.id) === String(dayForm.labourId));
-      let workerName = worker?.name || dayForm.labourName?.trim();
+      let workerName = dayForm.labourName?.trim() || worker?.name;
       if (!workerName && dayForm.labourId) workerName = String(dayForm.labourId);
 
       if (!workerName) {
-        alert("Please select or enter a labour worker name.");
+        showToast("Please select or enter a labour worker name.", "error");
         return;
       }
 
@@ -124,7 +126,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
 
       // Auto-save to master if not in master yet
       let masterId = worker?.id && !String(worker.id).startsWith("hist-") ? Number(worker.id) : null;
-      if (!masterId) {
+      if (!masterId && workerName) {
         try {
           const created = await apiFetch("/master/labour", {
             method: "POST",
@@ -159,6 +161,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
       triggerSync("labour_attendance");
+      showToast("Day-wise attendance recorded successfully", "success");
       loadData(true);
       setDayForm({
         date: new Date().toISOString().split("T")[0],
@@ -170,7 +173,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         notes: ""
       });
     } catch (err: any) {
-      alert("Failed to save day-wise attendance: " + (err?.message || ""));
+      showToast("Failed to save day-wise attendance: " + (err?.message || ""), "error");
     }
   };
 
@@ -179,7 +182,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
     try {
       const team = teams.find(t => String(t.id) === String(workForm.teamId));
       const worker = workers.find(w => String(w.id) === String(workForm.labourId));
-      let workerName = worker?.name || workForm.labourName?.trim();
+      let workerName = workForm.labourName?.trim() || worker?.name;
       const qty = parseFloat(workForm.quantity) || 0;
       const rate = parseFloat(workForm.rate) || 0;
 
@@ -201,6 +204,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
       triggerSync("labour_attendance");
+      showToast("Work-wise attendance recorded successfully", "success");
       loadData(true);
       setWorkForm({
         date: new Date().toISOString().split("T")[0],
@@ -215,18 +219,25 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         notes: ""
       });
     } catch (err: any) {
-      alert("Failed to save work-wise attendance: " + (err?.message || ""));
+      showToast("Failed to save work-wise attendance: " + (err?.message || ""), "error");
     }
   };
 
   const handleDeleteRecord = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this attendance entry?")) return;
+    const confirmed = await confirmAction({
+      title: "Delete Attendance Entry",
+      message: "Are you sure you want to delete this attendance entry?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
     try {
       await apiFetch(`/labour/${id}`, { method: "DELETE" });
       triggerSync("labour_attendance");
+      showToast("Attendance entry deleted", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to delete record.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete record.", "error");
     }
   };
 
@@ -241,9 +252,10 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       triggerSync("labour_attendance");
       setIsEditModalOpen(false);
       setEditingRecord(null);
+      showToast("Attendance record updated", "success");
       loadData();
-    } catch (err) {
-      alert("Failed to update record.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to update record.", "error");
     }
   };
 
@@ -314,7 +326,23 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                     <Plus className="w-3 h-3" /> Manage Team
                   </button>
                 </div>
-                <select value={dayForm.teamId} onChange={e => setDayForm({...dayForm, teamId: e.target.value, labourId: ""})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500">
+                <select
+                  value={dayForm.teamId}
+                  onChange={e => {
+                    const newTeamId = e.target.value;
+                    setDayForm(prev => {
+                      const currentWorker = workers.find(w => String(w.id) === String(prev.labourId));
+                      const shouldReset = newTeamId && currentWorker && currentWorker.teamId && String(currentWorker.teamId) !== String(newTeamId);
+                      return {
+                        ...prev,
+                        teamId: newTeamId,
+                        labourId: shouldReset ? "" : prev.labourId,
+                        labourName: shouldReset ? "" : prev.labourName
+                      };
+                    });
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                >
                   <option value="">-- All Teams --</option>
                   {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
@@ -433,7 +461,23 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                     <Plus className="w-3 h-3" /> Manage Team
                   </button>
                 </div>
-                <select value={workForm.teamId} onChange={e => setWorkForm({...workForm, teamId: e.target.value, labourId: ""})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500">
+                <select
+                  value={workForm.teamId}
+                  onChange={e => {
+                    const newTeamId = e.target.value;
+                    setWorkForm(prev => {
+                      const currentWorker = workers.find(w => String(w.id) === String(prev.labourId));
+                      const shouldReset = newTeamId && currentWorker && currentWorker.teamId && String(currentWorker.teamId) !== String(newTeamId);
+                      return {
+                        ...prev,
+                        teamId: newTeamId,
+                        labourId: shouldReset ? "" : prev.labourId,
+                        labourName: shouldReset ? "" : prev.labourName
+                      };
+                    });
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                >
                   <option value="">-- Select Team --</option>
                   {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
