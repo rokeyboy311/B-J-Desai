@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Plus, Trash2, Pencil, Package, ArrowDownRight, ArrowUpRight, Search, RefreshCw, Layers, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, ArrowDownRight, ArrowUpRight, Search, RefreshCw, Layers, CheckCircle2, AlertTriangle, Download } from "lucide-react";
 import { PurchaseIcon } from "../icons/PurchaseIcon";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { useToast } from "../../contexts/ToastContext";
+import { downloadExcelReport } from "../../lib/excelExport";
 
 const PRESET_UNITS = ["Nos", "Bags", "Ton", "Kg", "Brass", "CFT", "Cum", "Sq.ft", "Sq.m", "Trip", "Load", "Ltr", "Mtr", "Custom"];
 
@@ -406,11 +407,18 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
               <button
                 onClick={() => loadData()}
                 title="Refresh purchases and stock"
-                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors"
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
-              <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-rose-700 transition-colors">
+              <button
+                onClick={() => downloadExcelReport(`/reports/export-vendor-purchases?locationId=${locationId}`, `Vendor_Purchases_Location_${locationId}.xlsx`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="Export Material Purchases & Vendor Bills to Excel"
+              >
+                <Download className="w-3.5 h-3.5" /> Export Purchases (.xlsx)
+              </button>
+              <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-rose-700 transition-colors cursor-pointer">
                 <Plus className="w-3.5 h-3.5" /> Add Purchase
               </button>
             </div>
@@ -630,13 +638,20 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                 </div>
                 <button
                   onClick={() => setIsManageMaterialOpen(true)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   Manage Materials
                 </button>
                 <button
+                  onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=stock`, `Material_Stock_Location_${locationId}.xlsx`)}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Export Current Stock Inventory to Excel"
+                >
+                  <Download className="w-3.5 h-3.5" /> Export Stock (.xlsx)
+                </button>
+                <button
                   onClick={() => setShowLedgerLogs(!showLedgerLogs)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${showLedgerLogs ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${showLedgerLogs ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
                 >
                   {showLedgerLogs ? "Hide Movement Logs" : "View Movement Logs"}
                 </button>

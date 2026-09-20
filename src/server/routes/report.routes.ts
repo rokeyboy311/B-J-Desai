@@ -7,7 +7,13 @@ import {
 } from '../../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { generateExcelBuffer } from '../lib/excel.js';
+import { 
+  generateExcelBuffer, 
+  generateInvestorStatementBuffer, 
+  generateVendorPurchasesBuffer, 
+  generateCustomerSuppliesBuffer, 
+  generateRefundableRecordsBuffer 
+} from '../lib/excel.js';
 import { calculateCategory2Capital } from '../lib/accounting.js';
 import { assertLocationAccess } from '../lib/locationAuth.js';
 
@@ -106,7 +112,8 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       }
       if (r.type === 'EXPENSE') {
         grossExpense += amt;
-        totalRefundable += parseFloat(r.ref_amt as string || '0');
+        const refAmt = parseFloat(r.ref_amt as string || '0') || ((r.category === 'REFUNDABLE_RECORD' || r.category === 'REFUNDABLE') ? amt : 0);
+        totalRefundable += refAmt;
         totalRefunded += parseFloat(r.refd_amt as string || '0');
       }
     }
@@ -756,6 +763,289 @@ reportRouter.get('/export-all', async (req: AuthRequest, res: Response) => {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Failed to export all:', error);
     res.status(500).json({ error: 'Failed to export all' });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/reports/all-refundable-records (for detailed modal on dashboard)
+// -------------------------------------------------------------
+reportRouter.get('/all-refundable-records', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL'
+      ? parseInt(req.query.locationId as string, 10)
+      : undefined;
+
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+    }
+
+    const locCondition = locationIdParam
+      ? sql`${records.locationId} = ${locationIdParam}`
+      : sql`1=1`;
+
+    const allRecords = await db.select({
+      id: records.id,
+      date: records.date,
+      locationId: records.locationId,
+      locationName: locations.name,
+      partyName: records.partyName,
+      amount: records.amount,
+      refundableAmount: sql<string>`case when coalesce(${records.refundableAmount}, 0) > 0 then ${records.refundableAmount} else ${records.amount} end`,
+      refundedAmount: sql<string>`coalesce(${records.refundedAmount}, '0.00')`,
+      refundStatus: sql<string>`coalesce(${records.refundStatus}, 'PENDING')`,
+      paymentMethod: records.paymentMethod,
+      referenceNumber: records.referenceNumber,
+      description: records.description,
+      notes: records.notes
+    })
+    .from(records)
+    .innerJoin(locations, eq(records.locationId, locations.id))
+    .where(and(
+      eq(records.isDeleted, 0),
+      eq(locations.isDeleted, 0),
+      locCondition,
+      sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
+    ))
+    .orderBy(sql`${records.date} DESC`, sql`${records.id} DESC`);
+
+    res.json(allRecords);
+  } catch (error: any) {
+    console.error('Failed to fetch all refundable records:', error);
+    res.status(500).json({ error: 'Failed to fetch refundable records' });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/reports/export-investor/:partyId (Individual Investor Passbook)
+// -------------------------------------------------------------
+reportRouter.get('/export-investor/:partyId', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const partyId = parseInt(req.params.partyId as string, 10);
+    if (isNaN(partyId)) return res.status(400).json({ error: "Invalid investor ID" });
+
+    const [party] = await db.select().from(investmentParties).where(and(
+      eq(investmentParties.id, partyId),
+      eq(investmentParties.isDeleted, 0)
+    ));
+    if (!party) return res.status(404).json({ error: "Investor account not found" });
+
+    await assertLocationAccess(userId, party.locationId);
+
+    const [loc] = await db.select({ name: locations.name }).from(locations).where(eq(locations.id, party.locationId));
+    const locationName = loc ? loc.name : 'Project Location';
+
+    const transactions = await db.select().from(investmentTransactions).where(and(
+      eq(investmentTransactions.partyId, partyId),
+      eq(investmentTransactions.isDeleted, 0)
+    )).orderBy(sql`${investmentTransactions.date} ASC`, sql`${investmentTransactions.id} ASC`);
+
+    const buffer = generateInvestorStatementBuffer(party, transactions, locationName);
+    const sanitized = party.partyName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="Investor_${sanitized}_Passbook.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('Failed to export investor statement:', error);
+    res.status(500).json({ error: 'Failed to export investor passbook' });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/reports/export-vendor-purchases (Material Purchases / Vendor Bill)
+// -------------------------------------------------------------
+reportRouter.get('/export-vendor-purchases', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const partyName = req.query.partyName ? String(req.query.partyName).trim() : '';
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL' ? parseInt(req.query.locationId as string, 10) : undefined;
+
+    let locCondition = sql`1=1`;
+    let locName = 'All Locations';
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+      locCondition = sql`${materialPurchases.locationId} = ${locationIdParam}`;
+      const [l] = await db.select({ name: locations.name }).from(locations).where(eq(locations.id, locationIdParam));
+      if (l) locName = l.name;
+    }
+
+    const partyCondition = partyName ? sql`${materialPurchases.partyName} = ${partyName}` : sql`1=1`;
+
+    const purchases = await db.select().from(materialPurchases).where(and(
+      eq(materialPurchases.isDeleted, 0),
+      locCondition,
+      partyCondition
+    )).orderBy(sql`${materialPurchases.date} DESC`, sql`${materialPurchases.id} DESC`);
+
+    const vendorLabel = partyName || 'All_Vendors';
+    const buffer = generateVendorPurchasesBuffer(vendorLabel, purchases, locName);
+    const safeVendor = vendorLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="Vendor_Purchases_${safeVendor}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('Failed to export vendor purchases:', error);
+    res.status(500).json({ error: 'Failed to export vendor purchases' });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/reports/export-customer-supplies (Material Supply / Customer Bill)
+// -------------------------------------------------------------
+reportRouter.get('/export-customer-supplies', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const partyName = req.query.partyName ? String(req.query.partyName).trim() : '';
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL' ? parseInt(req.query.locationId as string, 10) : undefined;
+
+    let locCondition = sql`1=1`;
+    let locName = 'All Locations';
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+      locCondition = sql`${materialSupplies.locationId} = ${locationIdParam}`;
+      const [l] = await db.select({ name: locations.name }).from(locations).where(eq(locations.id, locationIdParam));
+      if (l) locName = l.name;
+    }
+
+    const partyCondition = partyName ? sql`${materialSupplies.partyName} = ${partyName}` : sql`1=1`;
+
+    const supplies = await db.select().from(materialSupplies).where(and(
+      eq(materialSupplies.isDeleted, 0),
+      locCondition,
+      partyCondition
+    )).orderBy(sql`${materialSupplies.date} DESC`, sql`${materialSupplies.id} DESC`);
+
+    const customerLabel = partyName || 'All_Customers';
+    const buffer = generateCustomerSuppliesBuffer(customerLabel, supplies, locName);
+    const safeCust = customerLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="Customer_Bill_${safeCust}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('Failed to export customer supplies:', error);
+    res.status(500).json({ error: 'Failed to export customer supplies' });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/reports/export-refundable-records (Security Deposits / Refundables)
+// -------------------------------------------------------------
+reportRouter.get('/export-refundable-records', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL' ? parseInt(req.query.locationId as string, 10) : undefined;
+
+    let locCondition = sql`1=1`;
+    let locName = 'All Locations';
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+      locCondition = sql`${records.locationId} = ${locationIdParam}`;
+      const [l] = await db.select({ name: locations.name }).from(locations).where(eq(locations.id, locationIdParam));
+      if (l) locName = l.name;
+    }
+
+    const refundableList = await db.select({
+      id: records.id,
+      date: records.date,
+      locationId: records.locationId,
+      locationName: locations.name,
+      partyName: records.partyName,
+      amount: records.amount,
+      refundableAmount: sql<string>`case when coalesce(${records.refundableAmount}, 0) > 0 then ${records.refundableAmount} else ${records.amount} end`,
+      refundedAmount: sql<string>`coalesce(${records.refundedAmount}, '0.00')`,
+      refundStatus: sql<string>`coalesce(${records.refundStatus}, 'PENDING')`,
+      paymentMethod: records.paymentMethod,
+      referenceNumber: records.referenceNumber,
+      description: records.description,
+      notes: records.notes
+    })
+    .from(records)
+    .innerJoin(locations, eq(records.locationId, locations.id))
+    .where(and(
+      eq(records.isDeleted, 0),
+      eq(locations.isDeleted, 0),
+      locCondition,
+      sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
+    ))
+    .orderBy(sql`${records.date} DESC`, sql`${records.id} DESC`);
+
+    const buffer = generateRefundableRecordsBuffer(refundableList, locName);
+    res.setHeader('Content-Disposition', `attachment; filename="Refundable_Records_${locName.replace(/\s+/g, '_')}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('Failed to export refundable records:', error);
+    res.status(500).json({ error: 'Failed to export refundable records' });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/reports/download-catalog (Catalog of all downloadable files)
+// -------------------------------------------------------------
+reportRouter.get('/download-catalog', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL'
+      ? parseInt(req.query.locationId as string, 10)
+      : undefined;
+
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+    }
+
+    const locCondition = locationIdParam ? sql`location_id = ${locationIdParam}` : sql`1=1`;
+
+    // Fetch lists of investors, vendors, customers
+    const [invParties, vendors, customers, counts] = await Promise.all([
+      db.select({ id: investmentParties.id, name: investmentParties.partyName, locationId: investmentParties.locationId })
+        .from(investmentParties)
+        .where(and(eq(investmentParties.isDeleted, 0), locationIdParam ? eq(investmentParties.locationId, locationIdParam) : sql`1=1`))
+        .orderBy(investmentParties.partyName),
+      db.execute(sql`
+        SELECT DISTINCT party_name as name, COUNT(*) as count, SUM(total_amount) as total
+        FROM material_purchases
+        WHERE is_deleted = 0 AND ${locCondition}
+        GROUP BY party_name ORDER BY party_name
+      `),
+      db.execute(sql`
+        SELECT DISTINCT party_name as name, COUNT(*) as count, SUM(total_amount) as total
+        FROM material_supplies
+        WHERE is_deleted = 0 AND ${locCondition}
+        GROUP BY party_name ORDER BY party_name
+      `),
+      db.execute(sql`
+        SELECT 
+          (SELECT COUNT(*) FROM records WHERE is_deleted = 0 AND (${records.refundableAmount} > 0 OR category IN ('REFUNDABLE_RECORD', 'REFUNDABLE')) AND ${locCondition}) as ref_count,
+          (SELECT COUNT(*) FROM material_purchases WHERE is_deleted = 0 AND ${locCondition}) as pur_count,
+          (SELECT COUNT(*) FROM material_supplies WHERE is_deleted = 0 AND ${locCondition}) as sup_count,
+          (SELECT COUNT(*) FROM site_supplies WHERE is_deleted = 0 AND ${locCondition}) as site_count,
+          (SELECT COUNT(*) FROM labour_salaries WHERE is_deleted = 0 AND ${locCondition}) as lab_count,
+          (SELECT COUNT(*) FROM supervisor_costs WHERE is_deleted = 0 AND ${locCondition}) as exp_count
+      `)
+    ]);
+
+    res.json({
+      investors: invParties,
+      vendors: vendors.rows,
+      customers: customers.rows,
+      counts: counts.rows[0] || {}
+    });
+  } catch (error: any) {
+    console.error('Failed to get download catalog:', error);
+    res.status(500).json({ error: 'Failed to fetch download catalog' });
   }
 });
 

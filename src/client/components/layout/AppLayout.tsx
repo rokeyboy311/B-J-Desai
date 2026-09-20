@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { Lock, LayoutDashboard, MapPin, Receipt, FileSpreadsheet, History, Building2, Menu, X, Database, ShieldCheck, RefreshCw } from "lucide-react";
+import { Lock, LayoutDashboard, MapPin, Receipt, FileSpreadsheet, History, Building2, Menu, X, Database, ShieldCheck, RefreshCw, FileDown } from "lucide-react";
 import { PWAInstallButton } from "../PWAInstallButton";
 import { motion, AnimatePresence } from "motion/react";
 import { triggerGlobalSync } from "../../hooks/useLiveSync";
@@ -30,6 +30,7 @@ export default function AppLayout() {
     { name: "Locations", path: "/locations", icon: MapPin },
     { name: "Records", path: "/records", icon: Receipt },
     { name: "Reports", path: "/reports", icon: FileSpreadsheet },
+    { name: "Excel Downloads", path: "/excel-downloads", icon: FileDown },
     { name: "Activity", path: "/activity", icon: History },
   ];
 
@@ -218,7 +219,7 @@ export default function AppLayout() {
       
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 flex items-center justify-around z-40 px-1 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pt-1">
-        {navItems.slice(0, 4).map((item) => {
+        {navItems.slice(0, 5).map((item) => {
           const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
           return (
             <button 

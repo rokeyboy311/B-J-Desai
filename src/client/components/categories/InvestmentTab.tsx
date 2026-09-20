@@ -5,11 +5,13 @@ import {
   TrendingUp, Pencil, Plus, Trash2, ArrowUpRight, ArrowDownLeft, FileText, Banknote,
   Building2, Calculator, CheckCircle2, Clock, AlertCircle, Package, User,
   Wallet, Layers, Search, Tag, Filter, Check, BarChart3, PieChart, ArrowRight,
-  ShoppingCart, Truck, Wrench, Users, HardHat, RefreshCw, AlertTriangle, Receipt
+  ShoppingCart, Truck, Wrench, Users, HardHat, RefreshCw, AlertTriangle, Receipt,
+  Download, FileSpreadsheet
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { useToast } from "../../contexts/ToastContext";
+import { downloadExcelReport } from "../../lib/excelExport";
 
 const PRESET_UNITS = [
   "Nos", "Bags", "Ton", "Kg", "Brass", "CFT", "Cum", "Sq.ft", "Sq.m",
@@ -604,7 +606,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </div>
           <h2 className="text-2xl font-black text-white">2. Investment Capital & Category Deductions</h2>
           <p className="text-xs text-blue-100/90 mt-0.5">
-            ઇન્વેસ્ટર્સ પાસેથી આવેલ મૂડી, કપાત (Cat 3 થી 7), ઇન્વેસ્ટર ઉપાડ / રિટર્ન અને બાકી રહેલ મૂડી (Remaining Capital).
+            ઇન્વેસ્ટર્સ પાસેથી આવેલ મૂડી, કપાત (Cat 3 થી 6 & Refundables), ઇન્વેસ્ટર ઉપાડ / રિટર્ન અને બાકી રહેલ મૂડી (Remaining Capital).
           </p>
         </div>
 
@@ -673,6 +675,14 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
           >
             <ArrowDownLeft className="w-3.5 h-3.5" /> + Record Investor Payment (Upad)
+          </button>
+
+          <button
+            onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=all`, `Investment_Report_Location_${locationId}.xlsx`)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+            title="Download complete Category 2 & Operational Deductions Excel file"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Excel (.xlsx)
           </button>
         </div>
       </div>
@@ -901,6 +911,13 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                       className="bg-rose-500 h-full transition-all"
                       title={`Cat 6 Labour Wages & Kharch: ₹${Number(cat6Data.totalNetSalary || 0).toLocaleString()}`}
                     />
+                    {refundableSummary.pendingRefundable > 0 && (
+                      <div
+                        style={{ width: `${Math.min(100, (refundableSummary.pendingRefundable / totalGrossInvestment) * 100)}%` }}
+                        className="bg-purple-600 h-full transition-all"
+                        title={`Refundable Security Deposits: ₹${refundableSummary.pendingRefundable.toLocaleString()}`}
+                      />
+                    )}
                     <div
                       style={{ width: `${Math.min(100, (Number(totalInvestorPayments || 0) / totalGrossInvestment) * 100)}%` }}
                       className="bg-amber-600 h-full transition-all"
@@ -914,18 +931,21 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> Cat 4 Material Supplies</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-teal-500 inline-block" /> Cat 5 Site Supplies</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" /> Cat 6 Labour & Kharch</span>
+                {refundableSummary.pendingRefundable > 0 && (
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-600 inline-block" /> Refundables / Deposits</span>
+                )}
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-600 inline-block" /> Investor Upad</span>
                 <span className="flex items-center gap-1.5 ml-auto font-bold text-slate-800">Remaining Capital: ₹{netRemainingCapital.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          {/* The 4 Connected Category Operational Deductions Cards */}
+          {/* The 5 Connected Category Operational Deductions Cards */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
                 <Layers className="w-4 h-4 text-slate-600" />
-                Category-Wise Operational Deductions (Cut from Investment Capital)
+                Category-Wise Operational Deductions & Security Deposits (Cut from Investment Capital)
               </h4>
               <button
                 onClick={() => setActiveSubTab("deductions_ledger")}
@@ -935,7 +955,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
               {/* Category 3: Material Purchases */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-purple-300 transition-colors flex flex-col justify-between">
                 <div>
@@ -1084,6 +1104,47 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   <span>Share of Capital:</span>
                   <span className="font-bold text-rose-800">
                     {totalGrossInvestment > 0 ? ((Number(cat6Data.totalNetSalary || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Category: Refundable Records / Security Deposits */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-purple-300 transition-colors flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                      Refundables
+                    </span>
+                    <Receipt className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <h5 className="font-black text-slate-900 text-sm mt-2">Refundable Records (લેવાના બાકી)</h5>
+                  <p className="text-xs text-slate-500 mt-0.5">{refundableSummary.count} security/advance deposits</p>
+                  
+                  <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
+                    <span className="text-xs font-bold text-slate-600">Pending Outflow:</span>
+                    <span className="text-base font-black text-purple-700">-₹{refundableSummary.pendingRefundable.toLocaleString()}</span>
+                  </div>
+                  
+                  <div className="mt-2 text-xs space-y-1 text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Total Deposited:</span>
+                      <span className="font-semibold text-slate-800">₹{refundableSummary.totalRefundable.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Refunded Received:</span>
+                      <span className="font-semibold text-emerald-600">+₹{refundableSummary.totalRefunded.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pending Balance:</span>
+                      <span className="font-semibold text-purple-700">₹{refundableSummary.pendingRefundable.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
+                  <span>Share of Capital:</span>
+                  <span className="font-bold text-purple-800">
+                    {totalGrossInvestment > 0 ? ((refundableSummary.pendingRefundable / totalGrossInvestment) * 100).toFixed(1) : 0}%
                   </span>
                 </div>
               </div>
@@ -1579,23 +1640,33 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setRefundableFormData({
-                  partyName: "",
-                  amount: "",
-                  depositType: "Security Deposit",
-                  date: new Date().toISOString().split("T")[0],
-                  paymentMethod: "Bank Transfer",
-                  referenceNumber: "",
-                  notes: "",
-                });
-                setIsRefundableModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
-            >
-              <Plus className="w-4 h-4" /> + Add Refundable Record
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => downloadExcelReport(`/reports/export-refundable-records?locationId=${locationId}`, `Refundable_Records_Location_${locationId}.xlsx`)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-purple-300 text-purple-900 hover:bg-purple-100 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                title="Download Refundable Records Excel"
+              >
+                <Download className="w-4 h-4 text-purple-700" /> Export Excel (.xlsx)
+              </button>
+
+              <button
+                onClick={() => {
+                  setRefundableFormData({
+                    partyName: "",
+                    amount: "",
+                    depositType: "Security Deposit",
+                    date: new Date().toISOString().split("T")[0],
+                    paymentMethod: "Bank Transfer",
+                    referenceNumber: "",
+                    notes: "",
+                  });
+                  setIsRefundableModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4" /> + Add Refundable Record
+              </button>
+            </div>
           </div>
 
           {/* 3 Metrics Summary Cards */}

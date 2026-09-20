@@ -3,17 +3,19 @@ import {
   LayoutDashboard, Users, Landmark, Truck, Package, Activity,
   CalendarCheck, Wrench, ArrowRight, CheckCircle2, PieChart, Coins,
   Calculator, ArrowDownRight, ArrowUpRight, ChevronDown, ChevronUp, Layers, HelpCircle,
-  Receipt
+  Receipt, FileSpreadsheet, Eye
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { useLiveSync } from "../hooks/useLiveSync";
+import { AllRefundablesModal } from "../components/ui/AllRefundablesModal";
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showCat2Breakdown, setShowCat2Breakdown] = useState(true);
+  const [showRefundablesModal, setShowRefundablesModal] = useState(false);
   const navigate = useNavigate();
 
   const loadDashboard = async (isBackground = false) => {
@@ -257,37 +259,57 @@ export default function DashboardPage() {
       </div>
 
       {/* Refundable Records Highlight Banner */}
-      <div className="bg-gradient-to-r from-purple-900/90 via-indigo-900 to-slate-900 rounded-2xl border border-purple-500/30 p-5 text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-purple-500/20 border border-purple-400/30 rounded-xl text-purple-300 shrink-0">
-            <Receipt className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-base text-white">Refundable Record (રિફંડેબલ ડિપોઝિટ / એડવાન્સ રકમ)</h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/30 text-purple-200 border border-purple-400/30">
-                Cat 2 Deduction
-              </span>
+      <div className="bg-gradient-to-r from-purple-900/90 via-indigo-900 to-slate-900 rounded-2xl border border-purple-500/30 p-5 text-white shadow-md flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-purple-500/20 border border-purple-400/30 rounded-xl text-purple-300 shrink-0">
+              <Receipt className="w-6 h-6" />
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
-              સિક્યોરિટી ડિપોઝિટ, ટેન્ડર EMD, મીટર ડિપોઝિટ તથા અન્ય રિફંડેબલ રકમો જે મૂડીમાંથી બાદ થાય છે અને પરત મળવાપાત્ર છે.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-base text-white">Refundable Record (રિફંડેબલ ડિપોઝિટ / એડવાન્સ રકમ)</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/30 text-purple-200 border border-purple-400/30">
+                  Cat 2 Deduction
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                સિક્યોરિટી ડિપોઝિટ, ટેન્ડર EMD, મીટર ડિપોઝિટ તથા અન્ય રિફંડેબલ રકમો જે મૂડીમાંથી બાદ થાય છે અને પરત મળવાપાત્ર છે.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-6 shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Refundable</span>
+              <p className="text-base font-black text-purple-200">₹{getMetric(metrics?.totalRefundable || metrics?.refundableSummary?.totalRefundable || 0)}</p>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Received / Refunded</span>
+              <p className="text-base font-black text-emerald-400">₹{getMetric(metrics?.totalRefunded || metrics?.refundableSummary?.totalRefunded || 0)}</p>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div>
+              <span className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">લેવાના બાકી (Pending)</span>
+              <p className="text-lg font-black text-amber-300">₹{getMetric(metrics?.pendingRefundable || metrics?.refundableSummary?.pendingRefundable || 0)}</p>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-6 shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Refundable</span>
-            <p className="text-base font-black text-purple-200">₹{getMetric(metrics?.totalRefundable || metrics?.refundableSummary?.totalRefundable || 0)}</p>
-          </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Received / Refunded</span>
-            <p className="text-base font-black text-emerald-400">₹{getMetric(metrics?.totalRefunded || metrics?.refundableSummary?.totalRefunded || 0)}</p>
-          </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div>
-            <span className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">લેવાના બાકી (Pending)</span>
-            <p className="text-lg font-black text-amber-300">₹{getMetric(metrics?.pendingRefundable || metrics?.refundableSummary?.pendingRefundable || 0)}</p>
+
+        {/* View all records action row */}
+        <div className="pt-3 border-t border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-xs text-purple-200 flex items-center gap-1.5">
+            <Receipt className="w-3.5 h-3.5 text-purple-300" />
+            દરેક પ્રોજેક્ટના બધા રિફંડેબલ ડિપોઝિટ અને એડવાન્સ રકમનું સ્ટેટસ તથા લેવાના બાકી હિસાબ જુઓ
+          </span>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => setShowRefundablesModal(true)}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 text-xs cursor-pointer border border-purple-400/40"
+              id="dashboard-view-all-refundables-btn"
+            >
+              <Eye className="w-4 h-4" />
+              View All Records (બધા રેકોર્ડ વિગતમાં જુઓ) &rarr;
+            </button>
           </div>
         </div>
       </div>
@@ -566,6 +588,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <AllRefundablesModal 
+        isOpen={showRefundablesModal} 
+        onClose={() => setShowRefundablesModal(false)} 
+        initialLocationId="ALL"
+      />
     </div>
   );
 }

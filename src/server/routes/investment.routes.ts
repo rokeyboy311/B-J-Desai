@@ -716,8 +716,8 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
 
     // Refundable Records Outflows (Deposits / Advances to be refunded)
     const refData = await db.select({
-      totalRefundable: sql<string>`sum(${records.refundableAmount})`,
-      totalRefunded: sql<string>`sum(${records.refundedAmount})`,
+      totalRefundable: sql<string>`sum(case when coalesce(${records.refundableAmount}, 0) > 0 then ${records.refundableAmount} else ${records.amount} end)`,
+      totalRefunded: sql<string>`sum(coalesce(${records.refundedAmount}, 0))`,
       count: sql<number>`count(*)`
     })
     .from(records)
@@ -727,8 +727,8 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
     ));
 
-    const totalRefundable = parseFloat(refData[0]?.totalRefundable || '0');
-    const totalRefunded = parseFloat(refData[0]?.totalRefunded || '0');
+    const totalRefundable = parseFloat(refData[0]?.totalRefundable || '0') || 0;
+    const totalRefunded = parseFloat(refData[0]?.totalRefunded || '0') || 0;
     const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
     const refCount = Number(refData[0]?.count || 0);
 
@@ -851,8 +851,8 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
         categoryName: sql<string>`'Refundable Record'`,
         partyName: records.partyName,
         description: sql<string>`concat('Refundable Deposit: ', coalesce(${records.description}, ${records.partyName}))`,
-        amount: records.refundableAmount,
-        paidAmount: records.refundedAmount,
+        amount: sql<string>`case when coalesce(${records.refundableAmount}, 0) > 0 then ${records.refundableAmount} else ${records.amount} end`,
+        paidAmount: sql<string>`coalesce(${records.refundedAmount}, '0.00')`,
         referenceNumber: sql<string>`coalesce(${records.referenceNumber}, '')`,
         paymentStatus: records.refundStatus
       })

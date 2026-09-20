@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Plus, Trash2, Pencil, Package, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, ArrowUpRight, CheckCircle2, Download } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { useToast } from "../../contexts/ToastContext";
+import { downloadExcelReport } from "../../lib/excelExport";
 
 export default function MaterialSupplyTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
@@ -182,14 +183,33 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
             <p className="text-xs text-slate-600">Supply materials to external customers. Updates stock automatically.</p>
           </div>
         </div>
-        <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-orange-700 transition-colors">
-          <Plus className="w-4 h-4" /> Add Supply Record
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => downloadExcelReport(`/reports/export-customer-supplies?locationId=${locationId}`, `Customer_Supplies_Location_${locationId}.xlsx`)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-orange-300 text-orange-950 hover:bg-orange-50 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            title="Export Customer Supplies & GST Bills to Excel"
+          >
+            <Download className="w-4 h-4 text-orange-600" /> Export Supplies (.xlsx)
+          </button>
+          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-orange-700 transition-colors cursor-pointer">
+            <Plus className="w-4 h-4" /> Add Supply Record
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-          <h3 className="font-bold text-slate-900">External Supply Records</h3>
+          <div>
+            <h3 className="font-bold text-slate-900">External Supply Records</h3>
+            <p className="text-[11px] text-slate-500">Customer sales & outbound materials invoiced</p>
+          </div>
+          <button
+            onClick={() => downloadExcelReport(`/reports/export-customer-supplies?locationId=${locationId}`, `Customer_Supplies_Location_${locationId}.xlsx`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            title="Export Customer Supplies & GST Bills to Excel"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Excel
+          </button>
         </div>
         
         <div className="overflow-x-auto">

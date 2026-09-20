@@ -14,6 +14,7 @@ import LocationsPage from './pages/LocationsPage';
 import LocationDetailsPage from './pages/LocationDetailsPage';
 import GlobalRecordsPage from './pages/GlobalRecordsPage';
 import ReportsPage from './pages/ReportsPage';
+import ExcelDownloadsPage from './pages/ExcelDownloadsPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import ProfilePage from './pages/ProfilePage';
 
@@ -32,6 +33,7 @@ export default function App() {
                 <Route path="/locations/:id" element={<LocationDetailsPage />} />
                 <Route path="/records" element={<GlobalRecordsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/excel-downloads" element={<ExcelDownloadsPage />} />
                 <Route path="/activity" element={<ActivityLogPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

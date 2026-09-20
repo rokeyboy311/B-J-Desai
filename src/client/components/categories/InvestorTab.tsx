@@ -4,10 +4,12 @@ import { Modal } from "../ui/Modal";
 import {
   Users, Plus, Trash2, Banknote, Search, Calendar, FileText,
   ArrowDownLeft, ArrowUpRight, Pencil, Wallet, TrendingUp,
-  CreditCard, CheckCircle2, ChevronRight, Filter, Building2
+  CreditCard, CheckCircle2, ChevronRight, Filter, Building2,
+  Download, FileSpreadsheet
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
+import { downloadExcelReport } from "../../lib/excelExport";
 
 interface InvestmentParty {
   id: number;
@@ -603,8 +605,8 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
         <>
           {!selectedInvestor ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="relative flex-1 max-w-sm">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="relative flex-1 w-full max-w-sm">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
@@ -614,6 +616,14 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
                     className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
+                <button
+                  onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=investors`, `All_Investors_Location_${locationId}.xlsx`)}
+                  className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+                  title="Export complete investors list and balances to Excel"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Export All Investors (.xlsx)
+                </button>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -632,6 +642,16 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
                       className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer relative group"
                     >
                       <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadExcelReport(`/reports/export-investor/${party.id}`, `Investor_${party.partyName.replace(/\s+/g, '_')}_Passbook.xlsx`);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-emerald-600 bg-white rounded-md shadow-sm border border-slate-100 cursor-pointer"
+                          title="Download Investor Excel Passbook"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                        </button>
                         <button
                           onClick={(e) => openEditParty(party, e)}
                           className="p-1.5 text-slate-400 hover:text-emerald-600 bg-white rounded-md shadow-sm border border-slate-100 cursor-pointer"
@@ -715,12 +735,22 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
                 return (
                   <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                     <div className="p-6 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-wrap">
                         <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-md">
                           {selectedInvestor.partyName.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <h2 className="text-2xl font-black text-slate-900">{selectedInvestor.partyName}</h2>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-2xl font-black text-slate-900">{selectedInvestor.partyName}</h2>
+                            <button
+                              onClick={() => downloadExcelReport(`/reports/export-investor/${selectedInvestor.id}`, `Investor_${selectedInvestor.partyName.replace(/\s+/g, '_')}_Passbook.xlsx`)}
+                              className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              title="Export this investor's personal ledger to Excel"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Export Passbook (.xlsx)
+                            </button>
+                          </div>
                           <p className="text-xs text-slate-500 font-medium">Complete Individual Ledger & Balance Sheet</p>
                         </div>
                       </div>
