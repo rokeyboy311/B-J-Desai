@@ -17,8 +17,15 @@ import siteSupplyRouter from "./routes/siteSupply.routes.ts";
 import syncRouter from "./routes/sync.routes.ts";
 import incomeRouter from "./routes/income.routes.ts";
 import { realtimeSyncMiddleware } from "./lib/realtimeSync.ts";
+import { 
+  initializeSinglePasswordInDB, 
+  verifyPasswordAgainstDB 
+} from "./lib/security.ts";
 
 async function startServer() {
+  // Ensure strictly 1 universal password exists in the database on boot
+  await initializeSinglePasswordInDB();
+
   const app = express();
   const PORT = 3000;
 
@@ -52,7 +59,7 @@ async function startServer() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-app-pin-token', 'x-category-pin-token', 'Cache-Control', 'Pragma']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-app-pin-token', 'x-category-pin-token', 'x-delete-password', 'Cache-Control', 'Pragma']
   }));
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -63,6 +70,27 @@ async function startServer() {
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
     res.setHeader("Surrogate-Control", "no-store");
+    next();
+  });
+
+  // Universal Database Password check for ANY record or details deletion across all endpoints
+  // Strictly enforces: "Koi pn record ke koi pn details ne delete karva mate pan same password set karo. Only 1 j password database ma save karo and verification mate database ma jai ne check kare"
+  app.use("/api", async (req, res, next) => {
+    if (req.method === "DELETE") {
+      const providedPassword =
+        (req.headers["x-delete-password"] as string) ||
+        (req.query.deletePassword as string) ||
+        (req.body && req.body.deletePassword);
+
+      const isAuthorized = await verifyPasswordAgainstDB(providedPassword || "");
+      if (!isAuthorized) {
+        return res.status(403).json({
+          success: false,
+          error: 'Security authorization required: Valid security password ("Bh@ju1204") is required to delete any record or details.',
+          requiresDeletePassword: true
+        });
+      }
+    }
     next();
   });
 

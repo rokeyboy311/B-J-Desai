@@ -8,111 +8,56 @@ export default function ProfilePage() {
   const { user, lockApp } = useAuth();
   const navigate = useNavigate();
 
-  // Master PIN change form
-  const [currentMasterPin, setCurrentMasterPin] = useState("");
-  const [newMasterPin, setNewMasterPin] = useState("");
-  const [confirmMasterPin, setConfirmMasterPin] = useState("");
-  const [masterLoading, setMasterLoading] = useState(false);
-  const [masterSuccess, setMasterSuccess] = useState("");
-  const [masterError, setMasterError] = useState("");
+  // Unified Security Password form
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
-  // Category PIN change form
-  const [currentCatPin, setCurrentCatPin] = useState("");
-  const [newCatPin, setNewCatPin] = useState("");
-  const [confirmCatPin, setConfirmCatPin] = useState("");
-  const [catLoading, setCatLoading] = useState(false);
-  const [catSuccess, setCatSuccess] = useState("");
-  const [catError, setCatError] = useState("");
-
-  const handleChangeMasterPin = async (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMasterError("");
-    setMasterSuccess("");
+    setError("");
+    setSuccess("");
 
-    if (!currentMasterPin || !newMasterPin || !confirmMasterPin) {
-      setMasterError("Please fill in all master PIN fields.");
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError("Please fill in all password fields.");
       return;
     }
 
-    if (newMasterPin !== confirmMasterPin) {
-      setMasterError("New PIN and confirmation do not match.");
+    if (newPassword !== confirmPassword) {
+      setError("New password and confirmation do not match.");
       return;
     }
 
-    if (newMasterPin.length < 4) {
-      setMasterError("New PIN must be at least 4 digits.");
+    if (newPassword.length < 4) {
+      setError("New password must be at least 4 characters.");
       return;
     }
 
-    setMasterLoading(true);
+    setLoading(true);
     try {
       const res = await apiFetch("/auth/change-pin", {
         method: "POST",
         body: JSON.stringify({
-          pinType: "master",
-          currentPin: currentMasterPin,
-          newPin: newMasterPin,
+          currentPassword,
+          newPassword,
         }),
       });
 
       if (res.success) {
-        setMasterSuccess(res.message || "Master PIN updated successfully!");
-        setCurrentMasterPin("");
-        setNewMasterPin("");
-        setConfirmMasterPin("");
+        setSuccess(res.message || "Unified Security Password updated successfully in database!");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
       } else {
-        setMasterError(res.error || "Failed to update Master PIN.");
+        setError(res.error || "Failed to update Security Password.");
       }
     } catch (err: any) {
-      setMasterError(err.message || "Failed to update Master PIN.");
+      setError(err.message || "Failed to update Security Password.");
     } finally {
-      setMasterLoading(false);
-    }
-  };
-
-  const handleChangeCategoryPin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCatError("");
-    setCatSuccess("");
-
-    if (!currentCatPin || !newCatPin || !confirmCatPin) {
-      setCatError("Please fill in all category PIN fields.");
-      return;
-    }
-
-    if (newCatPin !== confirmCatPin) {
-      setCatError("New PIN and confirmation do not match.");
-      return;
-    }
-
-    if (newCatPin.length < 4) {
-      setCatError("New PIN must be at least 4 digits.");
-      return;
-    }
-
-    setCatLoading(true);
-    try {
-      const res = await apiFetch("/auth/change-pin", {
-        method: "POST",
-        body: JSON.stringify({
-          pinType: "category",
-          currentPin: currentCatPin,
-          newPin: newCatPin,
-        }),
-      });
-
-      if (res.success) {
-        setCatSuccess(res.message || "Category Lock PIN updated successfully!");
-        setCurrentCatPin("");
-        setNewCatPin("");
-        setConfirmCatPin("");
-      } else {
-        setCatError(res.error || "Failed to update Category Lock PIN.");
-      }
-    } catch (err: any) {
-      setCatError(err.message || "Failed to update Category Lock PIN.");
-    } finally {
-      setCatLoading(false);
+      setLoading(false);
     }
   };
 
@@ -189,155 +134,83 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* PIN Management Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Master PIN Change */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
-              <KeyRound className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Change Master PIN</h3>
-              <p className="text-xs text-slate-500">Full application access credential</p>
-            </div>
+      {/* Unified Security Password Management Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-8 space-y-6 max-w-2xl">
+        <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+          <div className="p-3 rounded-2xl bg-indigo-50 text-indigo-600">
+            <KeyRound className="w-6 h-6" />
           </div>
-
-          <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs text-indigo-900">
-            Verify with your current Master PIN to configure a new application access credential.
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Unified Security Password</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Single universal database password controlling Login, Category 1 & 2 Access, and Record Deletions.
+            </p>
           </div>
-
-          {masterError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{masterError}</span>
-            </div>
-          )}
-
-          {masterSuccess && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs text-emerald-800">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>{masterSuccess}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleChangeMasterPin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Current Master PIN</label>
-              <input
-                type="password"
-                value={currentMasterPin}
-                onChange={(e) => setCurrentMasterPin(e.target.value)}
-                placeholder="Enter current master PIN"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">New Master PIN</label>
-              <input
-                type="password"
-                value={newMasterPin}
-                onChange={(e) => setNewMasterPin(e.target.value)}
-                placeholder="Enter new 4-12 digit PIN"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Confirm New Master PIN</label>
-              <input
-                type="password"
-                value={confirmMasterPin}
-                onChange={(e) => setConfirmMasterPin(e.target.value)}
-                placeholder="Repeat new master PIN"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={masterLoading}
-              className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm shadow-indigo-600/20"
-            >
-              {masterLoading ? "Updating Master PIN..." : "Update Master PIN"}
-            </button>
-          </form>
         </div>
 
-        {/* Category PIN Change */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-              <Shield className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Change Category Lock PIN</h3>
-              <p className="text-xs text-slate-500">Protects Category 1 (Investors) & Category 2 (Bills)</p>
-            </div>
-          </div>
-
-          <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 text-xs text-emerald-900">
-            Verify with your current Category PIN or Master PIN to configure category security.
-          </div>
-
-          {catError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{catError}</span>
-            </div>
-          )}
-
-          {catSuccess && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs text-emerald-800">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>{catSuccess}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleChangeCategoryPin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Current Category / Master PIN</label>
-              <input
-                type="password"
-                value={currentCatPin}
-                onChange={(e) => setCurrentCatPin(e.target.value)}
-                placeholder="Enter current PIN"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">New Category Lock PIN</label>
-              <input
-                type="password"
-                value={newCatPin}
-                onChange={(e) => setNewCatPin(e.target.value)}
-                placeholder="Enter new 4-12 digit PIN"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Confirm New Category PIN</label>
-              <input
-                type="password"
-                value={confirmCatPin}
-                onChange={(e) => setConfirmCatPin(e.target.value)}
-                placeholder="Repeat new category PIN"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={catLoading}
-              className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm shadow-emerald-600/20"
-            >
-              {catLoading ? "Updating Category PIN..." : "Update Category Lock PIN"}
-            </button>
-          </form>
+        <div className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100/80 text-xs text-indigo-900 leading-relaxed">
+          <p className="font-semibold mb-1">🔐 Single Security Password Architecture</p>
+          Only 1 password is saved in the database (<code className="bg-indigo-100 px-1.5 py-0.5 rounded text-indigo-800 font-mono font-bold">Bh@ju1204</code> by default). Any record deletion, category access, or application unlock verifies directly against the database record before granting permission.
         </div>
+
+        {error && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs font-semibold text-rose-800">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {success && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs font-semibold text-emerald-800">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <span>{success}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleChangePassword} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">Current Security Password</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">New Security Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password (e.g. Bh@ju1204)"
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Confirm New Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat new password"
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+          >
+            {loading ? "Updating in Database..." : "Update Security Password in Database"}
+          </button>
+        </form>
       </div>
     </div>
   );

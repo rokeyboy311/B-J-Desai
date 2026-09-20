@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { getOrCreateUser } from '../../db/users.ts';
 
-export const MASTER_PIN = process.env.APP_ACCESS_PIN || process.env.APP_MASTER_PIN || "199198197";
+export const MASTER_PIN = process.env.APP_ACCESS_PIN || process.env.APP_MASTER_PIN || "Bh@ju1204";
 
 export function timingSafeCompare(a: string, b: string): boolean {
   if (typeof a !== 'string' || typeof b !== 'string') return false;

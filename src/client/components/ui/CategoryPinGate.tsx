@@ -136,20 +136,17 @@ export default function CategoryPinGate({
       )}
 
       <form onSubmit={handleVerifyPin} className="w-full space-y-4">
-        <div className="relative">
+        <div className="relative flex items-center">
           <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
           <input
             type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={10}
             value={pin}
             onChange={(e) => {
               setPin(e.target.value);
               if (errorMsg) setErrorMsg("");
             }}
-            placeholder="Enter Category PIN"
-            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-base tracking-widest font-mono font-black text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-inner"
+            placeholder="Enter Security Password..."
+            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm font-medium text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-inner"
             autoFocus
           />
         </div>
@@ -157,10 +154,10 @@ export default function CategoryPinGate({
         <button
           type="submit"
           disabled={loading || !pin}
-          className="w-full py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-black rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           {loading ? (
-            "Verifying PIN..."
+            "Verifying from Database..."
           ) : (
             <>
               <Unlock className="w-4 h-4" /> Unlock Category

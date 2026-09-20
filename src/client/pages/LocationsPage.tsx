@@ -5,6 +5,7 @@ import { apiFetch } from "../lib/api";
 import { Modal } from "../components/ui/Modal";
 import { motion } from "motion/react";
 import { useLiveSync } from "../hooks/useLiveSync";
+import { useToast } from "../contexts/ToastContext";
 
 interface Location {
   id: number;
@@ -18,13 +19,12 @@ export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { showToast, confirmAction } = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [formData, setFormData] = useState({ name: "", address: "" });
   const [formError, setFormError] = useState("");
-
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const fetchLocations = async (isBackground = false) => {
     try {
@@ -61,12 +61,6 @@ export default function LocationsPage() {
     setIsModalOpen(true);
   };
 
-  const openDeleteModal = (loc: Location, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedLocation(loc);
-    setIsDeleteModalOpen(true);
-  };
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
@@ -84,11 +78,13 @@ export default function LocationsPage() {
           method: "PUT",
           body: JSON.stringify(payload),
         });
+        showToast("Location updated successfully", "success");
       } else {
         await apiFetch("/locations", {
           method: "POST",
           body: JSON.stringify(payload),
         });
+        showToast("Location created successfully", "success");
       }
       setIsModalOpen(false);
       fetchLocations();
@@ -97,14 +93,24 @@ export default function LocationsPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedLocation) return;
+  const handleDeleteLocation = async (loc: Location, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const confirmed = await confirmAction({
+      title: "Delete Location",
+      message: `Are you sure you want to delete ${loc.name}? This will permanently remove access to all associated records.`,
+      confirmLabel: "Verify & Delete",
+      isDanger: true,
+      requirePassword: true
+    });
+
+    if (!confirmed) return;
+
     try {
-      await apiFetch(`/locations/${selectedLocation.id}`, { method: "DELETE" });
-      setIsDeleteModalOpen(false);
+      await apiFetch(`/locations/${loc.id}`, { method: "DELETE" });
+      showToast(`Location "${loc.name}" deleted successfully`, "success");
       fetchLocations();
-    } catch (error) {
-      console.error("Failed to delete");
+    } catch (error: any) {
+      showToast(error.message || "Failed to delete location", "error");
     }
   };
 
@@ -189,7 +195,7 @@ export default function LocationsPage() {
                     <Edit2 size={16} />
                   </button>
                   <button type="button" 
-                    onClick={(e) => openDeleteModal(loc, e)}
+                    onClick={(e) => handleDeleteLocation(loc, e)}
                     className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
                     title="Delete Location"
                   >
@@ -215,7 +221,7 @@ export default function LocationsPage() {
                 <button
                   type="button"
                   title="Delete this location"
-                  onClick={(e) => openDeleteModal(loc, e)}
+                  onClick={(e) => handleDeleteLocation(loc, e)}
                   className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200 cursor-pointer shadow-none hover:shadow-sm"
                 >
                   <Trash2 size={17} className="text-rose-500" />
@@ -286,45 +292,6 @@ export default function LocationsPage() {
             </button>
           </div>
         </form>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Delete Location"
-        maxWidth="sm"
-      >
-        <div className="space-y-4">
-          <div className="bg-rose-50 p-4 rounded-xl flex items-start gap-3 border border-rose-100">
-            <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={20} />
-            <div>
-              <h4 className="text-sm font-bold text-rose-900">Warning</h4>
-              <p className="text-sm text-rose-700 mt-1">
-                Deleting this location will also permanently remove access to all associated records.
-              </p>
-            </div>
-          </div>
-          <p className="text-sm text-slate-600">
-            Are you sure you want to delete <strong>{selectedLocation?.name}</strong>? This action cannot be undone.
-          </p>
-          <div className="pt-4 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(false)}
-              className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-            >
-              Cancel
-            </button>
-            <button type="button"
-              onClick={handleDelete}
-              className="px-5 py-2.5 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition-colors flex items-center gap-2"
-            >
-              <Trash2 size={16} />
-              Yes, Delete Location
-            </button>
-          </div>
-        </div>
       </Modal>
     </div>
   );

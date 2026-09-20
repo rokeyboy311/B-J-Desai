@@ -15,6 +15,11 @@ import {
 import { db } from '../../db/index.ts';
 import { securitySettings } from '../../db/schema.ts';
 import { eq, sql } from 'drizzle-orm';
+import { 
+  verifyPasswordAgainstDB, 
+  updateUniversalPasswordInDB, 
+  getUniversalPasswordFromDB 
+} from '../lib/security.ts';
 
 const authRouter = Router();
 
@@ -26,8 +31,8 @@ function getClientIp(req: Request): string {
   return req.ip || req.socket.remoteAddress || 'unknown';
 }
 
-// Endpoint to verify master PIN and issue app access token with brute-force protection
-authRouter.post('/verify-pin', async (req: Request, res: Response) => {
+// Shared handler to verify security password and issue app access token
+const handleVerifyPinOrPassword = async (req: Request, res: Response) => {
   try {
     const clientIp = getClientIp(req);
     const rateCheck = checkPinRateLimit(clientIp);
@@ -38,35 +43,16 @@ authRouter.post('/verify-pin', async (req: Request, res: Response) => {
       });
     }
 
-    const { pin } = req.body;
-    if (!pin || (typeof pin !== 'string' && typeof pin !== 'number')) {
-      return res.status(400).json({ success: false, error: 'PIN is required' });
+    const { pin, password } = req.body;
+    const inputVal = pin !== undefined ? pin : password;
+    if (!inputVal || (typeof inputVal !== 'string' && typeof inputVal !== 'number')) {
+      return res.status(400).json({ success: false, error: 'Password / PIN is required' });
     }
 
-    const trimmedPin = String(pin).replace(/[\s\-_]/g, '').trim();
+    const trimmedPassword = String(inputVal).trim();
 
-    // Query database for custom configured master PIN or check environment variable or default pins
-    let configuredMasterPin = MASTER_PIN;
-    try {
-      const settings = await db.select().from(securitySettings).where(
-        sql`${securitySettings.key} IN ('APP_MASTER_PIN', 'APP_ACCESS_PIN', 'MASTER_PIN', 'CATEGORY_LOCK_PIN')`
-      );
-      if (settings.length > 0 && settings[0].value) {
-        configuredMasterPin = settings[0].value.trim();
-      }
-    } catch (dbErr) {
-      console.error('Failed to query securitySettings for master PIN:', dbErr);
-    }
-
-    // Valid master PINs: configured PIN in database or server-side MASTER_PIN
-    const validMasterPins = [
-      configuredMasterPin,
-      MASTER_PIN,
-      process.env.APP_ACCESS_PIN,
-      process.env.APP_MASTER_PIN
-    ].filter(Boolean) as string[];
-
-    const isMatch = validMasterPins.some(p => timingSafeCompare(trimmedPin, p));
+    // Query database for the single stored universal password
+    const isMatch = await verifyPasswordAgainstDB(trimmedPassword);
 
     if (isMatch) {
       resetPinRateLimit(clientIp);
@@ -76,7 +62,7 @@ authRouter.post('/verify-pin', async (req: Request, res: Response) => {
         success: true,
         token,
         user,
-        message: 'PIN verified successfully. Access granted.'
+        message: 'Password verified successfully from database. Access granted.'
       });
     }
 
@@ -90,15 +76,18 @@ authRouter.post('/verify-pin', async (req: Request, res: Response) => {
 
     return res.status(401).json({
       success: false,
-      error: 'Invalid PIN. Access denied.'
+      error: 'Invalid password. Access denied.'
     });
   } catch (error) {
-    console.error('Error verifying PIN:', error);
-    return res.status(500).json({ success: false, error: 'Internal server error verifying PIN' });
+    console.error('Error verifying password:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error verifying password' });
   }
-});
+};
 
-// Endpoint to verify Category 1 (Investor) & Category 2 (Investment/Bills) Lock PIN with session check & rate limiting
+authRouter.post('/verify-pin', handleVerifyPinOrPassword);
+authRouter.post('/verify-password', handleVerifyPinOrPassword);
+
+// Endpoint to verify Category 1 (Investor) & Category 2 (Investment/Bills) Lock Password
 authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const clientIp = getClientIp(req);
@@ -112,38 +101,16 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
       });
     }
 
-    const { pin } = req.body;
-    if (!pin || (typeof pin !== 'string' && typeof pin !== 'number')) {
-      return res.status(400).json({ success: false, verified: false, error: 'Category PIN is required' });
+    const { pin, password } = req.body;
+    const inputVal = pin !== undefined ? pin : password;
+    if (!inputVal || (typeof inputVal !== 'string' && typeof inputVal !== 'number')) {
+      return res.status(400).json({ success: false, verified: false, error: 'Password is required' });
     }
 
-    const trimmedPin = String(pin).replace(/[\s\-_]/g, '').trim();
+    const trimmedPassword = String(inputVal).trim();
 
-    // Query database for CATEGORY_LOCK_PIN or check environment variable
-    let categoryPin = process.env.CATEGORY_ACCESS_PIN || '190190';
-    try {
-      const settings = await db.select().from(securitySettings).where(eq(securitySettings.key, 'CATEGORY_LOCK_PIN'));
-      if (settings.length > 0 && settings[0].value) {
-        categoryPin = settings[0].value.trim();
-      } else {
-        await db.insert(securitySettings).values({
-          key: 'CATEGORY_LOCK_PIN',
-          value: categoryPin,
-          description: 'PIN lock for Category 1 Investor and Category 2 Investment'
-        }).onConflictDoNothing();
-      }
-    } catch (dbErr) {
-      console.error('Failed to query securitySettings table, using configured PIN:', dbErr);
-    }
-
-    const validCategoryPins = [
-      categoryPin,
-      process.env.CATEGORY_ACCESS_PIN,
-      MASTER_PIN
-    ].filter(Boolean) as string[];
-
-    // Verify against DB/configured category PIN or MASTER_PIN using timing-safe comparison
-    const isMatch = validCategoryPins.some(p => timingSafeCompare(trimmedPin, p));
+    // Check directly against single database password
+    const isMatch = await verifyPasswordAgainstDB(trimmedPassword);
     if (isMatch) {
       resetPinRateLimit(rateKey);
       const categoryToken = generateCategoryPinToken(req.dbUser?.id);
@@ -151,7 +118,7 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
         success: true,
         verified: true,
         categoryToken,
-        message: 'Category PIN verified successfully. Access granted.'
+        message: 'Password verified successfully from database. Category access granted.'
       });
     }
 
@@ -167,11 +134,39 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
     return res.status(401).json({
       success: false,
       verified: false,
-      error: 'Incorrect Category PIN. Access denied.'
+      error: 'Incorrect password. Access denied.'
     });
   } catch (error) {
-    console.error('Error verifying category PIN:', error);
-    return res.status(500).json({ success: false, error: 'Internal server error verifying category PIN' });
+    console.error('Error verifying category password:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error verifying password' });
+  }
+});
+
+// Endpoint to verify password before deleting ANY record or details
+// Satisfies: "Koi pn record ke koi pn details ne delete karva mate pan same password set karo"
+authRouter.post('/verify-delete-password', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const clientIp = getClientIp(req);
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, error: 'Security password is required to delete records.' });
+    }
+
+    const isMatch = await verifyPasswordAgainstDB(String(password).trim());
+    if (isMatch) {
+      return res.json({
+        success: true,
+        message: 'Security password verified from database. Record deletion authorized.'
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      error: 'Incorrect security password. Record deletion denied.'
+    });
+  } catch (error) {
+    console.error('Error verifying delete password:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error verifying delete authorization' });
   }
 });
 
@@ -180,83 +175,40 @@ authRouter.get('/category-lock-status', requireAuth, async (req: AuthRequest, re
   res.json({
     locked: true,
     categoryNames: ['1. Investor Category', '2. Investment Category'],
-    description: 'Investor, Investment and Bill records are PIN-protected.'
+    description: 'Investor, Investment and Bill records are password-protected.'
   });
 });
 
-// Endpoint to update Master PIN or Category Lock PIN
+// Endpoint to update Master Security Password (stored as single password in database)
 authRouter.post('/change-pin', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { pinType, currentPin, newPin } = req.body;
-    if (!pinType || !currentPin || !newPin) {
-      return res.status(400).json({ success: false, error: 'pinType, currentPin, and newPin are required' });
+    const { currentPin, newPin, currentPassword, newPassword } = req.body;
+    const cleanCurrent = String(currentPin || currentPassword || '').trim();
+    const cleanNew = String(newPin || newPassword || '').trim();
+
+    if (!cleanCurrent || !cleanNew) {
+      return res.status(400).json({ success: false, error: 'Current password and new password are required' });
     }
 
-    const cleanCurrentPin = String(currentPin).replace(/[\s\-_]/g, '').trim();
-    const cleanNewPin = String(newPin).replace(/[\s\-_]/g, '').trim();
-
-    if (cleanNewPin.length < 4 || cleanNewPin.length > 12) {
-      return res.status(400).json({ success: false, error: 'New PIN must be between 4 and 12 digits/characters.' });
+    if (cleanNew.length < 4 || cleanNew.length > 32) {
+      return res.status(400).json({ success: false, error: 'New password must be between 4 and 32 characters.' });
     }
 
-    if (pinType === 'master') {
-      let configuredMasterPin = MASTER_PIN;
-      const settings = await db.select().from(securitySettings).where(
-        sql`${securitySettings.key} IN ('APP_MASTER_PIN', 'APP_ACCESS_PIN', 'MASTER_PIN')`
-      );
-      if (settings.length > 0 && settings[0].value) {
-        configuredMasterPin = settings[0].value.trim();
-      }
-      const validMasterPins = [configuredMasterPin, MASTER_PIN, process.env.APP_ACCESS_PIN, process.env.APP_MASTER_PIN].filter(Boolean) as string[];
-      const isMatch = validMasterPins.some(p => timingSafeCompare(cleanCurrentPin, p));
-      if (!isMatch) {
-        return res.status(401).json({ success: false, error: 'Current Master PIN is incorrect.' });
-      }
-
-      await db.insert(securitySettings)
-        .values({
-          key: 'APP_MASTER_PIN',
-          value: cleanNewPin,
-          description: 'Master Application PIN',
-          updatedAt: new Date()
-        })
-        .onConflictDoUpdate({
-          target: securitySettings.key,
-          set: { value: cleanNewPin, updatedAt: new Date() }
-        });
-
-      return res.json({ success: true, message: 'Master PIN updated successfully.' });
-    } else if (pinType === 'category') {
-      let categoryPin = process.env.CATEGORY_ACCESS_PIN || '190190';
-      const settings = await db.select().from(securitySettings).where(eq(securitySettings.key, 'CATEGORY_LOCK_PIN'));
-      if (settings.length > 0 && settings[0].value) {
-        categoryPin = settings[0].value.trim();
-      }
-      const validCategoryPins = [categoryPin, process.env.CATEGORY_ACCESS_PIN, MASTER_PIN].filter(Boolean) as string[];
-      const isMatch = validCategoryPins.some(p => timingSafeCompare(cleanCurrentPin, p));
-      if (!isMatch) {
-        return res.status(401).json({ success: false, error: 'Current Category PIN is incorrect.' });
-      }
-
-      await db.insert(securitySettings)
-        .values({
-          key: 'CATEGORY_LOCK_PIN',
-          value: cleanNewPin,
-          description: 'PIN lock for Category 1 Investor and Category 2 Investment',
-          updatedAt: new Date()
-        })
-        .onConflictDoUpdate({
-          target: securitySettings.key,
-          set: { value: cleanNewPin, updatedAt: new Date() }
-        });
-
-      return res.json({ success: true, message: 'Category Lock PIN updated successfully.' });
-    } else {
-      return res.status(400).json({ success: false, error: 'Invalid pinType. Must be "master" or "category".' });
+    const isMatch = await verifyPasswordAgainstDB(cleanCurrent);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: 'Current password is incorrect.' });
     }
+
+    // Persist single password in database
+    await updateUniversalPasswordInDB(cleanNew);
+
+    return res.json({ 
+      success: true, 
+      message: 'Unified Security Password updated successfully in database.' 
+    });
   } catch (error) {
-    console.error('Error changing PIN:', error);
-    return res.status(500).json({ success: false, error: 'Internal server error changing PIN' });
+    console.error('Error changing password:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error changing password' });
   }
 });
 

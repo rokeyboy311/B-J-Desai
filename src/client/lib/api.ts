@@ -59,6 +59,16 @@ export function clearStoredCategoryPinToken(): void {
   }
 }
 
+let activeDeletePassword: string | null = null;
+
+export function setActiveDeletePassword(password: string | null): void {
+  activeDeletePassword = password;
+}
+
+export function getActiveDeletePassword(): string | null {
+  return activeDeletePassword;
+}
+
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const token = getStoredPinToken();
   const categoryToken = getStoredCategoryPinToken();
@@ -71,6 +81,11 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   if (categoryToken) {
     headers.set("x-category-pin-token", categoryToken);
+  }
+
+  const method = (options.method || 'GET').toUpperCase();
+  if (method === 'DELETE' && activeDeletePassword) {
+    headers.set("x-delete-password", activeDeletePassword);
   }
 
   if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
@@ -109,7 +124,6 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     throw new Error(errorMsg);
   }
 
-  const method = (options.method || 'GET').toUpperCase();
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) && !endpoint.includes('/auth/')) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('bd_erp_data_updated'));

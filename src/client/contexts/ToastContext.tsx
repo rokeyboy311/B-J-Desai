@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from "react";
-import { CheckCircle2, AlertCircle, Info, X, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Info, X, AlertTriangle, KeyRound, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { apiFetch, setActiveDeletePassword } from "../lib/api";
 
 export type ToastType = "success" | "error" | "info";
 
@@ -16,6 +17,7 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   isDanger?: boolean;
+  requirePassword?: boolean;
 }
 
 interface ToastContextType {
@@ -33,6 +35,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     resolve: (val: boolean) => void;
   } | null>(null);
 
+  const [deletePasswordInput, setDeletePasswordInput] = useState("");
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+
   const confirmResolverRef = useRef<((val: boolean) => void) | null>(null);
 
   const showToast = useCallback((message: string, type: ToastType = "info") => {
@@ -48,6 +54,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const normalizedOptions: ConfirmOptions =
       typeof options === "string" ? { message: options, isDanger: true } : options;
 
+    setDeletePasswordInput("");
+    setPasswordError("");
+    setVerifyingPassword(false);
+
     return new Promise<boolean>((resolve) => {
       confirmResolverRef.current = resolve;
       setConfirmModal({
@@ -58,7 +68,43 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    const needsPassword = confirmModal?.options.isDanger || confirmModal?.options.requirePassword;
+    if (needsPassword) {
+      if (!deletePasswordInput.trim()) {
+        setPasswordError("Please enter the security password to confirm deletion.");
+        return;
+      }
+
+      setVerifyingPassword(true);
+      setPasswordError("");
+
+      try {
+        const res = await apiFetch("/auth/verify-delete-password", {
+          method: "POST",
+          body: JSON.stringify({ password: deletePasswordInput.trim() })
+        });
+
+        if (res && res.success) {
+          // Set active delete password for following HTTP DELETE requests
+          setActiveDeletePassword(deletePasswordInput.trim());
+          if (confirmResolverRef.current) {
+            confirmResolverRef.current(true);
+            confirmResolverRef.current = null;
+          }
+          setConfirmModal(null);
+          setDeletePasswordInput("");
+        } else {
+          setPasswordError(res?.error || "Incorrect security password. Access denied.");
+        }
+      } catch (err: any) {
+        setPasswordError(err.message || "Incorrect security password. Deletion not authorized.");
+      } finally {
+        setVerifyingPassword(false);
+      }
+      return;
+    }
+
     if (confirmResolverRef.current) {
       confirmResolverRef.current(true);
       confirmResolverRef.current = null;
@@ -72,6 +118,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       confirmResolverRef.current = null;
     }
     setConfirmModal(null);
+    setDeletePasswordInput("");
+    setPasswordError("");
+    setActiveDeletePassword(null);
   };
 
   const removeToast = (id: string) => {
@@ -153,12 +202,47 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 {confirmModal.options.message}
               </p>
 
+              {(confirmModal.options.isDanger || confirmModal.options.requirePassword) && (
+                <div className="space-y-2 pt-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Security Password Verification
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type="password"
+                      value={deletePasswordInput}
+                      onChange={(e) => {
+                        setDeletePasswordInput(e.target.value);
+                        if (passwordError) setPasswordError("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleConfirm();
+                        }
+                      }}
+                      placeholder="Enter security password to delete"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all shadow-inner"
+                      autoFocus
+                    />
+                  </div>
+                  {passwordError && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 bg-rose-50 p-2 rounded-lg border border-rose-200">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{passwordError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   id="confirm-dialog-cancel-btn"
                   onClick={handleCancel}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  disabled={verifyingPassword}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {confirmModal.options.cancelLabel || "Cancel"}
                 </button>
@@ -166,13 +250,21 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   type="button"
                   id="confirm-dialog-confirm-btn"
                   onClick={handleConfirm}
-                  className={`px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition-colors ${
+                  disabled={verifyingPassword}
+                  className={`px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer ${
                     confirmModal.options.isDanger
                       ? "bg-rose-600 hover:bg-rose-700"
                       : "bg-indigo-600 hover:bg-indigo-700"
-                  }`}
+                  } disabled:opacity-50`}
                 >
-                  {confirmModal.options.confirmLabel || "Confirm"}
+                  {verifyingPassword ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    confirmModal.options.confirmLabel || (confirmModal.options.isDanger ? "Verify & Delete" : "Confirm")
+                  )}
                 </button>
               </div>
             </motion.div>

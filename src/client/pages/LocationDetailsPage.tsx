@@ -6,7 +6,6 @@ import {
   ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock, Trash2, AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Modal } from "../components/ui/Modal";
 
 import InvestorTab from "../components/categories/InvestorTab";
 import InvestmentTab from "../components/categories/InvestmentTab";
@@ -21,15 +20,13 @@ import { useToast } from "../contexts/ToastContext";
 import { Database } from "lucide-react";
 
 export default function LocationDetailsPage() {
-  const { showToast } = useToast();
+  const { showToast, confirmAction } = useToast();
   const { id: locationId } = useParams();
   const navigate = useNavigate();
 
   const [activeCategory, setActiveCategory] = useState<"investors" | "investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "master_data">("investors");
   
   const [locationName, setLocationName] = useState("Loading...");
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const loadLocationDetails = async () => {
     try {
@@ -46,17 +43,23 @@ export default function LocationDetailsPage() {
   };
 
   const handleDeleteLocation = async () => {
+    const confirmed = await confirmAction({
+      title: "Delete Location",
+      message: `Are you sure you want to delete ${locationName}? This will remove all associated records permanently.`,
+      confirmLabel: "Verify & Delete",
+      isDanger: true,
+      requirePassword: true
+    });
+
+    if (!confirmed) return;
+
     try {
-      setDeleting(true);
       await apiFetch(`/locations/${locationId}`, { method: "DELETE" });
-      setIsDeleteModalOpen(false);
       showToast("Location deleted successfully", "success");
       navigate("/locations");
     } catch (err: any) {
       console.error("Failed to delete location", err);
       showToast(err.message || "Failed to delete location. Please try again.", "error");
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -91,8 +94,8 @@ export default function LocationDetailsPage() {
 
         <button
           type="button"
-          onClick={() => setIsDeleteModalOpen(true)}
-          className="inline-flex items-center gap-2 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all shadow-xs w-fit"
+          onClick={handleDeleteLocation}
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all shadow-xs w-fit cursor-pointer"
           title="Delete this location"
         >
           <Trash2 className="w-4 h-4 text-rose-600" />
@@ -197,44 +200,6 @@ export default function LocationDetailsPage() {
           </AnimatePresence>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Delete Location"
-        maxWidth="sm"
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
-            <AlertTriangle className="w-6 h-6 text-rose-600 shrink-0" />
-            <div className="text-xs">
-              <p className="font-bold">Are you sure you want to delete this location?</p>
-              <p className="text-rose-600 mt-0.5">Location: <span className="font-bold">{locationName}</span></p>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500">
-            This will remove this location from your active sites list. This action cannot be undone.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={deleting}
-              onClick={handleDeleteLocation}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors"
-            >
-              {deleting ? "Deleting..." : "Yes, Delete Location"}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </motion.div>
   );
 }

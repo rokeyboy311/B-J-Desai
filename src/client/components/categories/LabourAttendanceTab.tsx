@@ -562,23 +562,22 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   };
 
   // Delete Record
-  const handleDeleteRecord = (id: number) => {
-    confirmAction({
+  const handleDeleteRecord = async (id: number) => {
+    const confirmed = await confirmAction({
       title: "Delete Entry",
       message: "Are you sure you want to delete this labour/attendance record? This will adjust your Category 2 deductions.",
-      confirmText: "Delete",
-      isDestructive: true,
-      onConfirm: async () => {
-        try {
-          await apiFetch(`/labour/${id}`, { method: "DELETE" });
-          showToast("Record deleted successfully", "success");
-          triggerSync("labour");
-          loadData(true);
-        } catch (err: any) {
-          showToast(err.message || "Failed to delete record", "error");
-        }
-      }
+      confirmLabel: "Delete",
+      isDanger: true
     });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/labour/${id}`, { method: "DELETE" });
+      showToast("Record deleted successfully", "success");
+      triggerSync("labour");
+      loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete record", "error");
+    }
   };
 
   // Open Edit Modal
