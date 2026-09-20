@@ -1124,6 +1124,7 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isPartyModalOpen}
         onClose={() => setIsPartyModalOpen(false)}
+        maxWidth="md"
         title={editingPartyId ? "Edit Investor Account" : "Add New Investor Account"}
       >
         <form onSubmit={handleSaveParty} className="space-y-4">
@@ -1177,6 +1178,7 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
+        maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-amber-100 text-amber-800 rounded-lg">
@@ -1280,6 +1282,7 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isContributionModalOpen}
         onClose={() => setIsContributionModalOpen(false)}
+        maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg">
@@ -1383,6 +1386,7 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isInvestmentModalOpen}
         onClose={() => setIsInvestmentModalOpen(false)}
+        maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-indigo-100 text-indigo-800 rounded-lg">

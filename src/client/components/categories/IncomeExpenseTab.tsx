@@ -283,7 +283,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
         </table>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Expenses">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Expenses" maxWidth="xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -390,7 +390,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
       </Modal>
 
       {/* Manage Parties Modal */}
-      <Modal isOpen={isManagePartiesOpen} onClose={() => setIsManagePartiesOpen(false)} title="Manage Parties">
+      <Modal isOpen={isManagePartiesOpen} onClose={() => setIsManagePartiesOpen(false)} title="Manage Parties" maxWidth="md">
         <div className="space-y-4">
           <div className="flex gap-2">
             <input 
@@ -442,7 +442,7 @@ export default function IncomeExpenseTab({ locationId }: { locationId: number })
       </Modal>
 
       {/* Manage Teams Modal */}
-      <Modal isOpen={isManageTeamsOpen} onClose={() => setIsManageTeamsOpen(false)} title="Manage Teams">
+      <Modal isOpen={isManageTeamsOpen} onClose={() => setIsManageTeamsOpen(false)} title="Manage Teams" maxWidth="md">
         <div className="space-y-4">
           <div className="flex gap-2">
             <input 

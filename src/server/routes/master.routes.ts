@@ -33,17 +33,55 @@ masterRouter.post('/parties', async (req: AuthRequest, res) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
 
-    const { name, locationId } = req.body;
+    const { name, locationId, address, gst, notes } = req.body;
     if (!name || !locationId) return res.status(400).json({ error: "Name and Location ID required" });
     const locId = parseInt(String(locationId), 10);
     await assertLocationAccess(userId, locId);
 
-    const inserted = await db.insert(parties).values({ name, locationId: locId, userId }).returning();
+    const inserted = await db.insert(parties).values({ 
+      name: String(name).trim(), 
+      locationId: locId, 
+      userId,
+      address: address ? String(address).trim() : null,
+      gst: gst ? String(gst).trim() : null,
+      notes: notes ? String(notes).trim() : null
+    }).returning();
     await db.insert(auditLogs).values({ userId, action: 'CREATE_PARTY', entityType: 'PARTY', entityId: inserted[0].id, metadata: JSON.stringify({ name, locationId: locId }) });
+    realtimeSync.notifyMutation('CREATE_PARTY', `/master/parties?locationId=${locId}`, inserted[0]);
     res.status(201).json(inserted[0]);
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: "Failed to create party" });
+  }
+});
+
+masterRouter.put('/parties/:id', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
+
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "Valid id required" });
+
+    const existing = await db.select().from(parties).where(eq(parties.id, id)).limit(1);
+    if (!existing.length) return res.status(404).json({ error: "Party not found" });
+    await assertLocationAccess(userId, existing[0].locationId);
+
+    const { name, address, gst, notes } = req.body;
+    const updated = await db.update(parties).set({
+      ...(name !== undefined && { name: String(name).trim() }),
+      ...(address !== undefined && { address: address ? String(address).trim() : null }),
+      ...(gst !== undefined && { gst: gst ? String(gst).trim() : null }),
+      ...(notes !== undefined && { notes: notes ? String(notes).trim() : null })
+    }).where(eq(parties.id, id)).returning();
+
+    if (!updated.length) return res.status(404).json({ error: "Party not found" });
+    await db.insert(auditLogs).values({ userId, action: 'UPDATE_PARTY', entityType: 'PARTY', entityId: id, metadata: JSON.stringify(req.body) });
+    realtimeSync.notifyMutation('UPDATE_PARTY', `/master/parties`, updated[0]);
+    res.json(updated[0]);
+  } catch (err: any) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: "Failed to update party" });
   }
 });
 
@@ -63,6 +101,7 @@ masterRouter.delete('/parties/:id', async (req: AuthRequest, res) => {
     await db.update(parties)
       .set({ isDeleted: 1 })
       .where(eq(parties.id, id));
+    realtimeSync.notifyMutation('DELETE_PARTY', `/master/parties`, { id });
     res.json({ success: true });
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message });

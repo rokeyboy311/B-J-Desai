@@ -461,8 +461,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   // Save Bill Investment
   const handleCreateBill = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!billData.partyName || !billData.materialName || !billData.quantity || !billData.rate) {
-      showToast("Please fill in Party, Material, Quantity and Rate.", "error");
+    if (!billData.partyName || !billData.quantity || !billData.rate) {
+      showToast("Please fill in Party/Customer/Company Name, Quantity and Rate.", "error");
       return;
     }
 
@@ -471,7 +471,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         locationId,
         date: billData.date,
         partyName: billData.partyName.trim(),
-        materialName: billData.materialName.trim(),
+        materialName: billData.materialName ? billData.materialName.trim() : "General Bill",
         quantity: parseFloat(billData.quantity) || 0,
         unit: effectiveUnit,
         rate: parseFloat(billData.rate) || 0,
@@ -488,7 +488,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         notes: billData.notes,
         isBillIncome: true,
         type: "BILL_INCOME",
-        title: `Bill: ${billData.materialName} - ${billData.partyName}`,
+        title: `Bill: ${billData.partyName.trim()}`,
       };
 
       if (editingBillId) {
@@ -1478,9 +1478,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <div>
               <h3 className="font-black text-blue-900 text-sm flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-700" />
-                Bill Investment & Material Invoices
+                Bill Investment & Invoices
               </h3>
-              <p className="text-xs text-blue-700">Detailed bill investments with material, rate, GST, transport, and discounts.</p>
+              <p className="text-xs text-blue-700">Detailed bill investments with quantity, rate, GST, transport, and discounts.</p>
             </div>
 
             <button
@@ -1500,8 +1500,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Bill Date</th>
-                    <th className="p-3.5">Party / Customer</th>
-                    <th className="p-3.5">Material Details</th>
+                    <th className="p-3.5">Party / Customer / Company</th>
+                    <th className="p-3.5">Bill Details / Qty</th>
                     <th className="p-3.5">Status</th>
                     <th className="p-3.5 text-right">Subtotal</th>
                     <th className="p-3.5 text-right">Transport / Disc</th>
@@ -1516,10 +1516,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                       <td className="p-3.5 text-slate-600 font-medium">{bill.date}</td>
                       <td className="p-3.5 font-bold text-slate-900">{bill.partyName || "-"}</td>
                       <td className="p-3.5">
-                        <div className="font-semibold text-slate-800">{bill.materialName || "-"}</div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="font-semibold text-slate-800">
                           {bill.quantity} {bill.unit} &bull; Rate: ₹{bill.rate}
                         </div>
+                        {bill.notes && <div className="text-[10px] text-slate-500 truncate max-w-[180px]">{bill.notes}</div>}
                       </td>
                       <td className="p-3.5">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1865,6 +1865,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isCapitalModalOpen}
         onClose={() => setIsCapitalModalOpen(false)}
+        maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-indigo-100 text-indigo-800 rounded-lg"><Building2 className="w-5 h-5" /></div>
@@ -2022,6 +2023,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
+        maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-amber-100 text-amber-800 rounded-lg"><ArrowDownLeft className="w-5 h-5" /></div>
@@ -2119,21 +2121,22 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </form>
       </Modal>
 
-      {/* MODAL: Add / Edit Bill Investment with MANAGE MATERIAL BUTTON */}
+      {/* MODAL: Add / Edit Bill Investment */}
       <Modal
         isOpen={isBillModalOpen}
         onClose={() => setIsBillModalOpen(false)}
+        maxWidth="xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-blue-100 text-blue-800 rounded-lg"><FileText className="w-5 h-5" /></div>
             <div>
               <span className="font-black text-slate-900 text-base">{editingBillId ? "Edit Bill Investment" : "Add Bill Investment"}</span>
-              <p className="text-xs text-slate-500 font-normal">Material and vendor bill based investment record</p>
+              <p className="text-xs text-slate-500 font-normal">Party / Company invoice and billing based investment record</p>
             </div>
           </div>
         }
       >
-        <form onSubmit={handleCreateBill} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+        <form onSubmit={handleCreateBill} className="space-y-4">
           {/* 1. Date & Status */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -2163,7 +2166,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           {/* 2. Party Name */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">3. Party / Customer / Vendor Name *</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">3. Party / Customer / Company Name *</label>
             <div className="space-y-1.5">
               {masterParties.length > 0 && (
                 <select
@@ -2182,102 +2185,42 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 required
                 value={billData.partyName}
                 onChange={e => setBillData({ ...billData, partyName: e.target.value })}
-                placeholder="Enter party / customer name"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                placeholder="Enter party / customer / company name"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium"
               />
             </div>
           </div>
 
-          {/* 3. Material with Manage Materials Button */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">4. Material *</label>
-                <button
-                  type="button"
-                  onClick={() => setIsManageMaterialOpen(true)}
-                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3 h-3" /> Manage Material
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                {masterMaterials.length > 0 && (
-                  <select
-                    value={billData.materialName}
-                    onChange={e => {
-                      const selected = masterMaterials.find(m => m.name === e.target.value);
-                      if (selected && selected.defaultUnit) {
-                        if (PRESET_UNITS.includes(selected.defaultUnit)) {
-                          setUnitMode(selected.defaultUnit);
-                          setCustomUnit("");
-                        } else {
-                          setUnitMode("Custom");
-                          setCustomUnit(selected.defaultUnit);
-                        }
-                      }
-                      if (selected && selected.defaultRate) {
-                        setBillData({
-                          ...billData,
-                          materialName: e.target.value,
-                          rate: String(selected.defaultRate),
-                        });
-                      } else {
-                        setBillData({
-                          ...billData,
-                          materialName: e.target.value,
-                        });
-                      }
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <option value="">-- Select Material or Type Below --</option>
-                    {masterMaterials.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                )}
+          {/* 3. Unit of Measurement */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">4. Unit of Measurement *</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <select
+                value={unitMode}
+                onChange={e => setUnitMode(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium"
+              >
+                {PRESET_UNITS.map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+              {unitMode === "Custom" && (
                 <input
                   type="text"
                   required
-                  value={billData.materialName}
-                  onChange={e => setBillData({ ...billData, materialName: e.target.value })}
-                  placeholder="e.g. UltraTech Cement, Steel 12mm"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">5. Unit of Measurement *</label>
-              <div className="space-y-1.5">
-                <select
-                  value={unitMode}
-                  onChange={e => setUnitMode(e.target.value)}
+                  value={customUnit}
+                  onChange={e => setCustomUnit(e.target.value)}
+                  placeholder="Enter custom unit (e.g. Box, Bundle, Hours)"
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                >
-                  {PRESET_UNITS.map(u => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
-                </select>
-                {unitMode === "Custom" && (
-                  <input
-                    type="text"
-                    required
-                    value={customUnit}
-                    onChange={e => setCustomUnit(e.target.value)}
-                    placeholder="Enter custom unit (e.g. Box, Bundle)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                  />
-                )}
-              </div>
+                />
+              )}
             </div>
           </div>
 
           {/* 4. Quantity & Rate */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">6. Quantity *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">5. Quantity *</label>
               <input
                 type="number"
                 step="any"
@@ -2289,7 +2232,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">7. Rate per {effectiveUnit} (₹) *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">6. Rate per {effectiveUnit} (₹) *</label>
               <input
                 type="number"
                 step="any"
@@ -2305,7 +2248,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {/* 5. Transport, Discount & GST */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">8. Transport Fee (₹) (+)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">7. Transport Fee (₹) (+)</label>
               <input
                 type="number"
                 step="any"
@@ -2317,7 +2260,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <span className="text-[10px] text-slate-500">Excluded from GST (added separately)</span>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">9. Discount (₹) (-)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">8. Discount (₹) (-)</label>
               <input
                 type="number"
                 step="any"
@@ -2328,7 +2271,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">10. Tax / GST (%) (+)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">9. Tax / GST (%) (+)</label>
               <select
                 value={billData.taxPercentage}
                 onChange={e => setBillData({ ...billData, taxPercentage: e.target.value })}
@@ -2344,7 +2287,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {/* Live Calculation Preview Box */}
           <div className="bg-slate-900 text-white rounded-xl p-4 space-y-1.5 text-xs">
             <div className="flex justify-between text-slate-300">
-              <span>Material Subtotal ({billData.quantity || 0} &times; ₹{billData.rate || 0}):</span>
+              <span>Subtotal ({billData.quantity || 0} &times; ₹{billData.rate || 0}):</span>
               <span>₹{billCalc.subtotal.toFixed(2)}</span>
             </div>
             {billCalc.discount > 0 && (
@@ -2368,7 +2311,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </div>
             )}
             <div className="flex justify-between text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
-              <span>11. Net Total Amount:</span>
+              <span>10. Net Total Amount:</span>
               <span>₹{billCalc.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
@@ -2376,7 +2319,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {/* Payment Method & Ref */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">12. Payment Method</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">11. Payment Method</label>
               <select
                 value={billData.paymentMethod}
                 onChange={e => setBillData({ ...billData, paymentMethod: e.target.value })}
@@ -2389,7 +2332,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">13. Ref / Cheque No.</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">12. Ref / Cheque No.</label>
               <input
                 type="text"
                 value={billData.referenceNumber}
@@ -2401,7 +2344,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">14. Notes / Remarks</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">13. Notes / Remarks</label>
             <input
               type="text"
               value={billData.notes}
@@ -2424,6 +2367,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isRefundableModalOpen}
         onClose={() => setIsRefundableModalOpen(false)}
+        maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-purple-100 text-purple-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
@@ -2548,6 +2492,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isRefundModalOpen}
         onClose={() => setIsRefundModalOpen(false)}
+        maxWidth="md"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><Receipt className="w-5 h-5" /></div>

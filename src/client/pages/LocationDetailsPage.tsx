@@ -14,16 +14,19 @@ import MaterialPurchaseTab from "../components/categories/MaterialPurchaseTab";
 import MaterialSupplyTab from "../components/categories/MaterialSupplyTab";
 import SiteSupplyTab from "../components/categories/SiteSupplyTab";
 import LabourAttendanceTab from "../components/categories/LabourAttendanceTab";
+import IncomeExpenseTab from "../components/categories/IncomeExpenseTab";
+import MasterDataTab from "../components/categories/MasterDataTab";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { useLiveSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
+import { Receipt, Database } from "lucide-react";
 
 export default function LocationDetailsPage() {
   const { showToast } = useToast();
   const { id: locationId } = useParams();
   const navigate = useNavigate();
 
-  const [activeCategory, setActiveCategory] = useState<"investors" | "investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance">("investors");
+  const [activeCategory, setActiveCategory] = useState<"investors" | "investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "site_expenses" | "master_data">("investors");
   
   const [locationName, setLocationName] = useState("Loading...");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -156,6 +159,22 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
+          <button type="button" onClick={() => setActiveCategory("site_expenses")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "site_expenses" ? "bg-purple-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+            <div className={`p-2 rounded-lg ${activeCategory === "site_expenses" ? "bg-white/20" : "bg-purple-100 text-purple-700"}`}><Receipt className="w-4 h-4" /></div>
+            <div>
+              <div className="font-bold text-sm">7. Site Expenses</div>
+              <div className={`text-xs ${activeCategory === "site_expenses" ? "text-purple-100" : "text-slate-400"}`}>Petty Cash & Site Costs</div>
+            </div>
+          </button>
+
+          <button type="button" onClick={() => setActiveCategory("master_data")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "master_data" ? "bg-indigo-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+            <div className={`p-2 rounded-lg ${activeCategory === "master_data" ? "bg-white/20" : "bg-indigo-100 text-indigo-700"}`}><Database className="w-4 h-4" /></div>
+            <div>
+              <div className="font-bold text-sm">8. Master Registry</div>
+              <div className={`text-xs ${activeCategory === "master_data" ? "text-indigo-100" : "text-slate-400"}`}>Materials, Teams, Labour</div>
+            </div>
+          </button>
+
         </div>
 
         {/* Content Area */}
@@ -182,6 +201,8 @@ export default function LocationDetailsPage() {
               {activeCategory === "material_supply" && <MaterialSupplyTab locationId={Number(locationId)} />}
               {activeCategory === "site_supply" && <SiteSupplyTab locationId={Number(locationId)} />}
               {activeCategory === "labour_attendance" && <LabourAttendanceTab locationId={Number(locationId)} />}
+              {activeCategory === "site_expenses" && <IncomeExpenseTab locationId={Number(locationId)} />}
+              {activeCategory === "master_data" && <MasterDataTab locationId={Number(locationId)} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -192,6 +213,7 @@ export default function LocationDetailsPage() {
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="Delete Location"
+        maxWidth="sm"
       >
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">

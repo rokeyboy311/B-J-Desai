@@ -230,7 +230,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Supply" : "Add Supply (GST Bill)"}>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Supply" : "Add Supply (GST Bill)"} maxWidth="xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>

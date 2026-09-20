@@ -230,6 +230,7 @@ export default function LocationsPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={selectedLocation ? "Edit Location" : "Add Location"}
+        maxWidth="md"
       >
         <form onSubmit={handleSave} className="space-y-4">
           {formError && (
@@ -290,6 +291,7 @@ export default function LocationsPage() {
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         title="Delete Location"
+        maxWidth="sm"
       >
         <div className="space-y-4">
           <div className="bg-rose-50 p-4 rounded-xl flex items-start gap-3 border border-rose-100">

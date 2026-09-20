@@ -290,8 +290,9 @@ export default function MasterDataTab({ locationId }: { locationId: number }) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingId ? `Edit ${activeTab.replace(/s$/, '')}` : `Add New ${activeTab.replace(/s$/, '')}`}
+        maxWidth="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
               {activeTab === 'materials' ? 'Material Name' : activeTab === 'labour' ? 'Labour Worker Name' : activeTab === 'teams' ? 'Team / Contractor Name' : 'Party / Company Name'} *

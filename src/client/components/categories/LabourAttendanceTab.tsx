@@ -42,7 +42,7 @@ function TeamSelectInput({
   availableTeams,
   onOpenManageTeams,
   label = "Select Team *",
-  required = true,
+  required = false,
   themeColor = "amber",
   placeholder = "Choose or enter Team name...",
   allowGeneral = false,
@@ -102,7 +102,6 @@ function TeamSelectInput({
           <input
             type="text"
             list="available-teams-datalist"
-            required={required}
             placeholder={placeholder}
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -117,7 +116,6 @@ function TeamSelectInput({
       ) : (
         <div className="relative">
           <select
-            required={required}
             value={value}
             onChange={(e) => {
               if (e.target.value === "__NEW__") {
@@ -310,6 +308,15 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
     return list.sort();
   }, [teams, records]);
 
+  // Auto-select first available team when list populates so user never has to search or leave it blank
+  useEffect(() => {
+    if (availableTeams.length > 0) {
+      setDayForm(prev => prev.teamName ? prev : { ...prev, teamName: availableTeams[0] });
+      setTcForm(prev => prev.teamName ? prev : { ...prev, teamName: availableTeams[0] });
+      setUpadForm(prev => prev.teamName ? prev : { ...prev, teamName: availableTeams[0] });
+    }
+  }, [availableTeams]);
+
   // Overall Financial & Attendance Summary Calculations
   const summaries = useMemo(() => {
     let totalAttendanceWages = 0;
@@ -394,10 +401,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   // Handle Day Wise Attendance Submit
   const handleDaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dayForm.teamName.trim()) {
-      showToast("Please select or enter a Team Name.", "error");
-      return;
-    }
+    const targetTeam = (dayForm.teamName || availableTeams[0] || "General Team").trim();
 
     const rate = parseFloat(dayForm.dailyRate) || 0;
     let daysCount = 1;
@@ -410,7 +414,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         body: JSON.stringify({
           locationId,
           date: dayForm.date,
-          teamName: dayForm.teamName.trim(),
+          teamName: targetTeam,
           attendanceType: "DAY_WISE",
           days: daysCount.toString(),
           dailyRate: rate.toString(),
@@ -418,7 +422,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
 
-      showToast(`Day Attendance recorded for team "${dayForm.teamName}"`, "success");
+      showToast(`Day Attendance recorded for team "${targetTeam}"`, "success");
       setDayForm(prev => ({
         ...prev,
         dailyRate: "",
@@ -434,10 +438,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   // Handle TC Wise Attendance Submit
   const handleTcSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tcForm.teamName.trim()) {
-      showToast("Please select or enter a Team Name.", "error");
-      return;
-    }
+    const targetTeam = (tcForm.teamName || availableTeams[0] || "General Team").trim();
+
     if (!tcForm.workName.trim()) {
       showToast("Please enter the Work Name / TC Task.", "error");
       return;
@@ -452,7 +454,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         body: JSON.stringify({
           locationId,
           date: tcForm.date,
-          teamName: tcForm.teamName.trim(),
+          teamName: targetTeam,
           attendanceType: "TC_WISE",
           workName: tcForm.workName.trim(),
           unitOfMeasurement: tcForm.unitOfMeasurement,
@@ -462,7 +464,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
 
-      showToast(`TC Work Attendance recorded for team "${tcForm.teamName}"`, "success");
+      showToast(`TC Work Attendance recorded for team "${targetTeam}"`, "success");
       setTcForm(prev => ({
         ...prev,
         workName: "",
@@ -480,10 +482,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   // Handle Team Upad Submit
   const handleUpadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!upadForm.teamName.trim()) {
-      showToast("Please select or enter a Team Name.", "error");
-      return;
-    }
+    const targetTeam = (upadForm.teamName || availableTeams[0] || "General Team").trim();
+
     const amt = parseFloat(upadForm.amount) || 0;
     if (amt <= 0) {
       showToast("Please enter a valid Upad amount.", "error");
@@ -496,7 +496,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         body: JSON.stringify({
           locationId,
           date: upadForm.date,
-          teamName: upadForm.teamName.trim(),
+          teamName: targetTeam,
           attendanceType: "TEAM_UPAD",
           amount: amt.toString(),
           upad: amt.toString(),
@@ -507,7 +507,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
 
-      showToast(`Team Upad of ₹${amt.toLocaleString()} recorded for "${upadForm.teamName}"`, "success");
+      showToast(`Team Upad of ₹${amt.toLocaleString()} recorded for "${targetTeam}"`, "success");
       setUpadForm(prev => ({
         ...prev,
         amount: "",
@@ -1570,6 +1570,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           setEditingRecord(null);
         }}
         title="Edit Labour / Expense Record"
+        maxWidth="lg"
       >
         {editingRecord && (
           <form onSubmit={handleSaveEdit} className="space-y-4">
