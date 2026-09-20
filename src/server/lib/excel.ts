@@ -509,3 +509,118 @@ export function generateSiteSuppliesBuffer(siteSuppliesList: any[], locationName
   return write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
+export function generateMaterialAnalyticsBuffer(locationName: string, analytics: any) {
+  const wb = utils.book_new();
+  const summary = analytics.summary || {};
+  const materials = analytics.materials || [];
+
+  // Sheet 1: Executive Summary
+  const summaryData = [
+    ['BINA ENTERPRISE - MATERIAL PURCHASE VS SUPPLY ANALYTICS AUDIT'],
+    ['Location / Project:', locationName],
+    ['Generated On:', new Date().toLocaleString()],
+    ['Report Type:', 'Comprehensive Material Costing, Pricing & Inventory Stock Valuation'],
+    [],
+    ['KEY PERFORMANCE INDICATORS (FINANCIAL TOTALS)'],
+    ['Total Distinct Materials:', summary.distinctMaterialsCount || materials.length],
+    ['Total Material Purchased Quantity:', summary.totalPurchasedQty || 0],
+    ['Total Material Purchase Value (₹):', summary.totalPurchasedValue || 0],
+    ['Total Material Supply (Cat 4) Value (₹):', summary.totalMaterialSupplyValue || 0],
+    ['Total Site Supply (Cat 5) Value (₹):', summary.totalSiteSupplyValue || 0],
+    ['Total Overall Supplied Quantity:', summary.totalOverallSuppliedQty || 0],
+    ['Total Overall Supplied Value (₹):', summary.totalOverallSuppliedValue || 0],
+    ['Current Stock Inventory Valuation (₹):', summary.totalStockInventoryValuation || 0],
+    ['Estimated Gross Trading Profit (₹):', summary.totalGrossProfit || 0],
+    []
+  ];
+  const wsSummary = utils.aoa_to_sheet(summaryData);
+  utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+
+  // Sheet 2: Material Price & Stock Comparison
+  const comparisonRows = materials.map((m: any, idx: number) => ({
+    '#': idx + 1,
+    'Material Name': m.materialName,
+    'Category': m.category || 'General',
+    'Unit': m.unit || 'Unit',
+    'Purchased Qty': m.purchasedQty,
+    'Avg Purchase Rate (₹)': m.avgPurchaseRate,
+    'Min Purchase Rate (₹)': m.minPurchaseRate,
+    'Max Purchase Rate (₹)': m.maxPurchaseRate,
+    'Total Purchase Cost (₹)': m.totalPurchaseCost,
+    'Material Supply Qty': m.materialSupplyQty,
+    'Avg Mat Supply Rate (₹)': m.avgMaterialSupplyRate,
+    'Site Supply Qty': m.siteSupplyQty,
+    'Avg Site Supply Rate (₹)': m.avgSiteSupplyRate,
+    'Total Supplied Qty': m.totalSuppliedQty,
+    'Avg Overall Supply Rate (₹)': m.avgOverallSupplyRate,
+    'Total Supplied Amount (₹)': m.totalSuppliedAmount,
+    'Current Stock Balance': m.currentStock,
+    'Stock Valuation (₹)': m.stockValuation,
+    'Stock Status': m.status,
+    'Price Spread (₹/Unit)': m.rateSpread,
+    'Gross Profit (₹)': m.grossProfit,
+    'Margin (%)': `${m.marginPercent}%`
+  }));
+  const wsComparison = utils.json_to_sheet(comparisonRows);
+  utils.book_append_sheet(wb, wsComparison, 'Material Price Analytics');
+
+  // Sheet 3: Detailed Purchase Transactions
+  const purchaseLogs: any[] = [];
+  materials.forEach((m: any) => {
+    (m.purchases || []).forEach((p: any) => {
+      purchaseLogs.push({
+        'Date': p.date,
+        'Material Name': m.materialName,
+        'Vendor / Party': p.partyName || '-',
+        'Quantity': p.quantity,
+        'Unit': p.unit || m.unit,
+        'Purchase Rate (₹)': p.rate,
+        'Total Amount (₹)': p.totalAmount,
+        'Payment Status': p.paymentStatus || 'PAID'
+      });
+    });
+  });
+  if (purchaseLogs.length > 0) {
+    const wsPurchases = utils.json_to_sheet(purchaseLogs);
+    utils.book_append_sheet(wb, wsPurchases, 'Itemized Purchases');
+  }
+
+  // Sheet 4: Detailed Supply Transactions
+  const supplyLogs: any[] = [];
+  materials.forEach((m: any) => {
+    (m.materialSupplies || []).forEach((s: any) => {
+      supplyLogs.push({
+        'Date': s.date,
+        'Type': 'Category 4: Material Supply',
+        'Material Name': m.materialName,
+        'Customer / Party': s.partyName || '-',
+        'Quantity': s.quantity,
+        'Unit': s.unit || m.unit,
+        'Supply Rate (₹)': s.rate,
+        'Total Amount (₹)': s.totalAmount,
+        'Payment Status': s.paymentStatus || 'PAID'
+      });
+    });
+    (m.siteSupplies || []).forEach((st: any) => {
+      supplyLogs.push({
+        'Date': st.date,
+        'Type': 'Category 5: Site Supply',
+        'Material Name': m.materialName,
+        'Customer / Party': `${st.teamName} (${st.responsiblePerson || 'Direct'})`,
+        'Quantity': st.quantity,
+        'Unit': st.unit || m.unit,
+        'Supply Rate (₹)': st.rate,
+        'Total Amount (₹)': st.totalAmount,
+        'Payment Status': 'INTERNAL_DISPATCH'
+      });
+    });
+  });
+  if (supplyLogs.length > 0) {
+    const wsSupplies = utils.json_to_sheet(supplyLogs);
+    utils.book_append_sheet(wb, wsSupplies, 'Itemized Supplies');
+  }
+
+  return write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+

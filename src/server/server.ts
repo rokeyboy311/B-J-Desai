@@ -21,10 +21,14 @@ import {
   initializeSinglePasswordInDB, 
   verifyPasswordAgainstDB 
 } from "./lib/security.ts";
+import { normalizeMaterialsAndStockDB } from "./lib/accounting.ts";
 
 async function startServer() {
   // Ensure strictly 1 universal password exists in the database on boot
   await initializeSinglePasswordInDB();
+
+  // Normalize material names to UPPERCASE and reconcile stock records
+  await normalizeMaterialsAndStockDB();
 
   const app = express();
   const PORT = 3000;
@@ -86,7 +90,7 @@ async function startServer() {
       if (!isAuthorized) {
         return res.status(403).json({
           success: false,
-          error: 'Security authorization required: Valid security password ("Bh@ju1204") is required to delete any record or details.',
+          error: 'Security authorization required: Valid security password ("Bh@ju1203") is required to delete any record or details.',
           requiresDeletePassword: true
         });
       }

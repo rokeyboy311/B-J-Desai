@@ -1,8 +1,8 @@
 import express from 'express';
 import { Response } from 'express';
 import { db } from '../../db/index.js';
-import { siteSupplies, siteSupplyItems, auditLogs } from '../../db/schema.js';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { siteSupplies, siteSupplyItems, materials, auditLogs } from '../../db/schema.js';
+import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { StockManager, calculateSiteSupplyTotals } from '../lib/accounting.js';
 import { assertLocationAccess } from '../lib/locationAuth.js';
@@ -82,12 +82,60 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
     const locId = parseInt(String(locationId), 10);
     await assertLocationAccess(userId, locId);
 
-    const validItems = items.filter((i: any) => i.materialId && parseFloat(String(i.quantity || 0)) > 0);
-    if (!validItems.length) {
+    // Normalize and resolve material items to UPPERCASE
+    const resolvedItems: any[] = [];
+    for (const rawItem of (items || [])) {
+      const q = parseFloat(String(rawItem.quantity || 0));
+      if (q <= 0) continue;
+      
+      let matId = rawItem.materialId ? parseInt(String(rawItem.materialId), 10) : null;
+      let matName = (rawItem.materialName || '').trim().toUpperCase();
+      let unit = rawItem.unit || 'Unit';
+      let rate = parseFloat(String(rawItem.rate || 0));
+
+      if ((!matId || isNaN(matId)) && matName) {
+        const existing = await db.select().from(materials).where(
+          and(
+            eq(materials.locationId, locId),
+            sql`UPPER(TRIM(${materials.name})) = ${matName}`,
+            eq(materials.isDeleted, 0)
+          )
+        ).limit(1);
+
+        if (existing.length > 0) {
+          matId = existing[0].id;
+          unit = existing[0].defaultUnit || unit;
+        } else {
+          const created = await db.insert(materials).values({
+            userId,
+            locationId: locId,
+            name: matName,
+            defaultUnit: unit,
+            defaultRate: rate.toString(),
+            minStock: '0.00',
+            isActive: 1,
+            isDeleted: 0
+          }).returning();
+          matId = created[0].id;
+        }
+      }
+
+      if (matId && !isNaN(matId)) {
+        resolvedItems.push({
+          ...rawItem,
+          materialId: matId,
+          quantity: q,
+          rate,
+          unit
+        });
+      }
+    }
+
+    if (!resolvedItems.length) {
       return res.status(400).json({ error: 'At least one valid material item with quantity is required' });
     }
 
-    const calculated = calculateSiteSupplyTotals(validItems);
+    const calculated = calculateSiteSupplyTotals(resolvedItems);
 
     const result = await db.transaction(async (tx) => {
       // Create metadata holding granular GST values
@@ -170,12 +218,60 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const locId = parseInt(String(locationId), 10);
     await assertLocationAccess(userId, locId);
 
-    const validItems = items.filter((i: any) => i.materialId && parseFloat(String(i.quantity || 0)) > 0);
-    if (!validItems.length) {
+    // Normalize and resolve material items to UPPERCASE
+    const resolvedItems: any[] = [];
+    for (const rawItem of (items || [])) {
+      const q = parseFloat(String(rawItem.quantity || 0));
+      if (q <= 0) continue;
+      
+      let matId = rawItem.materialId ? parseInt(String(rawItem.materialId), 10) : null;
+      let matName = (rawItem.materialName || '').trim().toUpperCase();
+      let unit = rawItem.unit || 'Unit';
+      let rate = parseFloat(String(rawItem.rate || 0));
+
+      if ((!matId || isNaN(matId)) && matName) {
+        const existing = await db.select().from(materials).where(
+          and(
+            eq(materials.locationId, locId),
+            sql`UPPER(TRIM(${materials.name})) = ${matName}`,
+            eq(materials.isDeleted, 0)
+          )
+        ).limit(1);
+
+        if (existing.length > 0) {
+          matId = existing[0].id;
+          unit = existing[0].defaultUnit || unit;
+        } else {
+          const created = await db.insert(materials).values({
+            userId,
+            locationId: locId,
+            name: matName,
+            defaultUnit: unit,
+            defaultRate: rate.toString(),
+            minStock: '0.00',
+            isActive: 1,
+            isDeleted: 0
+          }).returning();
+          matId = created[0].id;
+        }
+      }
+
+      if (matId && !isNaN(matId)) {
+        resolvedItems.push({
+          ...rawItem,
+          materialId: matId,
+          quantity: q,
+          rate,
+          unit
+        });
+      }
+    }
+
+    if (!resolvedItems.length) {
       return res.status(400).json({ error: 'At least one valid material item with quantity is required' });
     }
 
-    const calculated = calculateSiteSupplyTotals(validItems);
+    const calculated = calculateSiteSupplyTotals(resolvedItems);
 
     const result = await db.transaction(async (tx) => {
       // Revert old stock

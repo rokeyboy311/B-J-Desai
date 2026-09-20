@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../../db/index.js';
 import { parties, labourTeams, materials, labourMaster } from '../../db/schema.js';
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { auditLogs } from '../../db/schema.js';
 import { realtimeSync } from '../lib/realtimeSync.js';
@@ -223,11 +223,31 @@ masterRouter.post('/materials', async (req: AuthRequest, res) => {
     const locId = parseInt(String(locationId), 10);
     await assertLocationAccess(userId, locId);
 
+    const cleanName = String(name).trim().toUpperCase();
+
+    // Prevent duplicate master material under the same location
+    const existing = await db.select().from(materials).where(
+      and(
+        eq(materials.locationId, locId),
+        sql`UPPER(TRIM(${materials.name})) = ${cleanName}`,
+        eq(materials.isDeleted, 0)
+      )
+    );
+    if (existing.length > 0) {
+      return res.status(200).json(existing[0]);
+    }
+
     const inserted = await db.insert(materials).values({
-      name, locationId: locId, userId,
-      category, defaultUnit, defaultRate, minStock, notes
+      name: cleanName, 
+      locationId: locId, 
+      userId,
+      category: category || null, 
+      defaultUnit: defaultUnit || 'Unit', 
+      defaultRate: defaultRate ? String(defaultRate) : '0.00', 
+      minStock: minStock ? String(minStock) : '0.00', 
+      notes: notes || null
     }).returning();
-    await db.insert(auditLogs).values({ userId, action: 'CREATE_MATERIAL', entityType: 'MATERIAL', entityId: inserted[0].id, metadata: JSON.stringify({ name, locationId: locId }) });
+    await db.insert(auditLogs).values({ userId, action: 'CREATE_MATERIAL', entityType: 'MATERIAL', entityId: inserted[0].id, metadata: JSON.stringify({ name: cleanName, locationId: locId }) });
     realtimeSync.notifyMutation('CREATE_MATERIAL', `/master/materials?locationId=${locId}`, inserted[0]);
     res.status(201).json(inserted[0]);
   } catch (err: any) {
@@ -249,12 +269,14 @@ masterRouter.put('/materials/:id', async (req: AuthRequest, res) => {
     await assertLocationAccess(userId, existing[0].locationId);
 
     const { name, category, defaultUnit, defaultRate, minStock, notes } = req.body;
+    const cleanName = name !== undefined ? String(name).trim().toUpperCase() : undefined;
+
     const updated = await db.update(materials).set({
-      ...(name !== undefined && { name }),
+      ...(cleanName !== undefined && { name: cleanName }),
       ...(category !== undefined && { category }),
       ...(defaultUnit !== undefined && { defaultUnit }),
-      ...(defaultRate !== undefined && { defaultRate }),
-      ...(minStock !== undefined && { minStock }),
+      ...(defaultRate !== undefined && { defaultRate: String(defaultRate) }),
+      ...(minStock !== undefined && { minStock: String(minStock) }),
       ...(notes !== undefined && { notes })
     }).where(eq(materials.id, id)).returning();
     if (!updated.length) return res.status(404).json({ error: "Material not found" });

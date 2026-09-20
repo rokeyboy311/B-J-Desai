@@ -4,33 +4,23 @@ import { eq, sql } from 'drizzle-orm';
 import { timingSafeCompare } from '../middleware/auth.ts';
 
 export const UNIVERSAL_PASSWORD_KEY = 'APP_UNIVERSAL_PASSWORD';
-export const DEFAULT_UNIVERSAL_PASSWORD = 'Bh@ju1204';
+export const DEFAULT_UNIVERSAL_PASSWORD = 'Bh@ju1203';
 
 /**
  * Initializes and guarantees that strictly ONLY 1 password exists in the database.
  * Deletes all obsolete/duplicate PIN/password keys (APP_MASTER_PIN, CATEGORY_LOCK_PIN, etc.)
- * and sets the single universal password to 'Bh@ju1204' (or preserves it if already configured).
+ * and sets the single universal password to 'Bh@ju1203'.
  */
 export async function initializeSinglePasswordInDB(): Promise<string> {
   try {
-    // Check if universal password exists in the database
-    const existing = await db
-      .select()
-      .from(securitySettings)
-      .where(eq(securitySettings.key, UNIVERSAL_PASSWORD_KEY));
-
-    let activePassword = DEFAULT_UNIVERSAL_PASSWORD;
-
-    if (existing.length > 0 && existing[0].value) {
-      activePassword = existing[0].value.trim();
-    }
+    const activePassword = DEFAULT_UNIVERSAL_PASSWORD;
 
     // Clean up all obsolete/duplicate keys so ONLY 1 password record remains in the database
     await db
       .delete(securitySettings)
       .where(sql`${securitySettings.key} != ${UNIVERSAL_PASSWORD_KEY}`);
 
-    // Ensure the single password record exists in security_settings
+    // Ensure the single password record exists in security_settings and is set to Bh@ju1203
     await db
       .insert(securitySettings)
       .values({

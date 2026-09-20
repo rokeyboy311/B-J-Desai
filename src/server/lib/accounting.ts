@@ -482,6 +482,173 @@ export class StockManager {
   }
 }
 
+/**
+ * Normalizes all existing material records to UPPERCASE to prevent duplicate stock creation,
+ * links any unlinked purchases/supplies to canonical uppercase materials, and reconciles stock.
+ */
+export async function normalizeMaterialsAndStockDB(): Promise<void> {
+  try {
+    // 1. Normalize all material names to UPPERCASE in master table
+    await db.execute(sql`
+      UPDATE materials 
+      SET name = UPPER(TRIM(name)) 
+      WHERE name IS NOT NULL AND name != UPPER(TRIM(name));
+    `);
+
+    // 2. Normalize purchase & supply tables material names
+    await db.execute(sql`
+      UPDATE material_purchases 
+      SET material_name = UPPER(TRIM(material_name)) 
+      WHERE material_name IS NOT NULL AND material_name != UPPER(TRIM(material_name));
+    `);
+
+    await db.execute(sql`
+      UPDATE material_supplies 
+      SET material_name = UPPER(TRIM(material_name)) 
+      WHERE material_name IS NOT NULL AND material_name != UPPER(TRIM(material_name));
+    `);
+
+    await db.execute(sql`
+      UPDATE material_labour_supplies 
+      SET material_name = UPPER(TRIM(material_name)) 
+      WHERE material_name IS NOT NULL AND material_name != UPPER(TRIM(material_name));
+    `);
+
+    // 3. Link unlinked purchases to master materials
+    const unlinkedPurchases = await db.execute(sql`
+      SELECT id, user_id, location_id, material_name, unit, rate, quantity
+      FROM material_purchases
+      WHERE (material_id IS NULL OR material_id = 0) AND is_deleted = 0 AND material_name IS NOT NULL
+    `);
+
+    for (const row of unlinkedPurchases.rows as any[]) {
+      const cleanName = String(row.material_name || '').trim().toUpperCase();
+      if (!cleanName) continue;
+
+      let mat = await db.select().from(materials).where(
+        and(
+          eq(materials.locationId, Number(row.location_id)),
+          sql`UPPER(TRIM(${materials.name})) = ${cleanName}`,
+          eq(materials.isDeleted, 0)
+        )
+      ).limit(1);
+
+      let matId: number;
+      if (mat = mat.length ? mat : []) {
+        if (mat.length > 0) {
+          matId = mat[0].id;
+        } else {
+          const created = await db.insert(materials).values({
+            userId: Number(row.user_id),
+            locationId: Number(row.location_id),
+            name: cleanName,
+            defaultUnit: row.unit || 'Unit',
+            defaultRate: String(row.rate || '0.00'),
+            minStock: '0.00',
+            isActive: 1,
+            isDeleted: 0
+          }).returning();
+          matId = created[0].id;
+        }
+
+        await db.execute(sql`
+          UPDATE material_purchases 
+          SET material_id = ${matId}, material_name = ${cleanName}
+          WHERE id = ${row.id};
+        `);
+
+        // Check if stock ledger entry exists
+        const stockCheck = await db.select().from(stockLedger).where(
+          and(
+            eq(stockLedger.referenceId, Number(row.id)),
+            eq(stockLedger.referenceType, 'PURCHASE')
+          )
+        );
+        if (stockCheck.length === 0 && parseFloat(String(row.quantity || 0)) > 0) {
+          await StockManager.addStockMovement(
+            db,
+            Number(row.user_id),
+            Number(row.location_id),
+            matId,
+            'IN',
+            parseFloat(String(row.quantity)),
+            Number(row.id),
+            'PURCHASE',
+            'Auto reconciled'
+          );
+        }
+      }
+    }
+
+    // 4. Link unlinked material supplies
+    const unlinkedSupplies = await db.execute(sql`
+      SELECT id, user_id, location_id, material_name, unit, rate, quantity
+      FROM material_supplies
+      WHERE (material_id IS NULL OR material_id = 0) AND is_deleted = 0 AND material_name IS NOT NULL
+    `);
+
+    for (const row of unlinkedSupplies.rows as any[]) {
+      const cleanName = String(row.material_name || '').trim().toUpperCase();
+      if (!cleanName) continue;
+
+      let mat = await db.select().from(materials).where(
+        and(
+          eq(materials.locationId, Number(row.location_id)),
+          sql`UPPER(TRIM(${materials.name})) = ${cleanName}`,
+          eq(materials.isDeleted, 0)
+        )
+      ).limit(1);
+
+      let matId: number;
+      if (mat.length > 0) {
+        matId = mat[0].id;
+      } else {
+        const created = await db.insert(materials).values({
+          userId: Number(row.user_id),
+          locationId: Number(row.location_id),
+          name: cleanName,
+          defaultUnit: row.unit || 'Unit',
+          defaultRate: String(row.rate || '0.00'),
+          minStock: '0.00',
+          isActive: 1,
+          isDeleted: 0
+        }).returning();
+        matId = created[0].id;
+      }
+
+      await db.execute(sql`
+        UPDATE material_supplies 
+        SET material_id = ${matId}, material_name = ${cleanName}
+        WHERE id = ${row.id};
+      `);
+
+      const stockCheck = await db.select().from(stockLedger).where(
+        and(
+          eq(stockLedger.referenceId, Number(row.id)),
+          eq(stockLedger.referenceType, 'MATERIAL_SUPPLY')
+        )
+      );
+      if (stockCheck.length === 0 && parseFloat(String(row.quantity || 0)) > 0) {
+        await StockManager.addStockMovement(
+          db,
+          Number(row.user_id),
+          Number(row.location_id),
+          matId,
+          'OUT',
+          parseFloat(String(row.quantity)),
+          Number(row.id),
+          'MATERIAL_SUPPLY',
+          'Auto reconciled'
+        );
+      }
+    }
+
+    console.log('[Accounting] Material names normalized to UPPERCASE and stock reconciled.');
+  } catch (err) {
+    console.error('[Accounting] Normalization error (non-fatal):', err);
+  }
+}
+
 export class AccountingCalculator {
   static calculateMaterialTotal(
     quantity: number,

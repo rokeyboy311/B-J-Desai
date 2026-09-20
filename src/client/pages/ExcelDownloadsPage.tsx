@@ -221,6 +221,18 @@ export default function ExcelDownloadsPage() {
       endpoint: `/reports/export-site-supplies?locationId=${selectedLocation}`
     });
 
+    // 8. MATERIAL PURCHASE VS SUPPLY PRICE ANALYTICS
+    files.push({
+      id: `mat_analytics_${selectedLocation}`,
+      title: `Material Purchase vs Supply Analytics (${locName}) (મટિરિયલ ખરીદી vs સપ્લાય ભાવ એનાલિટિક્સ)`,
+      filename: `Material_Purchase_Supply_Analytics_${locName.replace(/\s+/g, '_')}.xlsx`,
+      category: 'OPERATIONAL',
+      categoryLabel: 'Material Analytics',
+      icon: Layers,
+      description: `Comprehensive comparison of material purchase price vs supply price, total quantities, remaining stock inventory, and margin analytics.`,
+      endpoint: `/reports/export-material-analytics${selectedLocation !== 'ALL' ? `?locationId=${selectedLocation}` : ''}`
+    });
+
     if (selectedLocation !== 'ALL') {
       files.push({
         id: `labour_${selectedLocation}`,

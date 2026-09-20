@@ -14,7 +14,8 @@ import {
   generateVendorPurchasesBuffer, 
   generateCustomerSuppliesBuffer, 
   generateRefundableRecordsBuffer,
-  generateSiteSuppliesBuffer
+  generateSiteSuppliesBuffer,
+  generateMaterialAnalyticsBuffer
 } from '../lib/excel.js';
 import { calculateCategory2Capital } from '../lib/accounting.js';
 import { assertLocationAccess } from '../lib/locationAuth.js';
@@ -1097,6 +1098,623 @@ reportRouter.get('/export-refundable-records', async (req: AuthRequest, res: Res
 });
 
 // -------------------------------------------------------------
+// GET /api/reports/material-analytics (Full Material Purchase vs Supply Price Analytics)
+// -------------------------------------------------------------------------------------
+reportRouter.get('/material-analytics', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL'
+      ? parseInt(req.query.locationId as string, 10)
+      : undefined;
+
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+    }
+
+    const locCondition = locationIdParam 
+      ? sql`${locations.id} = ${locationIdParam}`
+      : sql`1=1`;
+
+    const locIds = await db.select({ id: locations.id }).from(locations)
+      .where(and(eq(locations.isDeleted, 0), locCondition));
+    const validLocIds = locIds.map(l => l.id);
+    if (validLocIds.length === 0) {
+      return res.json({
+        summary: {
+          totalPurchasedValue: 0,
+          totalPurchasedQty: 0,
+          totalMaterialSupplyValue: 0,
+          totalMaterialSupplyQty: 0,
+          totalSiteSupplyValue: 0,
+          totalSiteSupplyQty: 0,
+          totalOverallSuppliedValue: 0,
+          totalOverallSuppliedQty: 0,
+          totalStockInventoryValuation: 0,
+          totalGrossProfit: 0,
+          distinctMaterialsCount: 0
+        },
+        materials: []
+      });
+    }
+
+    const idList = validLocIds.join(',');
+
+    // 1. Fetch materials master
+    const matRows = await db.execute(sql`
+      SELECT id, name, category, default_unit as unit, default_rate, min_stock, location_id
+      FROM materials
+      WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
+      ORDER BY UPPER(TRIM(name)) ASC
+    `);
+
+    // 2. Fetch all material purchases
+    const purRows = await db.execute(sql`
+      SELECT 
+        id, location_id, material_id, material_name, party_name, date,
+        quantity, unit, rate, subtotal, transport_cost, discount, tax, total_amount, payment_status
+      FROM material_purchases
+      WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
+      ORDER BY date DESC, id DESC
+    `);
+
+    // 3. Fetch all material supplies (Cat 4)
+    const supRows = await db.execute(sql`
+      SELECT 
+        id, location_id, material_id, material_name, party_name, date,
+        quantity, unit, rate, subtotal, transport_cost, discount, tax, total_amount, payment_status
+      FROM material_supplies
+      WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
+      ORDER BY date DESC, id DESC
+    `);
+
+    // 4. Fetch all site supplies (Cat 5)
+    const siteRows = await db.execute(sql`
+      SELECT 
+        s.id as supply_id, s.location_id, s.date, s.responsible_person, s.work_description,
+        t.name as team_name,
+        i.id as item_id, i.material_id, i.quantity, i.rate, i.amount as item_amount
+      FROM site_supplies s
+      JOIN site_supply_items i ON s.id = i.site_supply_id
+      LEFT JOIN labour_teams t ON s.team_id = t.id
+      WHERE s.is_deleted = 0 AND (i.is_deleted = 0 OR i.is_deleted IS NULL) AND s.location_id IN (${sql.raw(idList)})
+      ORDER BY s.date DESC, s.id DESC
+    `);
+
+    // Aggregation Map by canonical Material Key (normalized upper case name)
+    const materialMap = new Map<string, {
+      materialId?: number;
+      materialName: string;
+      category: string;
+      unit: string;
+      purchases: any[];
+      materialSupplies: any[];
+      siteSupplies: any[];
+      purchasedQty: number;
+      totalPurchaseCost: number;
+      purchaseSubtotal: number;
+      purchaseRates: number[];
+      materialSupplyQty: number;
+      materialSupplyAmount: number;
+      materialSupplyRates: number[];
+      siteSupplyQty: number;
+      siteSupplyAmount: number;
+      siteSupplyRates: number[];
+    }>();
+
+    const getOrCreate = (name: string, matId?: number, unit?: string, cat?: string) => {
+      const cleanName = (name || 'UNKNOWN').trim().toUpperCase();
+      if (!materialMap.has(cleanName)) {
+        materialMap.set(cleanName, {
+          materialId: matId,
+          materialName: cleanName,
+          category: cat || 'GENERAL',
+          unit: unit || 'Unit',
+          purchases: [],
+          materialSupplies: [],
+          siteSupplies: [],
+          purchasedQty: 0,
+          totalPurchaseCost: 0,
+          purchaseSubtotal: 0,
+          purchaseRates: [],
+          materialSupplyQty: 0,
+          materialSupplyAmount: 0,
+          materialSupplyRates: [],
+          siteSupplyQty: 0,
+          siteSupplyAmount: 0,
+          siteSupplyRates: []
+        });
+      }
+      const entry = materialMap.get(cleanName)!;
+      if (matId && !entry.materialId) entry.materialId = matId;
+      if (unit && entry.unit === 'Unit') entry.unit = unit;
+      if (cat && entry.category === 'GENERAL') entry.category = cat;
+      return entry;
+    };
+
+    // Populate from master
+    for (const m of matRows.rows as any[]) {
+      getOrCreate(m.name, Number(m.id), m.unit, m.category);
+    }
+
+    // Process Purchases
+    for (const p of purRows.rows as any[]) {
+      const q = Math.abs(parseFloat(p.quantity || '0'));
+      const tot = parseFloat(p.total_amount || '0');
+      const sub = parseFloat(p.subtotal || '0') || (q * parseFloat(p.rate || '0'));
+      const rate = parseFloat(p.rate || '0') || (q > 0 ? (tot / q) : 0);
+
+      const entry = getOrCreate(p.material_name, p.material_id ? Number(p.material_id) : undefined, p.unit);
+      entry.purchases.push({
+        id: p.id,
+        date: p.date,
+        partyName: p.party_name,
+        quantity: q,
+        unit: p.unit || entry.unit,
+        rate,
+        totalAmount: tot,
+        paymentStatus: p.payment_status
+      });
+      entry.purchasedQty += q;
+      entry.totalPurchaseCost += tot;
+      entry.purchaseSubtotal += sub;
+      if (rate > 0) entry.purchaseRates.push(rate);
+    }
+
+    // Process Material Supplies (Cat 4)
+    for (const s of supRows.rows as any[]) {
+      const q = Math.abs(parseFloat(s.quantity || '0'));
+      const tot = parseFloat(s.total_amount || '0');
+      const rate = parseFloat(s.rate || '0') || (q > 0 ? (tot / q) : 0);
+
+      const entry = getOrCreate(s.material_name, s.material_id ? Number(s.material_id) : undefined, s.unit);
+      entry.materialSupplies.push({
+        id: s.id,
+        date: s.date,
+        partyName: s.party_name,
+        quantity: q,
+        unit: s.unit || entry.unit,
+        rate,
+        totalAmount: tot,
+        paymentStatus: s.payment_status
+      });
+      entry.materialSupplyQty += q;
+      entry.materialSupplyAmount += tot;
+      if (rate > 0) entry.materialSupplyRates.push(rate);
+    }
+
+    // Process Site Supplies (Cat 5)
+    for (const st of siteRows.rows as any[]) {
+      const q = Math.abs(parseFloat(st.quantity || '0'));
+      const tot = parseFloat(st.item_amount || '0');
+      const rate = parseFloat(st.rate || '0') || (q > 0 ? (tot / q) : 0);
+
+      // Match master material name
+      let foundName = '';
+      let foundUnit = '';
+      if (st.material_id) {
+        const foundMat = (matRows.rows as any[]).find(m => Number(m.id) === Number(st.material_id));
+        if (foundMat) {
+          foundName = foundMat.name;
+          foundUnit = foundMat.unit;
+        }
+      }
+      if (!foundName) foundName = `MATERIAL_${st.material_id || 'UNKNOWN'}`;
+
+      const entry = getOrCreate(foundName, st.material_id ? Number(st.material_id) : undefined, foundUnit);
+      entry.siteSupplies.push({
+        id: st.supply_id,
+        itemId: st.item_id,
+        date: st.date,
+        teamName: st.team_name || 'Direct Site',
+        responsiblePerson: st.responsible_person || '',
+        workDescription: st.work_description || '',
+        quantity: q,
+        unit: entry.unit,
+        rate,
+        totalAmount: tot
+      });
+      entry.siteSupplyQty += q;
+      entry.siteSupplyAmount += tot;
+      if (rate > 0) entry.siteSupplyRates.push(rate);
+    }
+
+    // Compute final Analytics per Material
+    let sumPurchasedVal = 0;
+    let sumPurchasedQty = 0;
+    let sumMatSupVal = 0;
+    let sumMatSupQty = 0;
+    let sumSiteSupVal = 0;
+    let sumSiteSupQty = 0;
+    let sumOverallSupVal = 0;
+    let sumOverallSupQty = 0;
+    let sumInventoryVal = 0;
+    let sumGrossProfit = 0;
+
+    const materialsAnalytics = Array.from(materialMap.values()).map(item => {
+      const purchasedQty = Math.round(item.purchasedQty * 100) / 100;
+      const totalPurchaseCost = Math.round(item.totalPurchaseCost * 100) / 100;
+      const avgPurchaseRate = purchasedQty > 0 ? Math.round((totalPurchaseCost / purchasedQty) * 100) / 100 : 0;
+      const minPurchaseRate = item.purchaseRates.length > 0 ? Math.min(...item.purchaseRates) : 0;
+      const maxPurchaseRate = item.purchaseRates.length > 0 ? Math.max(...item.purchaseRates) : 0;
+
+      const materialSupplyQty = Math.round(item.materialSupplyQty * 100) / 100;
+      const materialSupplyAmount = Math.round(item.materialSupplyAmount * 100) / 100;
+      const avgMaterialSupplyRate = materialSupplyQty > 0 ? Math.round((materialSupplyAmount / materialSupplyQty) * 100) / 100 : 0;
+
+      const siteSupplyQty = Math.round(item.siteSupplyQty * 100) / 100;
+      const siteSupplyAmount = Math.round(item.siteSupplyAmount * 100) / 100;
+      const avgSiteSupplyRate = siteSupplyQty > 0 ? Math.round((siteSupplyAmount / siteSupplyQty) * 100) / 100 : 0;
+
+      const totalSuppliedQty = Math.round((materialSupplyQty + siteSupplyQty) * 100) / 100;
+      const totalSuppliedAmount = Math.round((materialSupplyAmount + siteSupplyAmount) * 100) / 100;
+      const avgOverallSupplyRate = totalSuppliedQty > 0 ? Math.round((totalSuppliedAmount / totalSuppliedQty) * 100) / 100 : 0;
+
+      const currentStock = Math.round((purchasedQty - totalSuppliedQty) * 100) / 100;
+      const stockValuation = currentStock > 0 ? Math.round(currentStock * avgPurchaseRate * 100) / 100 : 0;
+
+      let status = 'IN_STOCK';
+      if (currentStock < 0) status = 'NEGATIVE_ALERT';
+      else if (currentStock === 0) status = 'OUT_OF_STOCK';
+      else if (currentStock <= 15) status = 'LOW_STOCK';
+
+      const rateSpread = Math.round((avgOverallSupplyRate - avgPurchaseRate) * 100) / 100;
+      const grossProfit = Math.round(((avgOverallSupplyRate - avgPurchaseRate) * totalSuppliedQty) * 100) / 100;
+      const marginPercent = avgPurchaseRate > 0 ? Math.round(((avgOverallSupplyRate - avgPurchaseRate) / avgPurchaseRate) * 1000) / 10 : 0;
+
+      // Add to overall totals
+      sumPurchasedVal += totalPurchaseCost;
+      sumPurchasedQty += purchasedQty;
+      sumMatSupVal += materialSupplyAmount;
+      sumMatSupQty += materialSupplyQty;
+      sumSiteSupVal += siteSupplyAmount;
+      sumSiteSupQty += siteSupplyQty;
+      sumOverallSupVal += totalSuppliedAmount;
+      sumOverallSupQty += totalSuppliedQty;
+      sumInventoryVal += stockValuation;
+      sumGrossProfit += grossProfit;
+
+      return {
+        materialId: item.materialId,
+        materialName: item.materialName,
+        category: item.category,
+        unit: item.unit,
+        purchasedQty,
+        totalPurchaseCost,
+        avgPurchaseRate,
+        minPurchaseRate,
+        maxPurchaseRate,
+        purchaseCount: item.purchases.length,
+        materialSupplyQty,
+        materialSupplyAmount,
+        avgMaterialSupplyRate,
+        siteSupplyQty,
+        siteSupplyAmount,
+        avgSiteSupplyRate,
+        totalSuppliedQty,
+        totalSuppliedAmount,
+        avgOverallSupplyRate,
+        currentStock,
+        stockValuation,
+        status,
+        rateSpread,
+        grossProfit,
+        marginPercent,
+        purchases: item.purchases,
+        materialSupplies: item.materialSupplies,
+        siteSupplies: item.siteSupplies
+      };
+    });
+
+    const summary = {
+      totalPurchasedValue: Math.round(sumPurchasedVal * 100) / 100,
+      totalPurchasedQty: Math.round(sumPurchasedQty * 100) / 100,
+      totalMaterialSupplyValue: Math.round(sumMatSupVal * 100) / 100,
+      totalMaterialSupplyQty: Math.round(sumMatSupQty * 100) / 100,
+      totalSiteSupplyValue: Math.round(sumSiteSupVal * 100) / 100,
+      totalSiteSupplyQty: Math.round(sumSiteSupQty * 100) / 100,
+      totalOverallSuppliedValue: Math.round(sumOverallSupVal * 100) / 100,
+      totalOverallSuppliedQty: Math.round(sumOverallSupQty * 100) / 100,
+      totalStockInventoryValuation: Math.round(sumInventoryVal * 100) / 100,
+      totalGrossProfit: Math.round(sumGrossProfit * 100) / 100,
+      distinctMaterialsCount: materialsAnalytics.length
+    };
+
+    res.json({
+      summary,
+      materials: materialsAnalytics
+    });
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Failed to fetch material analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch material analytics' });
+  }
+});
+
+// GET /api/reports/export-material-analytics (Download Material Analytics Excel)
+// -----------------------------------------------------------------------------
+reportRouter.get('/export-material-analytics', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL'
+      ? parseInt(req.query.locationId as string, 10)
+      : undefined;
+
+    let locationName = "All Project Locations";
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+      const [loc] = await db.select({ name: locations.name }).from(locations).where(eq(locations.id, locationIdParam));
+      if (loc) locationName = loc.name;
+    }
+
+    const locCondition = locationIdParam 
+      ? sql`${locations.id} = ${locationIdParam}`
+      : sql`1=1`;
+
+    const locIds = await db.select({ id: locations.id }).from(locations)
+      .where(and(eq(locations.isDeleted, 0), locCondition));
+    const validLocIds = locIds.map(l => l.id);
+    if (validLocIds.length === 0) {
+      return res.status(404).json({ error: 'No data found for this location' });
+    }
+
+    const idList = validLocIds.join(',');
+
+    const [matRows, purRows, supRows, siteRows] = await Promise.all([
+      db.execute(sql`
+        SELECT id, name, category, default_unit as unit, default_rate, min_stock, location_id
+        FROM materials
+        WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
+        ORDER BY UPPER(TRIM(name)) ASC
+      `),
+      db.execute(sql`
+        SELECT 
+          id, location_id, material_id, material_name, party_name, date,
+          quantity, unit, rate, subtotal, transport_cost, discount, tax, total_amount, payment_status
+        FROM material_purchases
+        WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
+        ORDER BY date DESC, id DESC
+      `),
+      db.execute(sql`
+        SELECT 
+          id, location_id, material_id, material_name, party_name, date,
+          quantity, unit, rate, subtotal, transport_cost, discount, tax, total_amount, payment_status
+        FROM material_supplies
+        WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
+        ORDER BY date DESC, id DESC
+      `),
+      db.execute(sql`
+        SELECT 
+          s.id as supply_id, s.location_id, s.date, s.responsible_person, s.work_description,
+          t.name as team_name,
+          i.id as item_id, i.material_id, i.quantity, i.rate, i.amount as item_amount
+        FROM site_supplies s
+        JOIN site_supply_items i ON s.id = i.site_supply_id
+        LEFT JOIN labour_teams t ON s.team_id = t.id
+        WHERE s.is_deleted = 0 AND (i.is_deleted = 0 OR i.is_deleted IS NULL) AND s.location_id IN (${sql.raw(idList)})
+        ORDER BY s.date DESC, s.id DESC
+      `)
+    ]);
+
+    const materialMap = new Map<string, any>();
+    const getOrCreate = (name: string, matId?: number, unit?: string, cat?: string) => {
+      const cleanName = (name || 'UNKNOWN').trim().toUpperCase();
+      if (!materialMap.has(cleanName)) {
+        materialMap.set(cleanName, {
+          materialId: matId,
+          materialName: cleanName,
+          category: cat || 'GENERAL',
+          unit: unit || 'Unit',
+          purchases: [],
+          materialSupplies: [],
+          siteSupplies: [],
+          purchasedQty: 0,
+          totalPurchaseCost: 0,
+          purchaseRates: [],
+          materialSupplyQty: 0,
+          materialSupplyAmount: 0,
+          materialSupplyRates: [],
+          siteSupplyQty: 0,
+          siteSupplyAmount: 0,
+          siteSupplyRates: []
+        });
+      }
+      const entry = materialMap.get(cleanName)!;
+      if (matId && !entry.materialId) entry.materialId = matId;
+      if (unit && entry.unit === 'Unit') entry.unit = unit;
+      if (cat && entry.category === 'GENERAL') entry.category = cat;
+      return entry;
+    };
+
+    for (const m of matRows.rows as any[]) {
+      getOrCreate(m.name, Number(m.id), m.unit, m.category);
+    }
+
+    for (const p of purRows.rows as any[]) {
+      const q = Math.abs(parseFloat(p.quantity || '0'));
+      const tot = parseFloat(p.total_amount || '0');
+      const rate = parseFloat(p.rate || '0') || (q > 0 ? (tot / q) : 0);
+      const entry = getOrCreate(p.material_name, p.material_id ? Number(p.material_id) : undefined, p.unit);
+      entry.purchases.push({
+        id: p.id,
+        date: p.date,
+        partyName: p.party_name,
+        quantity: q,
+        unit: p.unit || entry.unit,
+        rate,
+        totalAmount: tot,
+        paymentStatus: p.payment_status
+      });
+      entry.purchasedQty += q;
+      entry.totalPurchaseCost += tot;
+      if (rate > 0) entry.purchaseRates.push(rate);
+    }
+
+    for (const s of supRows.rows as any[]) {
+      const q = Math.abs(parseFloat(s.quantity || '0'));
+      const tot = parseFloat(s.total_amount || '0');
+      const rate = parseFloat(s.rate || '0') || (q > 0 ? (tot / q) : 0);
+      const entry = getOrCreate(s.material_name, s.material_id ? Number(s.material_id) : undefined, s.unit);
+      entry.materialSupplies.push({
+        id: s.id,
+        date: s.date,
+        partyName: s.party_name,
+        quantity: q,
+        unit: s.unit || entry.unit,
+        rate,
+        totalAmount: tot,
+        paymentStatus: s.payment_status
+      });
+      entry.materialSupplyQty += q;
+      entry.materialSupplyAmount += tot;
+      if (rate > 0) entry.materialSupplyRates.push(rate);
+    }
+
+    for (const st of siteRows.rows as any[]) {
+      const q = Math.abs(parseFloat(st.quantity || '0'));
+      const tot = parseFloat(st.item_amount || '0');
+      const rate = parseFloat(st.rate || '0') || (q > 0 ? (tot / q) : 0);
+      let foundName = '';
+      let foundUnit = '';
+      if (st.material_id) {
+        const foundMat = (matRows.rows as any[]).find(m => Number(m.id) === Number(st.material_id));
+        if (foundMat) {
+          foundName = foundMat.name;
+          foundUnit = foundMat.unit;
+        }
+      }
+      if (!foundName) foundName = `MATERIAL_${st.material_id || 'UNKNOWN'}`;
+      const entry = getOrCreate(foundName, st.material_id ? Number(st.material_id) : undefined, foundUnit);
+      entry.siteSupplies.push({
+        id: st.supply_id,
+        itemId: st.item_id,
+        date: st.date,
+        teamName: st.team_name || 'Direct Site',
+        responsiblePerson: st.responsible_person || '',
+        workDescription: st.work_description || '',
+        quantity: q,
+        unit: entry.unit,
+        rate,
+        totalAmount: tot
+      });
+      entry.siteSupplyQty += q;
+      entry.siteSupplyAmount += tot;
+      if (rate > 0) entry.siteSupplyRates.push(rate);
+    }
+
+    let sumPurchasedVal = 0;
+    let sumPurchasedQty = 0;
+    let sumMatSupVal = 0;
+    let sumMatSupQty = 0;
+    let sumSiteSupVal = 0;
+    let sumSiteSupQty = 0;
+    let sumOverallSupVal = 0;
+    let sumOverallSupQty = 0;
+    let sumInventoryVal = 0;
+    let sumGrossProfit = 0;
+
+    const materialsAnalytics = Array.from(materialMap.values()).map(item => {
+      const purchasedQty = Math.round(item.purchasedQty * 100) / 100;
+      const totalPurchaseCost = Math.round(item.totalPurchaseCost * 100) / 100;
+      const avgPurchaseRate = purchasedQty > 0 ? Math.round((totalPurchaseCost / purchasedQty) * 100) / 100 : 0;
+      const minPurchaseRate = item.purchaseRates.length > 0 ? Math.min(...item.purchaseRates) : 0;
+      const maxPurchaseRate = item.purchaseRates.length > 0 ? Math.max(...item.purchaseRates) : 0;
+
+      const materialSupplyQty = Math.round(item.materialSupplyQty * 100) / 100;
+      const materialSupplyAmount = Math.round(item.materialSupplyAmount * 100) / 100;
+      const avgMaterialSupplyRate = materialSupplyQty > 0 ? Math.round((materialSupplyAmount / materialSupplyQty) * 100) / 100 : 0;
+
+      const siteSupplyQty = Math.round(item.siteSupplyQty * 100) / 100;
+      const siteSupplyAmount = Math.round(item.siteSupplyAmount * 100) / 100;
+      const avgSiteSupplyRate = siteSupplyQty > 0 ? Math.round((siteSupplyAmount / siteSupplyQty) * 100) / 100 : 0;
+
+      const totalSuppliedQty = Math.round((materialSupplyQty + siteSupplyQty) * 100) / 100;
+      const totalSuppliedAmount = Math.round((materialSupplyAmount + siteSupplyAmount) * 100) / 100;
+      const avgOverallSupplyRate = totalSuppliedQty > 0 ? Math.round((totalSuppliedAmount / totalSuppliedQty) * 100) / 100 : 0;
+
+      const currentStock = Math.round((purchasedQty - totalSuppliedQty) * 100) / 100;
+      const stockValuation = currentStock > 0 ? Math.round(currentStock * avgPurchaseRate * 100) / 100 : 0;
+
+      let status = 'IN_STOCK';
+      if (currentStock < 0) status = 'NEGATIVE_ALERT';
+      else if (currentStock === 0) status = 'OUT_OF_STOCK';
+      else if (currentStock <= 15) status = 'LOW_STOCK';
+
+      const rateSpread = Math.round((avgOverallSupplyRate - avgPurchaseRate) * 100) / 100;
+      const grossProfit = Math.round(((avgOverallSupplyRate - avgPurchaseRate) * totalSuppliedQty) * 100) / 100;
+      const marginPercent = avgPurchaseRate > 0 ? Math.round(((avgOverallSupplyRate - avgPurchaseRate) / avgPurchaseRate) * 1000) / 10 : 0;
+
+      sumPurchasedVal += totalPurchaseCost;
+      sumPurchasedQty += purchasedQty;
+      sumMatSupVal += materialSupplyAmount;
+      sumMatSupQty += materialSupplyQty;
+      sumSiteSupVal += siteSupplyAmount;
+      sumSiteSupQty += siteSupplyQty;
+      sumOverallSupVal += totalSuppliedAmount;
+      sumOverallSupQty += totalSuppliedQty;
+      sumInventoryVal += stockValuation;
+      sumGrossProfit += grossProfit;
+
+      return {
+        materialId: item.materialId,
+        materialName: item.materialName,
+        category: item.category,
+        unit: item.unit,
+        purchasedQty,
+        totalPurchaseCost,
+        avgPurchaseRate,
+        minPurchaseRate,
+        maxPurchaseRate,
+        purchaseCount: item.purchases.length,
+        materialSupplyQty,
+        materialSupplyAmount,
+        avgMaterialSupplyRate,
+        siteSupplyQty,
+        siteSupplyAmount,
+        avgSiteSupplyRate,
+        totalSuppliedQty,
+        totalSuppliedAmount,
+        avgOverallSupplyRate,
+        currentStock,
+        stockValuation,
+        status,
+        rateSpread,
+        grossProfit,
+        marginPercent,
+        purchases: item.purchases,
+        materialSupplies: item.materialSupplies,
+        siteSupplies: item.siteSupplies
+      };
+    });
+
+    const summary = {
+      totalPurchasedValue: Math.round(sumPurchasedVal * 100) / 100,
+      totalPurchasedQty: Math.round(sumPurchasedQty * 100) / 100,
+      totalMaterialSupplyValue: Math.round(sumMatSupVal * 100) / 100,
+      totalMaterialSupplyQty: Math.round(sumMatSupQty * 100) / 100,
+      totalSiteSupplyValue: Math.round(sumSiteSupVal * 100) / 100,
+      totalSiteSupplyQty: Math.round(sumSiteSupQty * 100) / 100,
+      totalOverallSuppliedValue: Math.round(sumOverallSupVal * 100) / 100,
+      totalOverallSuppliedQty: Math.round(sumOverallSupQty * 100) / 100,
+      totalStockInventoryValuation: Math.round(sumInventoryVal * 100) / 100,
+      totalGrossProfit: Math.round(sumGrossProfit * 100) / 100,
+      distinctMaterialsCount: materialsAnalytics.length
+    };
+
+    const buffer = generateMaterialAnalyticsBuffer(locationName, { summary, materials: materialsAnalytics });
+    const sanitized = locationName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="Material_Purchase_Supply_Analytics_${sanitized}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('Failed to export material analytics:', error);
+    res.status(500).json({ error: 'Failed to export material analytics' });
+  }
+});
+
 // GET /api/reports/download-catalog (Catalog of all downloadable files)
 // -------------------------------------------------------------
 reportRouter.get('/download-catalog', async (req: AuthRequest, res: Response) => {

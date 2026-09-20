@@ -24,24 +24,24 @@ async function resolveMaterialInfo(
   if (matId && !isNaN(matId)) {
     const existing = await tx.select().from(materials).where(and(eq(materials.id, matId), eq(materials.isDeleted, 0)));
     if (existing.length > 0) {
-      return { id: existing[0].id, name: existing[0].name, unit: existing[0].defaultUnit || unitInput || 'Unit' };
+      return { id: existing[0].id, name: (existing[0].name || '').trim().toUpperCase(), unit: existing[0].defaultUnit || unitInput || 'Unit' };
     }
   }
 
-  const rawName = (materialNameInput || '').trim();
+  const rawName = (materialNameInput || '').trim().toUpperCase();
   if (rawName) {
     const existingByName = await tx.select().from(materials).where(
       and(
         eq(materials.locationId, locId),
-        sql`LOWER(${materials.name}) = LOWER(${rawName})`,
+        sql`UPPER(TRIM(${materials.name})) = ${rawName}`,
         eq(materials.isDeleted, 0)
       )
     );
     if (existingByName.length > 0) {
-      return { id: existingByName[0].id, name: existingByName[0].name, unit: existingByName[0].defaultUnit || unitInput || 'Unit' };
+      return { id: existingByName[0].id, name: existingByName[0].name.trim().toUpperCase(), unit: existingByName[0].defaultUnit || unitInput || 'Unit' };
     }
 
-    // Automatically create master material so stock records stay consistent!
+    // Automatically create master material in UPPERCASE so stock records stay consistent and deduplicated!
     const created = await tx.insert(materials).values({
       userId,
       locationId: locId,
@@ -53,7 +53,7 @@ async function resolveMaterialInfo(
       isDeleted: 0
     }).returning();
 
-    return { id: created[0].id, name: created[0].name, unit: created[0].defaultUnit || unitInput || 'Unit' };
+    return { id: created[0].id, name: created[0].name.trim().toUpperCase(), unit: created[0].defaultUnit || unitInput || 'Unit' };
   }
 
   return null;
