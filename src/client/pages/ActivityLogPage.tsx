@@ -58,48 +58,53 @@ export default function ActivityLogPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <header>
-        <h1 className="text-2xl font-bold text-gray-900">Activity Log</h1>
-        <p className="text-sm text-gray-500 mt-1">Audit trail of all actions performed in Bina Enterprise.</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <History className="w-6 h-6 text-indigo-600" /> Activity Log
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Centralized audit trail of system events and financial mutations.</p>
       </header>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {logs.length === 0 ? (
-          <div className="p-12 text-center text-gray-500">
-            <History className="mx-auto mb-3 text-gray-400" size={32} />
-            <p>No activity recorded yet.</p>
+          <div className="p-12 text-center text-slate-500">
+            <History className="mx-auto mb-3 text-slate-300" size={36} />
+            <p className="font-semibold text-slate-700">No activity recorded yet</p>
+            <p className="text-xs text-slate-400 mt-1">Actions performed across locations will appear here</p>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-200">
+          <ul className="divide-y divide-slate-100">
             {logs.map((log) => (
-              <li key={log.id} className="p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="mt-1">
+              <li key={log.id} className="p-4 sm:p-5 hover:bg-slate-50/70 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="mt-0.5 p-2 rounded-xl bg-slate-100 text-slate-600 shrink-0">
                       {log.entityType === 'LOCATION' ? (
-                        <MapPin className="text-indigo-500" size={18} />
+                        <MapPin size={16} />
                       ) : (
-                        <FileText className="text-indigo-500" size={18} />
+                        <FileText size={16} />
                       )}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {formatAction(log.action)}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-slate-900">
+                          {formatAction(log.action)}
+                        </p>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${getActionColor(log.action)}`}>
+                          {log.action.split('_')[0]}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
                         {log.entityType} #{log.entityId}
                       </p>
                       {log.metadata && (
-                        <p className="text-xs text-gray-400 mt-1 font-mono bg-gray-50 p-1 rounded border border-gray-100 inline-block">
+                        <p className="text-xs text-slate-500 mt-1 font-mono bg-slate-50 p-2 rounded-xl border border-slate-100 break-all max-w-xl">
                           {log.metadata}
                         </p>
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>
-                      {log.action.split('_')[0]}
-                    </span>
-                    <p className="text-xs text-gray-500 mt-2">
+                  <div className="text-left sm:text-right shrink-0 pl-11 sm:pl-0">
+                    <p className="text-xs font-medium text-slate-400">
                       {new Date(log.createdAt).toLocaleString()}
                     </p>
                   </div>

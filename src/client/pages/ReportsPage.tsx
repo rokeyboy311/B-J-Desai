@@ -138,14 +138,14 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
           {/* Location Filter */}
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
-            <MapPin className="w-4 h-4 text-slate-400" />
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-xs">
+            <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
             <select
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value)}
-              className="text-xs font-semibold text-slate-700 bg-transparent outline-none cursor-pointer"
+              className="text-xs font-semibold text-slate-700 bg-transparent outline-none cursor-pointer w-full"
             >
               <option value="ALL">All Operating Locations</option>
               {locations.map((loc) => (
@@ -161,10 +161,10 @@ export default function ReportsPage() {
             type="button"
             onClick={handleExport}
             disabled={isExporting}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 min-h-[38px] cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            {isExporting ? "Generating Excel..." : "Export Excel Report"}
+            {isExporting ? "Generating Excel..." : "Export Excel"}
           </button>
         </div>
       </header>
@@ -307,7 +307,61 @@ export default function ReportsPage() {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile Reconciliation Cards (< 640px) */}
+        <div className="block sm:hidden divide-y divide-slate-100">
+          {filteredReconciliation.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-400">
+              No reconciliation records found for this location filter.
+            </div>
+          ) : (
+            filteredReconciliation.map((r, idx) => {
+              const status = r.reconciliationStatus || "MATCHED";
+              const statusColors = {
+                MATCHED: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
+                SURPLUS: "bg-blue-50 text-blue-700 border-blue-200/60",
+                DEFICIT: "bg-rose-50 text-rose-700 border-rose-200/60",
+              }[status] || "bg-slate-50 text-slate-700 border-slate-200";
+
+              return (
+                <div key={r.locationId || idx} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">{r.locationName || `Location #${r.locationId}`}</h4>
+                      {r.teams && r.teams.length > 0 && (
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Teams: {r.teams.map((t: any) => t.teamName).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${statusColors}`}>
+                      {status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 p-2.5 bg-slate-50 rounded-xl text-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Site Supply</span>
+                      <span className="text-xs font-bold text-slate-800">{formatCurrency(r.totalSiteSupply || 0)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Supervisor</span>
+                      <span className="text-xs font-bold text-slate-800">{formatCurrency(r.totalSupervisorCost || 0)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Variance</span>
+                      <span className={`text-xs font-bold ${(r.variance || 0) < 0 ? "text-rose-600" : (r.variance || 0) > 0 ? "text-blue-600" : "text-slate-700"}`}>
+                        {formatCurrency(r.variance || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop / Tablet Reconciliation Table (>= 640px) */}
+        <div className="hidden sm:block overflow-x-auto">
           {filteredReconciliation.length === 0 ? (
             <div className="p-10 text-center text-xs text-slate-400">
               No reconciliation records found for this location filter.

@@ -124,72 +124,8 @@ export default function CategoryPinGate({
           Protected Category
         </h3>
         <p className="text-xs text-slate-500 font-medium">
-          Category {categoryNumber} ({categoryName}) contains confidential financial records. Please enter the Category PIN to view and manage details.
+          Category {categoryNumber} ({categoryName}) contains confidential financial records. Please enter your authorized PIN to view and manage details.
         </p>
-        <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={async () => {
-              setPin('190190');
-              setErrorMsg("");
-              setLoading(true);
-              try {
-                const res = await apiFetch("/auth/verify-category-pin", {
-                  method: "POST",
-                  body: JSON.stringify({ pin: '190190' })
-                });
-                if (res && res.verified) {
-                  if (res.categoryToken) setStoredCategoryPinToken(res.categoryToken);
-                  setCategoryUnlocked(true);
-                  setUnlocked(true);
-                  setPin("");
-                } else {
-                  setErrorMsg(res?.error || "Verification failed");
-                }
-              } catch (e: any) {
-                setErrorMsg(e.message || "Failed to unlock");
-              } finally {
-                setLoading(false);
-              }
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-full text-[11px] font-mono font-bold text-amber-800 transition-all cursor-pointer shadow-2xs"
-            title="Click to instant unlock with Category PIN"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-            Category PIN: <span className="underline underline-offset-2">190190</span>
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              setPin('199198197');
-              setErrorMsg("");
-              setLoading(true);
-              try {
-                const res = await apiFetch("/auth/verify-category-pin", {
-                  method: "POST",
-                  body: JSON.stringify({ pin: '199198197' })
-                });
-                if (res && res.verified) {
-                  if (res.categoryToken) setStoredCategoryPinToken(res.categoryToken);
-                  setCategoryUnlocked(true);
-                  setUnlocked(true);
-                  setPin("");
-                } else {
-                  setErrorMsg(res?.error || "Verification failed");
-                }
-              } catch (e: any) {
-                setErrorMsg(e.message || "Failed to unlock");
-              } finally {
-                setLoading(false);
-              }
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-full text-[11px] font-mono font-bold text-indigo-700 transition-all cursor-pointer shadow-2xs"
-            title="Click to instant unlock with Master PIN"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
-            Master PIN: <span className="underline underline-offset-2">199198197</span>
-          </button>
-        </div>
       </div>
 
       {errorMsg && (

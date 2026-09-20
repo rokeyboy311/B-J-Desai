@@ -254,14 +254,14 @@ export default function ExcelDownloadsPage() {
   return (
     <div className="space-y-6">
       {/* Top Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 text-white shadow-xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 text-indigo-300">
-              <FileSpreadsheet className="w-7 h-7" />
+            <div className="p-2 sm:p-2.5 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 text-indigo-300 shrink-0">
+              <FileSpreadsheet className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-black text-white">Excel Downloads Hub (એક્સેલ ડાઉનલોડ સેન્ટર)</h1>
+              <h1 className="text-lg sm:text-xl md:text-2xl font-black text-white">Excel Downloads Hub (એક્સેલ ડાઉનલોડ સેન્ટર)</h1>
               <p className="text-xs text-indigo-200 mt-0.5">
                 તમામ કેટેગરી, ઇન્વેસ્ટર પાસબુક, વેન્ડર બિલ, કસ્ટમર સપ્લાય તથા રિફંડેબલ રેકોર્ડ્સની એક્સેલ ફાઇલો ડાઉનલોડ કરો
               </p>
@@ -269,14 +269,14 @@ export default function ExcelDownloadsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
           {/* Location Picker */}
           <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/20 text-xs font-bold text-white">
-            <Building className="w-4 h-4 text-indigo-300" />
+            <Building className="w-4 h-4 text-indigo-300 shrink-0" />
             <select
               value={selectedLocation}
               onChange={e => setSelectedLocation(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs font-bold text-white cursor-pointer pr-2"
+              className="bg-transparent border-none outline-none text-xs font-bold text-white cursor-pointer w-full pr-2"
             >
               <option value="ALL" className="text-slate-900">All Locations (બધા પ્રોજેક્ટ)</option>
               {locations.map(l => (
@@ -288,7 +288,7 @@ export default function ExcelDownloadsPage() {
           <button
             onClick={() => handleDownload('master_top', '/reports/export-all', 'Export_All_Locations.xlsx')}
             disabled={downloadingId !== null}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 text-xs cursor-pointer disabled:opacity-50"
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 min-h-[38px]"
             id="download-master-btn"
           >
             <ArrowDownToLine className="w-4 h-4" />

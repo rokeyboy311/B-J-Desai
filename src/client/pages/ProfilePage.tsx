@@ -204,7 +204,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs text-indigo-900">
-            Default Master PIN: <span className="font-mono font-bold">199198197</span> (or Alt: <span className="font-mono font-bold">190190</span>)
+            Verify with your current Master PIN to configure a new application access credential.
           </div>
 
           {masterError && (
@@ -278,7 +278,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 text-xs text-emerald-900">
-            Default Category PIN: <span className="font-mono font-bold">190190</span> (or Master PIN)
+            Verify with your current Category PIN or Master PIN to configure category security.
           </div>
 
           {catError && (

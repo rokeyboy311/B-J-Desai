@@ -180,16 +180,18 @@ export default function LocationsPage() {
                 <div className="w-12 h-12 bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 rounded-xl flex items-center justify-center shrink-0 transition-colors">
                   <MapPin size={24} />
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button type="button" 
                     onClick={(e) => openEditModal(loc, e)}
-                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
+                    title="Edit Location"
                   >
                     <Edit2 size={16} />
                   </button>
                   <button type="button" 
                     onClick={(e) => openDeleteModal(loc, e)}
-                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
+                    title="Delete Location"
                   >
                     <Trash2 size={16} />
                   </button>

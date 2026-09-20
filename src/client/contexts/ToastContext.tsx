@@ -85,7 +85,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {/* Floating Toasts Notification Container */}
       <div 
         id="toast-notifications-container"
-        className="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full"
+        className="fixed top-4 left-4 right-4 sm:left-auto sm:right-5 sm:top-5 z-50 flex flex-col gap-2 pointer-events-none sm:max-w-sm w-auto"
       >
         <AnimatePresence>
           {toasts.map((toast) => (

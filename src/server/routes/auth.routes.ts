@@ -58,19 +58,12 @@ authRouter.post('/verify-pin', async (req: Request, res: Response) => {
       console.error('Failed to query securitySettings for master PIN:', dbErr);
     }
 
-    // Standard valid master PINs for the system
+    // Valid master PINs: configured PIN in database or server-side MASTER_PIN
     const validMasterPins = [
       configuredMasterPin,
       MASTER_PIN,
       process.env.APP_ACCESS_PIN,
-      process.env.APP_MASTER_PIN,
-      '199198197',
-      '190190',
-      '123456',
-      '1234',
-      '0000',
-      '112233',
-      '9999'
+      process.env.APP_MASTER_PIN
     ].filter(Boolean) as string[];
 
     const isMatch = validMasterPins.some(p => timingSafeCompare(trimmedPin, p));
@@ -97,7 +90,7 @@ authRouter.post('/verify-pin', async (req: Request, res: Response) => {
 
     return res.status(401).json({
       success: false,
-      error: 'Invalid PIN. Access denied. Default PIN is 199198197.'
+      error: 'Invalid PIN. Access denied.'
     });
   } catch (error) {
     console.error('Error verifying PIN:', error);
@@ -145,13 +138,8 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
 
     const validCategoryPins = [
       categoryPin,
-      process.env.CATEGORY_ACCESS_PIN || '190190',
-      '190190',
-      '199198197',
-      MASTER_PIN,
-      '123456',
-      '1234',
-      '0000'
+      process.env.CATEGORY_ACCESS_PIN,
+      MASTER_PIN
     ].filter(Boolean) as string[];
 
     // Verify against DB/configured category PIN or MASTER_PIN using timing-safe comparison
@@ -179,7 +167,7 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
     return res.status(401).json({
       success: false,
       verified: false,
-      error: 'Incorrect Category PIN. Access denied. Default PIN is 190190.'
+      error: 'Incorrect Category PIN. Access denied.'
     });
   } catch (error) {
     console.error('Error verifying category PIN:', error);
@@ -219,7 +207,7 @@ authRouter.post('/change-pin', requireAuth, async (req: AuthRequest, res: Respon
       if (settings.length > 0 && settings[0].value) {
         configuredMasterPin = settings[0].value.trim();
       }
-      const validMasterPins = [configuredMasterPin, MASTER_PIN, '199198197', '190190'].filter(Boolean) as string[];
+      const validMasterPins = [configuredMasterPin, MASTER_PIN, process.env.APP_ACCESS_PIN, process.env.APP_MASTER_PIN].filter(Boolean) as string[];
       const isMatch = validMasterPins.some(p => timingSafeCompare(cleanCurrentPin, p));
       if (!isMatch) {
         return res.status(401).json({ success: false, error: 'Current Master PIN is incorrect.' });
@@ -244,7 +232,7 @@ authRouter.post('/change-pin', requireAuth, async (req: AuthRequest, res: Respon
       if (settings.length > 0 && settings[0].value) {
         categoryPin = settings[0].value.trim();
       }
-      const validCategoryPins = [categoryPin, '190190', '199198197', MASTER_PIN].filter(Boolean) as string[];
+      const validCategoryPins = [categoryPin, process.env.CATEGORY_ACCESS_PIN, MASTER_PIN].filter(Boolean) as string[];
       const isMatch = validCategoryPins.some(p => timingSafeCompare(cleanCurrentPin, p));
       if (!isMatch) {
         return res.status(401).json({ success: false, error: 'Current Category PIN is incorrect.' });

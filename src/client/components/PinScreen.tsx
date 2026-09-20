@@ -112,37 +112,8 @@ export const PinScreen: React.FC = () => {
               CENTRAL SHARED SYSTEM
             </p>
             <p className="text-sm text-slate-400 mt-2">
-              Enter authorized PIN to access unified enterprise database
+              Enter your authorized access PIN to continue
             </p>
-            {/* Quick PIN Hint / Fill Pill */}
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setPin('199198197');
-                  setLocalError(null);
-                  handleSubmit('199198197');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 rounded-full text-[11px] font-mono font-bold text-indigo-300 transition-all cursor-pointer shadow-xs"
-                title="Click to auto-unlock with Master PIN"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-                Master PIN: <span className="text-white underline underline-offset-2">199198197</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPin('190190');
-                  setLocalError(null);
-                  handleSubmit('190190');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-full text-[11px] font-mono font-bold text-slate-300 transition-all cursor-pointer shadow-xs"
-                title="Click to auto-unlock with Secondary PIN"
-              >
-                <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                Alt PIN: <span className="text-white underline underline-offset-2">190190</span>
-              </button>
-            </div>
           </div>
 
           {/* PIN Input & Dots display */}
@@ -156,7 +127,8 @@ export const PinScreen: React.FC = () => {
                   setPin(cleaned);
                   setLocalError(null);
                 }}
-                placeholder="Enter PIN (e.g. 199198197)..."
+                placeholder="Enter authorized PIN..."
+                autoComplete="current-password"
                 className="w-full text-center tracking-widest text-xl font-mono py-3.5 px-4 bg-slate-950/80 border border-slate-700/60 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner"
               />
               <button
