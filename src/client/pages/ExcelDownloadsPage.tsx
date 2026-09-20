@@ -209,19 +209,19 @@ export default function ExcelDownloadsPage() {
       });
     });
 
-    // 7. SITE SUPPLIES REGISTER
-    if (selectedLocation !== 'ALL') {
-      files.push({
-        id: `site_supplies_${selectedLocation}`,
-        title: `Site Supplies & Materials Register (${locName})`,
-        filename: `Site_Supplies_${locName.replace(/\s+/g, '_')}.xlsx`,
-        category: 'OPERATIONAL',
-        categoryLabel: 'Site Supplies',
-        icon: Wrench,
-        description: `Internal site material receipts and consumption register for ${locName}.`,
-        endpoint: `/reports/export-location/${selectedLocation}?tab=material-labour-supply`
-      });
+    // 7. SITE SUPPLIES REGISTER (Category 5)
+    files.push({
+      id: `site_supplies_${selectedLocation}`,
+      title: `Site Supplies & Materials Register (${locName})`,
+      filename: `Site_Supplies_${locName.replace(/\s+/g, '_')}.xlsx`,
+      category: 'OPERATIONAL',
+      categoryLabel: 'Site Supplies',
+      icon: Wrench,
+      description: `Internal site material receipts, team dispatches, and itemized GST calculation register for ${locName}.`,
+      endpoint: `/reports/export-site-supplies?locationId=${selectedLocation}`
+    });
 
+    if (selectedLocation !== 'ALL') {
       files.push({
         id: `labour_${selectedLocation}`,
         title: `Labour Wages & Attendance Register (${locName})`,

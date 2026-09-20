@@ -2,17 +2,19 @@ import express, { Response } from 'express';
 import { db } from '../../db/index.js';
 import { 
   locations, records, investmentParties, investmentTransactions,
-  materialPurchases, materialSupplies,
+  materialPurchases, materialSupplies, siteSupplies, siteSupplyItems,
+  materials, labourTeams,
   labourSalaries, supervisorCosts
 } from '../../db/schema.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { 
   generateExcelBuffer, 
   generateInvestorStatementBuffer, 
   generateVendorPurchasesBuffer, 
   generateCustomerSuppliesBuffer, 
-  generateRefundableRecordsBuffer 
+  generateRefundableRecordsBuffer,
+  generateSiteSuppliesBuffer
 } from '../lib/excel.js';
 import { calculateCategory2Capital } from '../lib/accounting.js';
 import { assertLocationAccess } from '../lib/locationAuth.js';
@@ -933,6 +935,110 @@ reportRouter.get('/export-customer-supplies', async (req: AuthRequest, res: Resp
   } catch (error: any) {
     console.error('Failed to export customer supplies:', error);
     res.status(500).json({ error: 'Failed to export customer supplies' });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/reports/export-site-supplies (Category 5 Site Material Supply / Internal Dispatch)
+// -------------------------------------------------------------
+reportRouter.get('/export-site-supplies', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL' ? parseInt(req.query.locationId as string, 10) : undefined;
+
+    let locCondition = sql`1=1`;
+    let locName = 'All Locations';
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+      locCondition = sql`${siteSupplies.locationId} = ${locationIdParam}`;
+      const [l] = await db.select({ name: locations.name }).from(locations).where(eq(locations.id, locationIdParam));
+      if (l) locName = l.name;
+    }
+
+    const supplies = await db.select({
+      id: siteSupplies.id,
+      locationId: siteSupplies.locationId,
+      date: siteSupplies.date,
+      teamId: siteSupplies.teamId,
+      responsiblePerson: siteSupplies.responsiblePerson,
+      workDescription: siteSupplies.workDescription,
+      referenceNumber: siteSupplies.referenceNumber,
+      notes: siteSupplies.notes,
+      totalAmount: siteSupplies.totalAmount,
+      teamName: labourTeams.name,
+      locationName: locations.name,
+    })
+    .from(siteSupplies)
+    .leftJoin(labourTeams, eq(siteSupplies.teamId, labourTeams.id))
+    .leftJoin(locations, eq(siteSupplies.locationId, locations.id))
+    .where(and(
+      eq(siteSupplies.isDeleted, 0),
+      locCondition
+    ))
+    .orderBy(sql`${siteSupplies.date} DESC`, sql`${siteSupplies.id} DESC`);
+
+    const recordIds = supplies.map(r => r.id);
+    let allItems: any[] = [];
+    if (recordIds.length > 0) {
+      allItems = await db.select({
+        id: siteSupplyItems.id,
+        siteSupplyId: siteSupplyItems.siteSupplyId,
+        materialId: siteSupplyItems.materialId,
+        quantity: siteSupplyItems.quantity,
+        rate: siteSupplyItems.rate,
+        amount: siteSupplyItems.amount,
+        materialName: materials.name,
+        defaultUnit: materials.defaultUnit,
+      })
+      .from(siteSupplyItems)
+      .leftJoin(materials, eq(siteSupplyItems.materialId, materials.id))
+      .where(and(
+        inArray(siteSupplyItems.siteSupplyId, recordIds),
+        eq(siteSupplyItems.isDeleted, 0)
+      ));
+    }
+
+    const formattedList = supplies.map(r => {
+      let meta: any = {};
+      if (r.notes && r.notes.startsWith('{') && r.notes.endsWith('}')) {
+        try {
+          meta = JSON.parse(r.notes);
+        } catch {
+          meta = {};
+        }
+      }
+      return {
+        ...r,
+        displayNotes: meta.userNotes !== undefined ? meta.userNotes : r.notes,
+        subtotal: meta.subtotal || r.totalAmount,
+        taxAmount: meta.taxAmount || '0',
+        items: allItems.filter(i => i.siteSupplyId === r.id).map(it => {
+          let itemMeta: any = {};
+          if (meta.itemsDetail && meta.itemsDetail[it.id]) {
+            itemMeta = meta.itemsDetail[it.id];
+          }
+          return {
+            ...it,
+            unit: itemMeta.unit || it.defaultUnit || 'Nos',
+            taxPercentage: itemMeta.taxPercentage || 0,
+            taxAmount: itemMeta.taxAmount || 0,
+            subtotal: itemMeta.subtotal || it.amount,
+            totalWithGst: it.amount
+          };
+        })
+      };
+    });
+
+    const buffer = generateSiteSuppliesBuffer(formattedList, locName);
+    const safeLoc = locName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="Site_Supplies_${safeLoc}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('Failed to export site supplies:', error);
+    res.status(500).json({ error: 'Failed to export site supplies' });
   }
 });
 

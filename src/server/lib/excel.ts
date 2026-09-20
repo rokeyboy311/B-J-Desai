@@ -424,3 +424,88 @@ export function generateRefundableRecordsBuffer(recordsList: any[], locationName
   return write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
+// -------------------------------------------------------------
+// Specialized Generator: Category 5 Site Material Supplies Register (With GST)
+// -------------------------------------------------------------
+export function generateSiteSuppliesBuffer(siteSuppliesList: any[], locationName: string = 'All Locations') {
+  const wb = utils.book_new();
+
+  let totalTaxable = 0;
+  let totalGst = 0;
+  let totalGrand = 0;
+  let totalUnits = 0;
+
+  const rows: any[] = [];
+
+  siteSuppliesList.forEach((s: any) => {
+    const supplyTotal = Number(s.totalAmount || 0);
+    const subtotal = Number(s.subtotal || s.totalAmount || 0);
+    const tax = Number(s.taxAmount || 0);
+
+    totalTaxable += subtotal;
+    totalGst += tax;
+    totalGrand += supplyTotal;
+
+    const items = Array.isArray(s.items) && s.items.length > 0 ? s.items : [
+      {
+        materialName: s.materialName || 'Materials',
+        quantity: s.quantity || 1,
+        unit: s.unit || 'Nos',
+        rate: s.rate || subtotal,
+        subtotal: subtotal,
+        taxPercentage: s.taxPercentage || 0,
+        taxAmount: tax,
+        totalWithGst: supplyTotal
+      }
+    ];
+
+    items.forEach((item: any, idx: number) => {
+      const qty = Number(item.quantity || 0);
+      totalUnits += qty;
+      const rate = Number(item.rate || 0);
+      const itemSubtotal = Number(item.subtotal || (qty * rate) || 0);
+      const taxRate = Number(item.taxPercentage || (subtotal > 0 ? Math.round((tax / subtotal) * 100) : 0));
+      const itemTax = Number(item.taxAmount || item.itemTax || (itemSubtotal * (taxRate / 100)) || 0);
+      const itemTotal = Number(item.totalWithGst || item.itemTotal || (itemSubtotal + itemTax) || 0);
+
+      rows.push({
+        'Date': s.date || '-',
+        'Site / Location': s.locationName || locationName,
+        'Labour Team / Contractor': s.teamName || '-',
+        'Responsible Person': s.responsiblePerson || '-',
+        'Challan / Ref No': s.referenceNumber || '-',
+        'Item #': idx + 1,
+        'Material Name': item.materialName || s.materialName || 'Material',
+        'Quantity': qty,
+        'Unit': item.unit || 'Nos',
+        'Rate (₹)': rate,
+        'Taxable Subtotal (₹)': Math.round(itemSubtotal * 100) / 100,
+        'GST Rate (%)': taxRate,
+        'GST Tax (₹)': Math.round(itemTax * 100) / 100,
+        'Total with GST (₹)': Math.round(itemTotal * 100) / 100,
+        'Work Scope / Notes': s.displayNotes || s.workDescription || s.notes || '-'
+      });
+    });
+  });
+
+  const headerData = [
+    ['BINA ENTERPRISE - CATEGORY 5: SITE MATERIAL SUPPLY REGISTER (WITH GST)'],
+    ['Project Location:', locationName],
+    ['Export Date:', new Date().toLocaleDateString()],
+    [],
+    ['Total Supply Records:', siteSuppliesList.length],
+    ['Total Units Dispatched:', totalUnits],
+    ['Total Taxable Base Amount (₹):', Math.round(totalTaxable * 100) / 100],
+    ['Total GST Tax Amount (₹):', Math.round(totalGst * 100) / 100],
+    ['Grand Total Supply Value (₹):', Math.round(totalGrand * 100) / 100],
+    [],
+    ['ITEMIZED SITE MATERIAL DISPATCHES & GST DETAILS'],
+  ];
+
+  const ws = utils.aoa_to_sheet(headerData);
+  utils.sheet_add_json(ws, rows, { origin: 'A12' });
+  utils.book_append_sheet(wb, ws, 'Site Supplies');
+
+  return write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+

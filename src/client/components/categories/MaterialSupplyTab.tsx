@@ -203,13 +203,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
             <h3 className="font-bold text-slate-900">External Supply Records</h3>
             <p className="text-[11px] text-slate-500">Customer sales & outbound materials invoiced</p>
           </div>
-          <button
-            onClick={() => downloadExcelReport(`/reports/export-customer-supplies?locationId=${locationId}`, `Customer_Supplies_Location_${locationId}.xlsx`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
-            title="Export Customer Supplies & GST Bills to Excel"
-          >
-            <Download className="w-3.5 h-3.5" /> Export Excel
-          </button>
+          <span className="text-xs text-slate-500 font-semibold">{records.length} records</span>
         </div>
         
         <div className="overflow-x-auto">

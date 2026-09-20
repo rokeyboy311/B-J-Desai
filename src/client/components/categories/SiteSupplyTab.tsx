@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Pencil, Plus, Trash2, HardHat, ArrowRightCircle, RefreshCw, FileText, CheckCircle2, Receipt } from "lucide-react";
+import { Pencil, Plus, Trash2, HardHat, ArrowRightCircle, RefreshCw, FileText, CheckCircle2, Receipt, Download } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
 import { useToast } from "../../contexts/ToastContext";
+import { downloadExcelReport } from "../../lib/excelExport";
 
 export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
@@ -266,11 +267,18 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
             <p className="text-xs text-slate-600">Issue materials to internal teams & site with itemized GST computation and automatic capital deduction.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => downloadExcelReport(`/reports/export-site-supplies?locationId=${locationId}`, `Site_Supplies_Location_${locationId}.xlsx`)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-teal-300 text-teal-950 hover:bg-teal-50 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            title="Export Site Supplies & GST Details to Excel"
+          >
+            <Download className="w-4 h-4 text-teal-600" /> Export Site Supplies (.xlsx)
+          </button>
           <button
             onClick={() => loadData(false)}
             disabled={loading}
-            className="p-2 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+            className="p-2.5 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
