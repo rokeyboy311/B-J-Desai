@@ -11,15 +11,22 @@ labourRouter.use(requireAuth);
 
 function transformLabourRecord(r: any) {
   if (!r) return r;
-  const isWork = String(r.attendanceType || '').toUpperCase().includes('WORK') || String(r.attendanceType || '').toUpperCase() === 'TC';
+  const attUpper = String(r.attendanceType || '').toUpperCase();
+  const isWork = attUpper.includes('WORK') || attUpper.includes('TC') || attUpper === 'TC_WISE';
+  const isUpad = attUpper.includes('UPAD') || attUpper === 'TEAM_UPAD';
+  const isKharch = attUpper.includes('KHARCH') || attUpper === 'OTHER_KHARCH' || attUpper === 'EXPENSE';
+
   return {
     ...r,
     quantity: r.tcQuantity,
     workQuantity: r.tcQuantity,
-    rate: r.tcRate,
+    rate: r.tcRate || r.dailyRate,
     workRate: r.tcRate,
     workName: r.workType || r.tcNumber,
-    isWorkWise: isWork
+    isWorkWise: isWork,
+    isTeamUpad: isUpad,
+    isOtherKharch: isKharch,
+    teamName: r.labourTeam || r.labourName
   };
 }
 
@@ -57,21 +64,29 @@ labourRouter.post('/', async (req: AuthRequest, res: Response) => {
     await assertLocationAccess(userId, locationId);
 
     const date = String(data.date || new Date().toISOString().split('T')[0]);
-    const labourMasterId = data.labourMasterId ? parseInt(String(data.labourMasterId), 10) : null;
-    const labourName = String(data.labourName || 'Unknown');
-    const labourTeam = data.labourTeam ? String(data.labourTeam) : (data.teamName ? String(data.teamName) : null);
+    const labourTeam = data.teamName ? String(data.teamName).trim() : (data.labourTeam ? String(data.labourTeam).trim() : 'General Team');
+    const labourName = String(data.labourName || labourTeam || 'Team');
     const siteLocationName = data.siteLocationName ? String(data.siteLocationName) : '';
 
-    const attendanceType = String(data.attendanceType || 'Full Day');
-    const days = data.days !== undefined ? String(data.days) : (attendanceType === 'Half Day' ? '0.5' : '1');
-    const dailyRate = String(data.dailyRate || data.rate || '0');
+    const rawAttType = String(data.attendanceType || 'Day Wise');
+    const attUpper = rawAttType.toUpperCase();
+    const isTeamUpad = attUpper.includes('UPAD') || attUpper === 'TEAM_UPAD';
+    const isOtherKharch = attUpper.includes('KHARCH') || attUpper === 'OTHER_KHARCH' || attUpper === 'EXPENSE';
+    const isWorkWise = attUpper.includes('WORK') || attUpper.includes('TC') || attUpper === 'TC_WISE';
 
-    // Work-wise fields
-    const isWorkWise = attendanceType.includes('Work') || attendanceType.toUpperCase() === 'TC';
-    const workName = data.workName ? String(data.workName) : (data.notes || '');
-    const unitOfMeasurement = data.unitOfMeasurement ? String(data.unitOfMeasurement) : (isWorkWise ? 'Nos' : null);
+    let attendanceType = rawAttType;
+    if (isTeamUpad) attendanceType = 'TEAM_UPAD';
+    else if (isOtherKharch) attendanceType = 'OTHER_KHARCH';
+    else if (isWorkWise) attendanceType = 'TC_WISE';
+    else attendanceType = 'DAY_WISE';
+
+    const days = data.days !== undefined ? String(data.days) : (rawAttType === 'Half Day' ? '0.5' : '1');
+    const dailyRate = String(data.dailyRate || data.rate || '0');
+    const workName = data.workName || data.workType || data.expenseCategory || data.category || (isOtherKharch ? 'Site Expense' : data.notes || '');
+    const unitOfMeasurement = data.unitOfMeasurement || (isWorkWise ? 'Nos' : null);
     const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : '0');
     const rate = data.rate ? String(data.rate) : (data.tcRate ? String(data.tcRate) : dailyRate);
+    const amount = data.amount || data.upad || data.paymentAmount || '0';
 
     const calc = calculateLabourSalaryTotals({
       attendanceType,
@@ -81,49 +96,52 @@ labourRouter.post('/', async (req: AuthRequest, res: Response) => {
       rate,
       tcQuantity: quantity,
       tcRate: rate,
-      deduction: data.deduction,
-      upad: data.upad,
-      paymentAmount: data.paymentAmount
+      amount,
+      upad: isTeamUpad ? amount : data.upad,
+      paymentAmount: isTeamUpad || isOtherKharch ? amount : data.paymentAmount,
+      deduction: data.deduction
     });
 
     const result = await db.insert(labourSalaries).values({
       userId,
       locationId,
-      labourMasterId,
+      labourMasterId: data.labourMasterId ? parseInt(String(data.labourMasterId), 10) : null,
       labourName,
       labourTeam,
       siteLocationName,
       date,
       attendanceType,
-      workType: isWorkWise ? workName : null,
+      workType: isWorkWise || isOtherKharch ? workName : null,
       unitOfMeasurement,
-      days: isWorkWise ? '0' : days,
-      dailyRate: isWorkWise ? '0' : dailyRate,
+      days: (isWorkWise || isTeamUpad || isOtherKharch) ? '0' : days,
+      dailyRate: (isWorkWise || isTeamUpad || isOtherKharch) ? '0' : dailyRate,
       tcQuantity: isWorkWise ? quantity : '0',
       tcRate: isWorkWise ? rate : '0',
-      tcNumber: workName,
+      tcNumber: isWorkWise ? workName : (data.referenceNumber || null),
       grossSalary: calc.grossSalary.toString(),
       upad: calc.upad.toString(),
       deduction: calc.deduction.toString(),
       paymentAmount: calc.paymentAmount.toString(),
       netSalary: calc.netSalary.toString(),
       balance: calc.balance.toString(),
-      notes: isWorkWise ? `${workName} (${quantity} ${unitOfMeasurement || 'Nos'})` : (data.notes || null),
+      paymentMethod: data.paymentMethod || (isTeamUpad || isOtherKharch ? 'Cash' : null),
+      referenceNumber: data.referenceNumber || null,
+      notes: data.notes || (isWorkWise ? `${workName} (${quantity} ${unitOfMeasurement || 'Nos'})` : null),
     }).returning();
 
     await db.insert(auditLogs).values({
       userId,
-      action: 'CREATE_LABOUR_ATTENDANCE',
+      action: isTeamUpad ? 'CREATE_TEAM_UPAD' : isOtherKharch ? 'CREATE_OTHER_KHARCH' : 'CREATE_LABOUR_ATTENDANCE',
       entityType: 'LABOUR_ATTENDANCE',
       entityId: result[0].id,
-      metadata: JSON.stringify({ labourName, attendanceType, grossSalary: calc.grossSalary, siteLocationName })
+      metadata: JSON.stringify({ teamName: labourTeam, attendanceType, amount: calc.grossSalary || calc.upad, date })
     });
 
     res.json(transformLabourRecord(result[0]));
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Create labour attendance error:', error);
-    res.status(500).json({ error: 'Failed to record attendance' });
+    res.status(500).json({ error: 'Failed to record entry' });
   }
 });
 
@@ -139,14 +157,27 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     await assertLocationAccess(userId, existing[0].locationId);
 
     const data = req.body;
-    const attendanceType = String(data.attendanceType || 'Full Day');
-    const isWorkWise = attendanceType.includes('Work') || attendanceType.toUpperCase() === 'TC';
-    const workName = data.workName ? String(data.workName) : (data.notes || '');
-    const unitOfMeasurement = data.unitOfMeasurement ? String(data.unitOfMeasurement) : (isWorkWise ? 'Nos' : null);
-    const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : '0');
-    const rate = data.rate ? String(data.rate) : (data.tcRate ? String(data.tcRate) : (data.dailyRate || '0'));
-    const days = data.days !== undefined ? String(data.days) : (attendanceType === 'Half Day' ? '0.5' : '1');
-    const dailyRate = String(data.dailyRate || '0');
+    const rawAttType = String(data.attendanceType || existing[0].attendanceType || 'Day Wise');
+    const attUpper = rawAttType.toUpperCase();
+    const isTeamUpad = attUpper.includes('UPAD') || attUpper === 'TEAM_UPAD';
+    const isOtherKharch = attUpper.includes('KHARCH') || attUpper === 'OTHER_KHARCH' || attUpper === 'EXPENSE';
+    const isWorkWise = attUpper.includes('WORK') || attUpper.includes('TC') || attUpper === 'TC_WISE';
+
+    let attendanceType = rawAttType;
+    if (isTeamUpad) attendanceType = 'TEAM_UPAD';
+    else if (isOtherKharch) attendanceType = 'OTHER_KHARCH';
+    else if (isWorkWise) attendanceType = 'TC_WISE';
+    else attendanceType = 'DAY_WISE';
+
+    const labourTeam = data.teamName ? String(data.teamName).trim() : (data.labourTeam ? String(data.labourTeam).trim() : existing[0].labourTeam);
+    const labourName = String(data.labourName || labourTeam || existing[0].labourName || 'Team');
+    const workName = data.workName || data.workType || data.expenseCategory || data.category || (isOtherKharch ? 'Site Expense' : data.notes || existing[0].workType || '');
+    const unitOfMeasurement = data.unitOfMeasurement || (isWorkWise ? (existing[0].unitOfMeasurement || 'Nos') : null);
+    const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : (existing[0].tcQuantity || '0'));
+    const rate = data.rate ? String(data.rate) : (data.tcRate ? String(data.tcRate) : (data.dailyRate || existing[0].dailyRate || '0'));
+    const days = data.days !== undefined ? String(data.days) : (rawAttType === 'Half Day' ? '0.5' : (existing[0].days || '1'));
+    const dailyRate = String(data.dailyRate || existing[0].dailyRate || '0');
+    const amount = data.amount || data.upad || data.paymentAmount || existing[0].paymentAmount || '0';
 
     const calc = calculateLabourSalaryTotals({
       attendanceType,
@@ -156,34 +187,35 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       rate,
       tcQuantity: quantity,
       tcRate: rate,
-      deduction: data.deduction,
-      upad: data.upad,
-      paymentAmount: data.paymentAmount
+      amount,
+      upad: isTeamUpad ? amount : (data.upad ?? existing[0].upad),
+      paymentAmount: isTeamUpad || isOtherKharch ? amount : (data.paymentAmount ?? existing[0].paymentAmount),
+      deduction: data.deduction ?? existing[0].deduction
     });
 
     const updatePayload: any = {
-      date: data.date,
+      date: data.date || existing[0].date,
       attendanceType,
-      siteLocationName: data.siteLocationName ? String(data.siteLocationName) : '',
-      workType: isWorkWise ? workName : null,
+      siteLocationName: data.siteLocationName !== undefined ? String(data.siteLocationName) : existing[0].siteLocationName,
+      labourName,
+      labourTeam,
+      workType: isWorkWise || isOtherKharch ? workName : null,
       unitOfMeasurement,
-      days: isWorkWise ? '0' : days,
-      dailyRate: isWorkWise ? '0' : dailyRate,
+      days: (isWorkWise || isTeamUpad || isOtherKharch) ? '0' : days,
+      dailyRate: (isWorkWise || isTeamUpad || isOtherKharch) ? '0' : dailyRate,
       tcQuantity: isWorkWise ? quantity : '0',
       tcRate: isWorkWise ? rate : '0',
-      tcNumber: workName,
+      tcNumber: isWorkWise ? workName : (data.referenceNumber || existing[0].referenceNumber),
       grossSalary: calc.grossSalary.toString(),
       upad: calc.upad.toString(),
       deduction: calc.deduction.toString(),
       paymentAmount: calc.paymentAmount.toString(),
       netSalary: calc.netSalary.toString(),
       balance: calc.balance.toString(),
-      notes: isWorkWise ? `${workName} (${quantity} ${unitOfMeasurement || 'Nos'})` : (data.notes || null),
+      paymentMethod: data.paymentMethod !== undefined ? data.paymentMethod : existing[0].paymentMethod,
+      referenceNumber: data.referenceNumber !== undefined ? data.referenceNumber : existing[0].referenceNumber,
+      notes: data.notes !== undefined ? data.notes : existing[0].notes,
     };
-
-    if (data.labourName) updatePayload.labourName = data.labourName;
-    if (data.labourTeam || data.teamName) updatePayload.labourTeam = data.labourTeam || data.teamName;
-    if (data.labourMasterId) updatePayload.labourMasterId = parseInt(String(data.labourMasterId), 10);
 
     const result = await db.update(labourSalaries)
       .set(updatePayload)
@@ -194,7 +226,7 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Update labour record error:', error);
-    res.status(500).json({ error: 'Failed to update attendance' });
+    res.status(500).json({ error: 'Failed to update entry' });
   }
 });
 

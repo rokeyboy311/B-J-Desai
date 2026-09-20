@@ -4,7 +4,7 @@ import { db } from '../../db/index.js';
 import { siteSupplies, siteSupplyItems, auditLogs } from '../../db/schema.js';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { StockManager } from '../lib/accounting.js';
+import { StockManager, calculateSiteSupplyTotals } from '../lib/accounting.js';
 import { assertLocationAccess } from '../lib/locationAuth.js';
 
 const siteSupplyRouter = express.Router();
@@ -30,10 +30,37 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
       items = await db.select().from(siteSupplyItems).where(and(inArray(siteSupplyItems.siteSupplyId, recordIds), eq(siteSupplyItems.isDeleted, 0)));
     }
     
-    const combined = records.map(r => ({
-      ...r,
-      items: items.filter(i => i.siteSupplyId === r.id)
-    }));
+    const combined = records.map(r => {
+      let meta: any = {};
+      if (r.notes && r.notes.startsWith('{') && r.notes.endsWith('}')) {
+        try {
+          meta = JSON.parse(r.notes);
+        } catch {
+          meta = {};
+        }
+      }
+      return {
+        ...r,
+        displayNotes: meta.userNotes !== undefined ? meta.userNotes : r.notes,
+        gstBreakdown: meta.gstBreakdown || null,
+        subtotal: meta.subtotal || r.totalAmount,
+        taxAmount: meta.taxAmount || '0',
+        items: items.filter(i => i.siteSupplyId === r.id).map(it => {
+          let itemMeta: any = {};
+          if (meta.itemsDetail && meta.itemsDetail[it.id]) {
+            itemMeta = meta.itemsDetail[it.id];
+          }
+          return {
+            ...it,
+            unit: itemMeta.unit || 'Nos',
+            taxPercentage: itemMeta.taxPercentage || 0,
+            taxAmount: itemMeta.taxAmount || 0,
+            subtotal: itemMeta.subtotal || it.amount,
+            totalWithGst: it.amount
+          };
+        })
+      };
+    });
     
     res.json(combined);
   } catch (err: any) {
@@ -55,31 +82,65 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
     const locId = parseInt(String(locationId), 10);
     await assertLocationAccess(userId, locId);
 
-    const totalAmount = items.reduce((sum: number, item: any) => sum + (parseFloat(item.quantity) * parseFloat(item.rate)), 0);
+    const validItems = items.filter((i: any) => i.materialId && parseFloat(String(i.quantity || 0)) > 0);
+    if (!validItems.length) {
+      return res.status(400).json({ error: 'At least one valid material item with quantity is required' });
+    }
+
+    const calculated = calculateSiteSupplyTotals(validItems);
 
     const result = await db.transaction(async (tx) => {
+      // Create metadata holding granular GST values
+      const supplyMeta = {
+        userNotes: notes || '',
+        subtotal: calculated.subtotal.toString(),
+        taxAmount: calculated.taxAmount.toString(),
+        totalAmount: calculated.totalAmount.toString(),
+        gstBreakdown: {
+          subtotal: calculated.subtotal,
+          totalTax: calculated.taxAmount,
+          grandTotal: calculated.totalAmount
+        },
+        itemsDetail: {} as Record<number, any>
+      };
+
       const supply = await tx.insert(siteSupplies).values({
         userId,
-        locationId: locId, date, teamId: teamId || null, responsiblePerson, workDescription, referenceNumber, notes,
-        investorId: investorId || null, totalAmount: totalAmount.toString()
+        locationId: locId,
+        date,
+        teamId: teamId || null,
+        responsiblePerson,
+        workDescription,
+        referenceNumber,
+        notes: JSON.stringify(supplyMeta),
+        investorId: investorId || null,
+        totalAmount: calculated.totalAmount.toString()
       }).returning();
       
       const supplyId = supply[0].id;
       
-      for (const item of items) {
-        if (item.materialId && parseFloat(item.quantity) > 0) {
-          const amount = parseFloat(item.quantity) * parseFloat(item.rate);
-          await tx.insert(siteSupplyItems).values({
-            siteSupplyId: supplyId,
-            materialId: item.materialId,
-            quantity: item.quantity.toString(),
-            rate: item.rate.toString(),
-            amount: amount.toString()
-          });
-          
-          await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'OUT', parseFloat(item.quantity), supplyId, 'SITE_SUPPLY', notes);
-        }
+      for (const itemCalc of calculated.items) {
+        const itemRow = await tx.insert(siteSupplyItems).values({
+          siteSupplyId: supplyId,
+          materialId: itemCalc.materialId,
+          quantity: itemCalc.quantity.toString(),
+          rate: itemCalc.rate.toString(),
+          amount: itemCalc.totalAmount.toString()
+        }).returning();
+
+        supplyMeta.itemsDetail[itemRow[0].id] = {
+          unit: itemCalc.unit,
+          taxPercentage: itemCalc.taxPercentage,
+          taxAmount: itemCalc.taxAmount,
+          subtotal: itemCalc.subtotal,
+          totalAmount: itemCalc.totalAmount
+        };
+        
+        await StockManager.addStockMovement(tx, userId, locId, itemCalc.materialId, 'OUT', itemCalc.quantity, supplyId, 'SITE_SUPPLY', notes);
       }
+
+      // Update notes with item details
+      await tx.update(siteSupplies).set({ notes: JSON.stringify(supplyMeta) }).where(eq(siteSupplies.id, supplyId));
       
       await tx.insert(auditLogs).values({
         userId, action: 'CREATE_SITE_SUPPLY', entityType: 'SITE_SUPPLY', entityId: supplyId
@@ -109,7 +170,12 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const locId = parseInt(String(locationId), 10);
     await assertLocationAccess(userId, locId);
 
-    const totalAmount = items.reduce((sum: number, item: any) => sum + (parseFloat(item.quantity) * parseFloat(item.rate)), 0);
+    const validItems = items.filter((i: any) => i.materialId && parseFloat(String(i.quantity || 0)) > 0);
+    if (!validItems.length) {
+      return res.status(400).json({ error: 'At least one valid material item with quantity is required' });
+    }
+
+    const calculated = calculateSiteSupplyTotals(validItems);
 
     const result = await db.transaction(async (tx) => {
       // Revert old stock
@@ -120,25 +186,52 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       
       await tx.delete(siteSupplyItems).where(eq(siteSupplyItems.siteSupplyId, id));
 
+      const supplyMeta = {
+        userNotes: notes || '',
+        subtotal: calculated.subtotal.toString(),
+        taxAmount: calculated.taxAmount.toString(),
+        totalAmount: calculated.totalAmount.toString(),
+        gstBreakdown: {
+          subtotal: calculated.subtotal,
+          totalTax: calculated.taxAmount,
+          grandTotal: calculated.totalAmount
+        },
+        itemsDetail: {} as Record<number, any>
+      };
+
       const supply = await tx.update(siteSupplies).set({
-        locationId: locId, date, teamId: teamId || null, responsiblePerson, workDescription, referenceNumber, notes,
-        investorId: investorId || null, totalAmount: totalAmount.toString()
+        locationId: locId,
+        date,
+        teamId: teamId || null,
+        responsiblePerson,
+        workDescription,
+        referenceNumber,
+        notes: JSON.stringify(supplyMeta),
+        investorId: investorId || null,
+        totalAmount: calculated.totalAmount.toString()
       }).where(and(eq(siteSupplies.id, id), eq(siteSupplies.isDeleted, 0))).returning();
       
-      for (const item of items) {
-        if (item.materialId && parseFloat(item.quantity) > 0) {
-          const amount = parseFloat(item.quantity) * parseFloat(item.rate);
-          await tx.insert(siteSupplyItems).values({
-            siteSupplyId: id,
-            materialId: item.materialId,
-            quantity: item.quantity.toString(),
-            rate: item.rate.toString(),
-            amount: amount.toString()
-          });
-          
-          await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'OUT', parseFloat(item.quantity), id, 'SITE_SUPPLY', notes);
-        }
+      for (const itemCalc of calculated.items) {
+        const itemRow = await tx.insert(siteSupplyItems).values({
+          siteSupplyId: id,
+          materialId: itemCalc.materialId,
+          quantity: itemCalc.quantity.toString(),
+          rate: itemCalc.rate.toString(),
+          amount: itemCalc.totalAmount.toString()
+        }).returning();
+
+        supplyMeta.itemsDetail[itemRow[0].id] = {
+          unit: itemCalc.unit,
+          taxPercentage: itemCalc.taxPercentage,
+          taxAmount: itemCalc.taxAmount,
+          subtotal: itemCalc.subtotal,
+          totalAmount: itemCalc.totalAmount
+        };
+        
+        await StockManager.addStockMovement(tx, userId, locId, itemCalc.materialId, 'OUT', itemCalc.quantity, id, 'SITE_SUPPLY', notes);
       }
+
+      await tx.update(siteSupplies).set({ notes: JSON.stringify(supplyMeta) }).where(eq(siteSupplies.id, id));
       
       await tx.insert(auditLogs).values({
         userId, action: 'UPDATE_SITE_SUPPLY', entityType: 'SITE_SUPPLY', entityId: id

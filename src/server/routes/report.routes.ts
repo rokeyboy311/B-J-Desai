@@ -242,8 +242,6 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
 
     // 9. Category 2 (Project Investment) Deductions & Analytics Calculation via accounting.ts
     const labourPaidOut = Math.round((labourMetrics.totalPayment + labourMetrics.totalUpad) * 100) / 100;
-    // Category 8 encompasses project general expenses and supervisor costs
-    const cat8OperationalExpense = Math.round((totalSupervisorCost + actualExpense) * 100) / 100;
 
     const cat2Calculation = calculateCategory2Capital({
       investmentFromInvestors: investmentFromInvestorsCapital,
@@ -251,8 +249,8 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       cat3Deduction: totalMaterialPurchase,
       cat4Deduction: 0, // Material Supply is customer sales, not project capital deduction
       cat5Deduction: totalMaterialLabourSupply,
-      cat67Deduction: labourPaidOut,
-      cat8Deduction: cat8OperationalExpense,
+      cat6Deduction: labourPaidOut,
+      refundableDeduction: pendingRefundable,
       investorUpadReturn: totalInvestmentPayment
     });
 
@@ -269,8 +267,9 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       netCapitalPool: cat2Calculation.fullCapital,
       materialPurchaseExpense: cat2Calculation.cat3Deduction,
       siteSupplyExpense: cat2Calculation.cat5Deduction,
-      labourSalaryExpense: cat2Calculation.cat67Deduction,
-      generalExpense: cat2Calculation.cat8Deduction,
+      labourSalaryExpense: cat2Calculation.cat6Deduction,
+      refundableExpense: cat2Calculation.refundableDeduction,
+      generalExpense: 0,
       totalExpensesCut: cat2Calculation.totalDeductions,
       remainingCapital: cat2Calculation.remainingCapital,
       utilizationRate,
@@ -278,8 +277,10 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
         cat3MaterialPurchases: cat2Calculation.cat3Deduction,
         cat4MaterialSupplies: cat2Calculation.cat4Deduction,
         cat5SiteSupplies: cat2Calculation.cat5Deduction,
-        cat67Labour: cat2Calculation.cat67Deduction,
-        cat8GeneralOrSupervisor: cat2Calculation.cat8Deduction
+        cat6Labour: cat2Calculation.cat6Deduction,
+        cat67Labour: cat2Calculation.cat6Deduction,
+        refundableRecords: cat2Calculation.refundableDeduction,
+        cat8GeneralOrSupervisor: 0
       }
     };
 

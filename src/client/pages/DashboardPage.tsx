@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { 
-  LayoutDashboard, Users, Landmark, Truck, Package, Activity, ShieldAlert,
-  CalendarCheck, Wrench, ArrowRight, CheckCircle2, HardHat, PieChart, Coins,
-  Calculator, ArrowDownRight, ArrowUpRight, ChevronDown, ChevronUp, Layers, HelpCircle
+  LayoutDashboard, Users, Landmark, Truck, Package, Activity,
+  CalendarCheck, Wrench, ArrowRight, CheckCircle2, PieChart, Coins,
+  Calculator, ArrowDownRight, ArrowUpRight, ChevronDown, ChevronUp, Layers, HelpCircle,
+  Receipt
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useNavigate } from "react-router-dom";
@@ -76,7 +77,7 @@ export default function DashboardPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Master Financial Dashboard</h1>
-            <p className="text-sm text-slate-500 font-medium">Clear Category 1 to 8 Accounting, Capital Inflow & Expense Audit</p>
+            <p className="text-sm text-slate-500 font-medium">Clear Category 1 to 6 Accounting, Capital Inflow & Expense Audit</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -87,7 +88,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Visual Flow Guide: Cat 1 -> Cat 2 -> Cat 3-8 */}
+      {/* Visual Flow Guide: Cat 1 -> Cat 2 -> Cat 3-6 */}
       <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-indigo-900">
         <div className="flex items-center gap-2 font-bold shrink-0">
           <Calculator className="w-4 h-4 text-indigo-600" />
@@ -103,7 +104,7 @@ export default function DashboardPage() {
           </span>
           <ArrowRight className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
           <span className="px-2.5 py-1 bg-white rounded-lg font-semibold border border-indigo-200 shadow-2xs">
-            3-8. Project Expenses & Deductions
+            3-6. Project Expenses (Cat 3, 4, 5, 6)
           </span>
         </div>
         <span className="text-[11px] text-indigo-700/80 italic shrink-0">
@@ -221,7 +222,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-300">2. Operational Deductions (Cat 3 થી 8 કપાત)</span>
+                <span className="text-slate-300">2. Operational Deductions (Cat 3 થી 6 & રિફંડેબલ)</span>
                 <span className="font-bold text-rose-400">- ₹{getMetric(cat2.totalDeductions)}</span>
               </div>
               <div className="flex justify-between items-center">
@@ -255,7 +256,43 @@ export default function DashboardPage() {
         
       </div>
 
-      {/* Category 2 Deductions Transparency Accordion (Cat 3 to 8 Reconciliation) */}
+      {/* Refundable Records Highlight Banner */}
+      <div className="bg-gradient-to-r from-purple-900/90 via-indigo-900 to-slate-900 rounded-2xl border border-purple-500/30 p-5 text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-purple-500/20 border border-purple-400/30 rounded-xl text-purple-300 shrink-0">
+            <Receipt className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-base text-white">Refundable Record (રિફંડેબલ ડિપોઝિટ / એડવાન્સ રકમ)</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/30 text-purple-200 border border-purple-400/30">
+                Cat 2 Deduction
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              સિક્યોરિટી ડિપોઝિટ, ટેન્ડર EMD, મીટર ડિપોઝિટ તથા અન્ય રિફંડેબલ રકમો જે મૂડીમાંથી બાદ થાય છે અને પરત મળવાપાત્ર છે.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-6 shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Refundable</span>
+            <p className="text-base font-black text-purple-200">₹{getMetric(metrics?.totalRefundable || metrics?.refundableSummary?.totalRefundable || 0)}</p>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Received / Refunded</span>
+            <p className="text-base font-black text-emerald-400">₹{getMetric(metrics?.totalRefunded || metrics?.refundableSummary?.totalRefunded || 0)}</p>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div>
+            <span className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">લેવાના બાકી (Pending)</span>
+            <p className="text-lg font-black text-amber-300">₹{getMetric(metrics?.pendingRefundable || metrics?.refundableSummary?.pendingRefundable || 0)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Category 2 Deductions Transparency Accordion (Cat 3 to 6 + Refundable Reconciliation) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div 
           onClick={() => setShowCat2Breakdown(!showCat2Breakdown)}
@@ -267,13 +304,13 @@ export default function DashboardPage() {
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                Category 2 to 8 Reconciliation: How Project Capital is Deducted
+                Category 2 to 6 Reconciliation: How Project Capital is Deducted
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
                   Total Deductions: ₹{getMetric(cat2.totalDeductions)}
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Detailed audit showing every rupee spent from Category 2 Project Capital across Categories 3 to 8
+                Detailed audit showing every rupee spent from Category 2 Project Capital across Categories 3, 5, 6 & Refundables
               </p>
             </div>
           </div>
@@ -299,7 +336,7 @@ export default function DashboardPage() {
                     <span className="p-1.5 bg-rose-50 text-rose-600 rounded-md"><Package className="w-3.5 h-3.5" /></span>
                   </div>
                   <p className="text-xl font-black text-rose-600">₹{getMetric(catDetails.cat3MaterialPurchases || metrics?.totalMaterialPurchase)}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Vendor invoices & material inventory cost</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Vendor invoices & material purchases</p>
                 </div>
 
                 {/* Cat 5 Site Supply */}
@@ -309,27 +346,27 @@ export default function DashboardPage() {
                     <span className="p-1.5 bg-teal-50 text-teal-600 rounded-md"><Wrench className="w-3.5 h-3.5" /></span>
                   </div>
                   <p className="text-xl font-black text-teal-600">₹{getMetric(catDetails.cat5SiteSupplies || metrics?.totalMaterialLabourSupply)}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Direct internal materials dispatched to project site</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Direct internal materials dispatched to site</p>
                 </div>
 
-                {/* Cat 6/7 Labour Salaries */}
+                {/* Cat 6 Labour Attendance, Team Upad & Other Kharch */}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Cat 6/7. Labour Payouts</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase">Cat 6. Labour & Kharch</span>
                     <span className="p-1.5 bg-amber-50 text-amber-600 rounded-md"><CalendarCheck className="w-3.5 h-3.5" /></span>
                   </div>
-                  <p className="text-xl font-black text-amber-600">₹{getMetric(catDetails.cat67Labour || (Number(metrics?.labourMetrics?.totalPayment || 0) + Number(metrics?.labourMetrics?.totalUpad || 0)))}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Total labour wages paid and worker upad advances</p>
+                  <p className="text-xl font-black text-amber-600">₹{getMetric(catDetails.cat6Labour || catDetails.cat67Labour || (Number(metrics?.labourMetrics?.totalPayment || 0) + Number(metrics?.labourMetrics?.totalUpad || 0)))}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Attendance wages, Team Upad & Other Kharch</p>
                 </div>
 
-                {/* Cat 8 Supervisor & General Expenses */}
+                {/* Refundable Outflows */}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Cat 8. Supervisor & Expenses</span>
-                    <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-md"><HardHat className="w-3.5 h-3.5" /></span>
+                    <span className="text-xs font-bold text-purple-600 uppercase">Refundable Deposits</span>
+                    <span className="p-1.5 bg-purple-50 text-purple-600 rounded-md"><Receipt className="w-3.5 h-3.5" /></span>
                   </div>
-                  <p className="text-xl font-black text-indigo-600">₹{getMetric(catDetails.cat8GeneralOrSupervisor || (Number(metrics?.totalSupervisorCost || 0) + Number(metrics?.actualExpense || 0)))}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Supervisor operational bills & site expense vouchers</p>
+                  <p className="text-xl font-black text-purple-600">₹{getMetric(metrics?.pendingRefundable || metrics?.refundableSummary?.pendingRefundable || catDetails.refundableRecords || 0)}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Pending refundable security deposits (લેવાના બાકી)</p>
                 </div>
 
               </div>
@@ -337,10 +374,10 @@ export default function DashboardPage() {
               <div className="mt-4 pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
                 <span className="font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  All Category 2 project deductions precisely balance against operational categories 3, 5, 6, 7 & 8.
+                  Category 2 project deductions precisely balance against Categories 3, 5, 6 & Refundables.
                 </span>
                 <span className="font-mono font-bold text-slate-800">
-                  ₹{getMetric(catDetails.cat3MaterialPurchases || metrics?.totalMaterialPurchase)} + ₹{getMetric(catDetails.cat5SiteSupplies || metrics?.totalMaterialLabourSupply)} + ₹{getMetric(catDetails.cat67Labour || (Number(metrics?.labourMetrics?.totalPayment || 0) + Number(metrics?.labourMetrics?.totalUpad || 0)))} + ₹{getMetric(catDetails.cat8GeneralOrSupervisor || (Number(metrics?.totalSupervisorCost || 0) + Number(metrics?.actualExpense || 0)))} = ₹{getMetric(cat2.totalDeductions)}
+                  ₹{getMetric(catDetails.cat3MaterialPurchases || metrics?.totalMaterialPurchase)} + ₹{getMetric(catDetails.cat5SiteSupplies || metrics?.totalMaterialLabourSupply)} + ₹{getMetric(catDetails.cat6Labour || catDetails.cat67Labour || (Number(metrics?.labourMetrics?.totalPayment || 0) + Number(metrics?.labourMetrics?.totalUpad || 0)))} + ₹{getMetric(metrics?.pendingRefundable || 0)} = ₹{getMetric(cat2.totalDeductions)}
                 </span>
               </div>
             </motion.div>
@@ -351,7 +388,7 @@ export default function DashboardPage() {
       {/* Department Wise Operations Cards */}
       <div className="space-y-4">
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <PieChart className="w-5 h-5 text-indigo-500" /> Department Wise Operational Status (Categories 3 to 7)
+          <PieChart className="w-5 h-5 text-indigo-500" /> Department Wise Operational Status (Categories 3 to 6)
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -464,27 +501,27 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 6 & 7. Labour Cost & Records */}
+          {/* 6. Labour Attendance, Upad & Other Kharch */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:border-amber-300 transition-colors flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl"><CalendarCheck className="w-5 h-5" /></div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">6 & 7. Labour Records</h3>
-                  <p className="text-[11px] text-slate-500">Wages, Attendance & Payments</p>
+                  <h3 className="font-bold text-slate-900 text-sm">6. Labour Attendance</h3>
+                  <p className="text-[11px] text-slate-500">Attendance, Team Upad & Kharch</p>
                 </div>
               </div>
               <div className="space-y-2.5 pt-3 border-t border-slate-100">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Total Earned Salary</span>
+                  <span className="text-slate-500">Attendance Earned</span>
                   <span className="font-bold text-slate-800">₹{getMetric(metrics?.labourMetrics?.totalNetSalary)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Paid Amount</span>
-                  <span className="font-bold text-emerald-600">₹{getMetric(metrics?.labourMetrics?.totalPayment)}</span>
+                  <span className="text-slate-500">Team Upad Advances</span>
+                  <span className="font-bold text-indigo-600">₹{getMetric(metrics?.labourMetrics?.totalUpad)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Unpaid Balance</span>
+                  <span className="text-slate-500">Unpaid Wages Balance</span>
                   <span className="font-bold text-rose-600">₹{getMetric(metrics?.labourMetrics?.totalBalance)}</span>
                 </div>
               </div>
@@ -492,82 +529,14 @@ export default function DashboardPage() {
             <div className="mt-4 pt-2 border-t border-slate-100 text-right">
               <button 
                 type="button" 
-                onClick={() => navigate('/labour-records')}
+                onClick={() => navigate('/labour-attendance')}
                 className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
               >
-                View Labour Records &rarr;
+                View Labour &rarr;
               </button>
             </div>
           </div>
 
-        </div>
-      </div>
-
-      {/* 8. Supervisor Cost & Site Supply Audit Card */}
-      <div className="bg-white rounded-2xl border border-indigo-200 shadow-md p-6 relative overflow-hidden">
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-indigo-100 text-indigo-700 rounded-xl"><HardHat className="w-6 h-6" /></div>
-            <div>
-              <h3 className="font-black text-slate-900 text-lg">
-                8. Supervisor Cost & Audit Reconciliation
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Reconciles supervisor declared expenses against Category 5 site supplies & Category 2 project deductions
-              </p>
-            </div>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => navigate('/supervisor-costs')}
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200"
-          >
-            Manage Supervisor Costs &rarr;
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-            <p className="text-xs text-indigo-600/70 font-semibold mb-1 uppercase tracking-wider">Supervisor Declared Cost</p>
-            <p className="text-2xl font-black text-indigo-900">₹{getMetric(metrics?.supervisorAudit?.totalSupervisorCost || metrics?.totalSupervisorCost)}</p>
-          </div>
-          
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <p className="text-xs text-slate-500 font-semibold mb-1 uppercase tracking-wider">Site Supply Value</p>
-            <p className="text-2xl font-black text-slate-800">₹{getMetric(metrics?.supervisorAudit?.totalSiteSupply || metrics?.totalMaterialLabourSupply)}</p>
-          </div>
-          
-          {(() => {
-            const sv = Number(metrics?.supervisorAudit?.totalSupervisorCost || metrics?.totalSupervisorCost || 0);
-            const ss = Number(metrics?.supervisorAudit?.totalSiteSupply || metrics?.totalMaterialLabourSupply || 0);
-            const variance = Math.abs(sv - ss);
-            const isMatch = variance === 0 && sv > 0;
-            const isMissing = sv === 0 && ss === 0;
-
-            return (
-              <div className={`p-4 rounded-xl border md:col-span-2 flex items-center justify-between ${isMissing ? 'bg-slate-50 border-slate-200' : isMatch ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                <div>
-                  <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${isMissing ? 'text-slate-500' : isMatch ? 'text-emerald-600' : 'text-rose-600'}`}>Site Audit Match (Variance)</p>
-                  <p className={`text-2xl font-black ${isMissing ? 'text-slate-800' : isMatch ? 'text-emerald-700' : 'text-rose-700'}`}>₹{variance.toLocaleString()}</p>
-                </div>
-                <div className="text-right">
-                  {isMissing ? (
-                    <span className="px-3 py-1 rounded-full bg-slate-200 text-slate-600 text-xs font-bold">NO RECORDS</span>
-                  ) : isMatch ? (
-                    <div className="flex flex-col items-end">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-500 mb-1" />
-                      <span className="text-xs font-bold text-emerald-600">PERFECT MATCH</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-end">
-                      <ShieldAlert className="w-8 h-8 text-rose-500 mb-1" />
-                      <span className="text-xs font-bold text-rose-600">VARIANCE DETECTED</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
         </div>
       </div>
       

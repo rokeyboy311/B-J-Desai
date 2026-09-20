@@ -1,96 +1,278 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
-import { CalendarCheck, List, Users, CheckSquare, Settings, Pencil, Trash2, HardHat, Plus } from "lucide-react";
+import {
+  CalendarCheck, Users, Plus, Pencil, Trash2, Search,
+  Filter, IndianRupee, ArrowDownRight, ArrowUpRight, Receipt,
+  Coffee, Wrench, Shield, CheckCircle2, ChevronRight, Calculator,
+  Calendar, Layers, Sparkles, Building, AlertCircle
+} from "lucide-react";
 import { Modal } from "../ui/Modal";
-import { ManageLabourModal } from "../ui/ManageLabourModal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
-import { LabourSelectCombobox, LabourWorker } from "../ui/LabourSelectCombobox";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 
-const COMMON_UNITS = ["Nos", "Brass", "Sq.Ft", "R.Ft", "Cu.Ft", "Bags", "Kg", "Ton", "Hours", "Days"];
+const COMMON_UNITS = ["Nos", "Brass", "Sq.Ft", "R.Ft", "Cu.Ft", "Bags", "Kg", "Ton", "Hours", "Days", "Units"];
+
+const EXPENSE_CATEGORIES = [
+  "Tea & Refreshments",
+  "Food & Bhattha",
+  "Travel & Transport",
+  "Tools & Maintenance",
+  "Safety Equipment",
+  "Medical & First Aid",
+  "Fuel & Generator",
+  "Site Sundries & Misc"
+];
+
+interface TeamSelectInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  availableTeams: string[];
+  onOpenManageTeams: () => void;
+  label?: string;
+  required?: boolean;
+  themeColor?: "amber" | "indigo" | "rose";
+  placeholder?: string;
+  allowGeneral?: boolean;
+}
+
+function TeamSelectInput({
+  value,
+  onChange,
+  availableTeams,
+  onOpenManageTeams,
+  label = "Select Team *",
+  required = true,
+  themeColor = "amber",
+  placeholder = "Choose or enter Team name...",
+  allowGeneral = false,
+}: TeamSelectInputProps) {
+  const [isCustomMode, setIsCustomMode] = useState(false);
+
+  const ringClass =
+    themeColor === "indigo"
+      ? "focus:ring-indigo-500"
+      : themeColor === "rose"
+      ? "focus:ring-rose-500"
+      : "focus:ring-amber-500";
+
+  const textBtnClass =
+    themeColor === "indigo"
+      ? "text-indigo-700 hover:text-indigo-900"
+      : themeColor === "rose"
+      ? "text-rose-700 hover:text-rose-900"
+      : "text-amber-700 hover:text-amber-900";
+
+  const chipActive =
+    themeColor === "indigo"
+      ? "bg-indigo-100 text-indigo-800 border-indigo-300 font-bold"
+      : themeColor === "rose"
+      ? "bg-rose-100 text-rose-800 border-rose-300 font-bold"
+      : "bg-amber-100 text-amber-800 border-amber-300 font-bold";
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+          {label}
+        </label>
+        <div className="flex items-center gap-2">
+          {availableTeams.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsCustomMode(!isCustomMode)}
+              className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+            >
+              {isCustomMode ? "Select list" : "Type custom"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onOpenManageTeams}
+            className={`text-[10px] font-bold ${textBtnClass} hover:underline flex items-center gap-0.5 cursor-pointer`}
+          >
+            <Plus className="w-3 h-3" />
+            + New Team
+          </button>
+        </div>
+      </div>
+
+      {isCustomMode || availableTeams.length === 0 ? (
+        <div className="relative">
+          <input
+            type="text"
+            list="available-teams-datalist"
+            required={required}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 ${ringClass} focus:outline-hidden`}
+          />
+          <datalist id="available-teams-datalist">
+            {availableTeams.map((t, idx) => (
+              <option key={idx} value={t} />
+            ))}
+          </datalist>
+        </div>
+      ) : (
+        <div className="relative">
+          <select
+            required={required}
+            value={value}
+            onChange={(e) => {
+              if (e.target.value === "__NEW__") {
+                onOpenManageTeams();
+              } else if (e.target.value === "__CUSTOM__") {
+                setIsCustomMode(true);
+              } else {
+                onChange(e.target.value);
+              }
+            }}
+            className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 ${ringClass} focus:outline-hidden`}
+          >
+            <option value="">-- Choose Team ({availableTeams.length}) --</option>
+            {allowGeneral && <option value="Site General">Site General (સામાન્ય ખર્ચ)</option>}
+            {availableTeams.map((teamName, idx) => (
+              <option key={idx} value={teamName}>
+                {teamName}
+              </option>
+            ))}
+            <option value="__NEW__">+ Add New Team in Master...</option>
+            <option value="__CUSTOM__">✎ Type Custom Team Name...</option>
+          </select>
+        </div>
+      )}
+
+      {/* Quick click team pills for fast selection */}
+      {availableTeams.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1 pt-0.5">
+          {allowGeneral && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsCustomMode(false);
+                onChange("Site General");
+              }}
+              className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                value === "Site General"
+                  ? chipActive
+                  : "bg-slate-100/80 hover:bg-slate-200 text-slate-600 border-slate-200"
+              }`}
+            >
+              Site General
+            </button>
+          )}
+          {availableTeams.slice(0, 5).map((t, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                setIsCustomMode(false);
+                onChange(t);
+              }}
+              className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                value === t
+                  ? chipActive
+                  : "bg-slate-100/80 hover:bg-slate-200 text-slate-600 border-slate-200"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LabourAttendanceTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
-  const [activeSubTab, setActiveSubTab] = useState<"daywise" | "workwise" | "records">("daywise");
 
-  const [workers, setWorkers] = useState<LabourWorker[]>([]);
+  // Primary 3 Subtabs requested by user:
+  // 1st: add_attendance (with Day-wise and TC-wise options, no select labour field)
+  // 2nd: team_upad
+  // 3rd: other_kharch
+  const [activeSubTab, setActiveSubTab] = useState<"add_attendance" | "team_upad" | "other_kharch">("add_attendance");
+
+  // Attendance Mode (Day Wise vs TC Wise)
+  const [attendanceMode, setAttendanceMode] = useState<"day_wise" | "tc_wise">("day_wise");
+
+  // Data states
   const [teams, setTeams] = useState<any[]>([]);
-  const [locations, setLocations] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Quick Manage Modals State
-  const [isManageLabourOpen, setIsManageLabourOpen] = useState(false);
+  // Quick Team Modal State & Target Form
   const [isManageTeamOpen, setIsManageTeamOpen] = useState(false);
-  const [targetFormType, setTargetFormType] = useState<"day" | "work">("day");
+  const [manageTeamTarget, setManageTeamTarget] = useState<"day" | "tc" | "upad" | "kharch" | "edit" | null>(null);
 
   // Edit Modal State
   const [editingRecord, setEditingRecord] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Day-wise state
+  // Filter & Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [teamFilter, setTeamFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState("");
+
+  // 1. Add Attendance: Day Wise Form State (NO Select Labour field)
   const [dayForm, setDayForm] = useState({
     date: new Date().toISOString().split("T")[0],
-    teamId: "",
-    labourId: "",
-    labourName: "",
-    attendanceType: "Full Day",
-    rate: "",
+    teamName: "",
+    attendanceType: "Full Day", // Full Day (1), Half Day (0.5), Custom Days
+    customDays: "1",
+    dailyRate: "",
     notes: ""
   });
 
-  // Work-wise state
-  const [workForm, setWorkForm] = useState({
+  // 1. Add Attendance: TC Wise Form State (NO Select Labour field)
+  const [tcForm, setTcForm] = useState({
     date: new Date().toISOString().split("T")[0],
-    teamId: "",
-    labourId: "",
-    labourName: "",
-    workName: "",
-    attendanceType: "Full Day",
+    teamName: "",
+    workName: "", // Task name (Masonry, Plaster, Slab, etc.)
+    unitOfMeasurement: "Sq.Ft",
     quantity: "",
-    unitOfMeasurement: "Nos",
     rate: "",
     notes: ""
   });
 
+  // 2. Team Upad Form State
+  const [upadForm, setUpadForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    teamName: "",
+    amount: "",
+    paymentMethod: "Cash",
+    referenceNumber: "",
+    notes: ""
+  });
 
+  // 3. Other Kharch Form State
+  const [kharchForm, setKharchForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    teamName: "Site General",
+    expenseCategory: "Tea & Refreshments",
+    amount: "",
+    paymentMethod: "Cash",
+    referenceNumber: "",
+    notes: ""
+  });
+
+  // Load Data
   const loadData = async (isBackground = false) => {
     if (!isBackground && records.length === 0) setLoading(true);
     try {
-      const [workersData, teamsData, attendanceData, locsData] = await Promise.all([
-        apiFetch(`/master/labour?locationId=${locationId}`).catch(() => []),
+      const [teamsData, attendanceData, locsData] = await Promise.all([
         apiFetch(`/master/teams?locationId=${locationId}`).catch(() => []),
         apiFetch(`/labour?locationId=${locationId}`).catch(() => []),
         apiFetch(`/locations`).catch(() => [])
       ]);
 
-      // Combine master workers with any distinct past workers from records
-      const masterList = (workersData || []) as LabourWorker[];
-      const seenNames = new Set(masterList.map((w: any) => w.name?.trim().toLowerCase()));
-      const synthesized: LabourWorker[] = [];
-
-      (attendanceData || []).forEach((r: any) => {
-        const name = (r.labourName || "").trim();
-        if (name && name.toLowerCase() !== "unknown" && !seenNames.has(name.toLowerCase())) {
-          seenNames.add(name.toLowerCase());
-          synthesized.push({
-            id: r.labourMasterId || `hist-${r.id}`,
-            name: name,
-            dailyRate: r.dailyRate || "0",
-            teamName: r.labourTeam || "General",
-            teamId: null,
-            locationId
-          });
-        }
-      });
-
-      setWorkers([...masterList, ...synthesized]);
-      setTeams(teamsData || []);
-      setRecords(attendanceData || []);
-      setLocations(locsData || []);
+      setTeams(Array.isArray(teamsData) ? teamsData : (teamsData?.teams || []));
+      setRecords(Array.isArray(attendanceData) ? attendanceData : (attendanceData?.records || []));
+      setLocations(Array.isArray(locsData) ? locsData : (locsData?.locations || []));
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch labour data:", err);
     } finally {
       setLoading(false);
     }
@@ -104,669 +286,1466 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
     loadData(true);
   }, 3500);
 
-  const currentLocationName = useMemo(() => {
-    return locations.find(l => l.id === locationId)?.name || `Site #${locationId}`;
-  }, [locations, locationId]);
+  // Derived unique team list from master teams + any previously entered teams in records
+  const availableTeams = useMemo(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
 
+    teams.forEach(t => {
+      const n = (t.name || "").trim();
+      if (n && !seen.has(n.toLowerCase())) {
+        seen.add(n.toLowerCase());
+        list.push(n);
+      }
+    });
+
+    records.forEach(r => {
+      const n = (r.labourTeam || r.teamName || "").trim();
+      if (n && n !== "Site General" && !seen.has(n.toLowerCase())) {
+        seen.add(n.toLowerCase());
+        list.push(n);
+      }
+    });
+
+    return list.sort();
+  }, [teams, records]);
+
+  // Overall Financial & Attendance Summary Calculations
+  const summaries = useMemo(() => {
+    let totalAttendanceWages = 0;
+    let totalDayWiseWages = 0;
+    let totalTcWiseWages = 0;
+    let totalDayWiseDays = 0;
+    let totalTeamUpad = 0;
+    let totalOtherKharch = 0;
+
+    records.forEach(r => {
+      const attUpper = String(r.attendanceType || "").toUpperCase();
+      const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
+      const isKharch = attUpper.includes("KHARCH") || attUpper === "OTHER_KHARCH" || attUpper === "EXPENSE";
+      const isWork = attUpper.includes("WORK") || attUpper.includes("TC") || attUpper === "TC_WISE";
+
+      if (isUpad) {
+        totalTeamUpad += parseFloat(r.upad || r.paymentAmount || "0") || 0;
+      } else if (isKharch) {
+        totalOtherKharch += parseFloat(r.grossSalary || r.netSalary || r.paymentAmount || "0") || 0;
+      } else if (isWork) {
+        const amt = parseFloat(r.grossSalary || r.netSalary || "0") || 0;
+        totalTcWiseWages += amt;
+        totalAttendanceWages += amt;
+      } else {
+        // Day Wise
+        const amt = parseFloat(r.grossSalary || r.netSalary || "0") || 0;
+        totalDayWiseWages += amt;
+        totalDayWiseDays += parseFloat(r.days || "0") || 0;
+        totalAttendanceWages += amt;
+      }
+    });
+
+    // Total Labour Deduction from Project Investment Capital (Cat 2)
+    const totalLabourOutflow = totalAttendanceWages + totalTeamUpad + totalOtherKharch;
+
+    return {
+      totalAttendanceWages: Math.round(totalAttendanceWages * 100) / 100,
+      totalDayWiseWages: Math.round(totalDayWiseWages * 100) / 100,
+      totalTcWiseWages: Math.round(totalTcWiseWages * 100) / 100,
+      totalDayWiseDays: Math.round(totalDayWiseDays * 10) / 10,
+      totalTeamUpad: Math.round(totalTeamUpad * 100) / 100,
+      totalOtherKharch: Math.round(totalOtherKharch * 100) / 100,
+      totalLabourOutflow: Math.round(totalLabourOutflow * 100) / 100,
+    };
+  }, [records]);
+
+  // Filtered Records based on Active Subtab
+  const currentTabRecords = useMemo(() => {
+    return records.filter(r => {
+      const attUpper = String(r.attendanceType || "").toUpperCase();
+      const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
+      const isKharch = attUpper.includes("KHARCH") || attUpper === "OTHER_KHARCH" || attUpper === "EXPENSE";
+      const isAttendance = !isUpad && !isKharch;
+
+      if (activeSubTab === "add_attendance" && !isAttendance) return false;
+      if (activeSubTab === "team_upad" && !isUpad) return false;
+      if (activeSubTab === "other_kharch" && !isKharch) return false;
+
+      // Team filter
+      const teamName = (r.labourTeam || r.teamName || r.labourName || "").toLowerCase();
+      if (teamFilter !== "ALL" && teamName !== teamFilter.toLowerCase()) return false;
+
+      // Date filter
+      if (dateFilter && r.date !== dateFilter) return false;
+
+      // Search Query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matches =
+          teamName.includes(query) ||
+          (r.workType || "").toLowerCase().includes(query) ||
+          (r.notes || "").toLowerCase().includes(query) ||
+          (r.referenceNumber || "").toLowerCase().includes(query) ||
+          (r.paymentMethod || "").toLowerCase().includes(query);
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [records, activeSubTab, teamFilter, dateFilter, searchQuery]);
+
+  // Handle Day Wise Attendance Submit
   const handleDaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!dayForm.teamName.trim()) {
+      showToast("Please select or enter a Team Name.", "error");
+      return;
+    }
+
+    const rate = parseFloat(dayForm.dailyRate) || 0;
+    let daysCount = 1;
+    if (dayForm.attendanceType === "Half Day") daysCount = 0.5;
+    else if (dayForm.attendanceType === "Custom") daysCount = parseFloat(dayForm.customDays) || 1;
+
     try {
-      const worker = workers.find(w => String(w.id) === String(dayForm.labourId));
-      let workerName = dayForm.labourName?.trim() || worker?.name;
-      if (!workerName && dayForm.labourId) workerName = String(dayForm.labourId);
+      await apiFetch("/labour", {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          date: dayForm.date,
+          teamName: dayForm.teamName.trim(),
+          attendanceType: "DAY_WISE",
+          days: daysCount.toString(),
+          dailyRate: rate.toString(),
+          notes: dayForm.notes.trim() || undefined
+        })
+      });
 
-      if (!workerName) {
-        showToast("Please select or enter a labour worker name.", "error");
-        return;
-      }
+      showToast(`Day Attendance recorded for team "${dayForm.teamName}"`, "success");
+      setDayForm(prev => ({
+        ...prev,
+        dailyRate: "",
+        notes: ""
+      }));
+      triggerSync("labour");
+      loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to record day attendance", "error");
+    }
+  };
 
-      const team = teams.find(t => String(t.id) === String(dayForm.teamId));
-      const days = dayForm.attendanceType === "Full Day" ? "1" : "0.5";
-      const rate = parseFloat(dayForm.rate) || 0;
+  // Handle TC Wise Attendance Submit
+  const handleTcSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tcForm.teamName.trim()) {
+      showToast("Please select or enter a Team Name.", "error");
+      return;
+    }
+    if (!tcForm.workName.trim()) {
+      showToast("Please enter the Work Name / TC Task.", "error");
+      return;
+    }
 
-      // Auto-save to master if not in master yet
-      let masterId = worker?.id && !String(worker.id).startsWith("hist-") ? Number(worker.id) : null;
-      if (!masterId && workerName) {
+    const qty = parseFloat(tcForm.quantity) || 0;
+    const rate = parseFloat(tcForm.rate) || 0;
+
+    try {
+      await apiFetch("/labour", {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          date: tcForm.date,
+          teamName: tcForm.teamName.trim(),
+          attendanceType: "TC_WISE",
+          workName: tcForm.workName.trim(),
+          unitOfMeasurement: tcForm.unitOfMeasurement,
+          quantity: qty.toString(),
+          rate: rate.toString(),
+          notes: tcForm.notes.trim() || undefined
+        })
+      });
+
+      showToast(`TC Work Attendance recorded for team "${tcForm.teamName}"`, "success");
+      setTcForm(prev => ({
+        ...prev,
+        workName: "",
+        quantity: "",
+        rate: "",
+        notes: ""
+      }));
+      triggerSync("labour");
+      loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to record TC attendance", "error");
+    }
+  };
+
+  // Handle Team Upad Submit
+  const handleUpadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!upadForm.teamName.trim()) {
+      showToast("Please select or enter a Team Name.", "error");
+      return;
+    }
+    const amt = parseFloat(upadForm.amount) || 0;
+    if (amt <= 0) {
+      showToast("Please enter a valid Upad amount.", "error");
+      return;
+    }
+
+    try {
+      await apiFetch("/labour", {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          date: upadForm.date,
+          teamName: upadForm.teamName.trim(),
+          attendanceType: "TEAM_UPAD",
+          amount: amt.toString(),
+          upad: amt.toString(),
+          paymentAmount: amt.toString(),
+          paymentMethod: upadForm.paymentMethod,
+          referenceNumber: upadForm.referenceNumber.trim() || undefined,
+          notes: upadForm.notes.trim() || undefined
+        })
+      });
+
+      showToast(`Team Upad of ₹${amt.toLocaleString()} recorded for "${upadForm.teamName}"`, "success");
+      setUpadForm(prev => ({
+        ...prev,
+        amount: "",
+        referenceNumber: "",
+        notes: ""
+      }));
+      triggerSync("labour");
+      loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to record team upad", "error");
+    }
+  };
+
+  // Handle Other Kharch Submit
+  const handleKharchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(kharchForm.amount) || 0;
+    if (amt <= 0) {
+      showToast("Please enter a valid expense amount.", "error");
+      return;
+    }
+
+    try {
+      await apiFetch("/labour", {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          date: kharchForm.date,
+          teamName: kharchForm.teamName.trim() || "Site General",
+          attendanceType: "OTHER_KHARCH",
+          expenseCategory: kharchForm.expenseCategory,
+          amount: amt.toString(),
+          paymentAmount: amt.toString(),
+          paymentMethod: kharchForm.paymentMethod,
+          referenceNumber: kharchForm.referenceNumber.trim() || undefined,
+          notes: kharchForm.notes.trim() || undefined
+        })
+      });
+
+      showToast(`Other Kharch of ₹${amt.toLocaleString()} recorded`, "success");
+      setKharchForm(prev => ({
+        ...prev,
+        amount: "",
+        referenceNumber: "",
+        notes: ""
+      }));
+      triggerSync("labour");
+      loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to record expense", "error");
+    }
+  };
+
+  // Delete Record
+  const handleDeleteRecord = (id: number) => {
+    confirmAction({
+      title: "Delete Entry",
+      message: "Are you sure you want to delete this labour/attendance record? This will adjust your Category 2 deductions.",
+      confirmText: "Delete",
+      isDestructive: true,
+      onConfirm: async () => {
         try {
-          const created = await apiFetch("/master/labour", {
-            method: "POST",
-            body: JSON.stringify({
-              locationId,
-              name: workerName,
-              dailyRate: dayForm.rate || "0",
-              teamId: dayForm.teamId ? Number(dayForm.teamId) : null,
-              workType: "Worker"
-            })
-          });
-          masterId = created.id;
-          triggerSync("master_labour");
-        } catch {
-          // continue even if master creation had conflict
+          await apiFetch(`/labour/${id}`, { method: "DELETE" });
+          showToast("Record deleted successfully", "success");
+          triggerSync("labour");
+          loadData(true);
+        } catch (err: any) {
+          showToast(err.message || "Failed to delete record", "error");
         }
       }
-
-      await apiFetch("/labour", {
-        method: "POST",
-        body: JSON.stringify({
-          locationId,
-          siteLocationName: currentLocationName,
-          date: dayForm.date,
-          labourMasterId: masterId,
-          labourName: workerName,
-          labourTeam: team ? team.name : (worker?.teamName || "General"),
-          attendanceType: dayForm.attendanceType,
-          days,
-          dailyRate: rate,
-          notes: dayForm.notes || "Day-wise attendance"
-        })
-      });
-      triggerSync("labour_attendance");
-      showToast("Day-wise attendance recorded successfully", "success");
-      loadData(true);
-      setDayForm({
-        date: new Date().toISOString().split("T")[0],
-        teamId: "",
-        labourId: "",
-        labourName: "",
-        attendanceType: "Full Day",
-        rate: "",
-        notes: ""
-      });
-    } catch (err: any) {
-      showToast("Failed to save day-wise attendance: " + (err?.message || ""), "error");
-    }
-  };
-
-  const handleWorkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const team = teams.find(t => String(t.id) === String(workForm.teamId));
-      const worker = workers.find(w => String(w.id) === String(workForm.labourId));
-      let workerName = workForm.labourName?.trim() || worker?.name;
-      const qty = parseFloat(workForm.quantity) || 0;
-      const rate = parseFloat(workForm.rate) || 0;
-
-      await apiFetch("/labour", {
-        method: "POST",
-        body: JSON.stringify({
-          locationId,
-          siteLocationName: currentLocationName,
-          date: workForm.date,
-          labourMasterId: worker?.id && !String(worker.id).startsWith("hist-") ? Number(worker.id) : null,
-          labourName: workerName || (team ? `${team.name} Crew` : "Work-wise Crew"),
-          labourTeam: team ? team.name : "Work Team",
-          workName: workForm.workName || "General Work",
-          attendanceType: workForm.attendanceType + " (Work)",
-          unitOfMeasurement: workForm.unitOfMeasurement,
-          quantity: qty,
-          rate: rate,
-          notes: workForm.notes || workForm.workName || "Work-wise attendance"
-        })
-      });
-      triggerSync("labour_attendance");
-      showToast("Work-wise attendance recorded successfully", "success");
-      loadData(true);
-      setWorkForm({
-        date: new Date().toISOString().split("T")[0],
-        teamId: "",
-        labourId: "",
-        labourName: "",
-        workName: "",
-        attendanceType: "Full Day",
-        quantity: "",
-        unitOfMeasurement: "Nos",
-        rate: "",
-        notes: ""
-      });
-    } catch (err: any) {
-      showToast("Failed to save work-wise attendance: " + (err?.message || ""), "error");
-    }
-  };
-
-  const handleDeleteRecord = async (id: number) => {
-    const confirmed = await confirmAction({
-      title: "Delete Attendance Entry",
-      message: "Are you sure you want to delete this attendance entry?",
-      confirmLabel: "Delete",
-      isDanger: true
     });
-    if (!confirmed) return;
-    try {
-      await apiFetch(`/labour/${id}`, { method: "DELETE" });
-      triggerSync("labour_attendance");
-      showToast("Attendance entry deleted", "success");
-      loadData();
-    } catch (err: any) {
-      showToast(err.message || "Failed to delete record.", "error");
-    }
   };
 
+  // Open Edit Modal
+  const handleEditClick = (record: any) => {
+    setEditingRecord({
+      ...record,
+      teamName: record.labourTeam || record.teamName || record.labourName || "",
+      amount: record.paymentAmount || record.upad || record.grossSalary || record.netSalary || "0",
+      workName: record.workType || record.tcNumber || "",
+      rate: record.tcRate || record.dailyRate || "0",
+      quantity: record.tcQuantity || record.quantity || "0",
+      days: record.days || "1",
+      dailyRate: record.dailyRate || "0",
+      unitOfMeasurement: record.unitOfMeasurement || "Sq.Ft",
+      notes: record.notes || "",
+      referenceNumber: record.referenceNumber || "",
+      paymentMethod: record.paymentMethod || "Cash"
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // Save Edit Record
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRecord) return;
+
     try {
       await apiFetch(`/labour/${editingRecord.id}`, {
         method: "PUT",
-        body: JSON.stringify(editingRecord)
+        body: JSON.stringify({
+          locationId,
+          date: editingRecord.date,
+          teamName: editingRecord.teamName,
+          attendanceType: editingRecord.attendanceType,
+          workName: editingRecord.workName,
+          unitOfMeasurement: editingRecord.unitOfMeasurement,
+          quantity: editingRecord.quantity,
+          rate: editingRecord.rate,
+          days: editingRecord.days,
+          dailyRate: editingRecord.dailyRate,
+          amount: editingRecord.amount,
+          upad: editingRecord.amount,
+          paymentAmount: editingRecord.amount,
+          paymentMethod: editingRecord.paymentMethod,
+          referenceNumber: editingRecord.referenceNumber,
+          notes: editingRecord.notes
+        })
       });
-      triggerSync("labour_attendance");
+
+      showToast("Record updated successfully", "success");
       setIsEditModalOpen(false);
       setEditingRecord(null);
-      showToast("Attendance record updated", "success");
-      loadData();
+      triggerSync("labour");
+      loadData(true);
     } catch (err: any) {
-      showToast(err.message || "Failed to update record.", "error");
+      showToast(err.message || "Failed to update record", "error");
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 border border-amber-200/80 p-5 rounded-2xl flex flex-col md:flex-row justify-between md:items-center gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-amber-600 text-white rounded-xl shadow-md">
-            <CalendarCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-slate-900">Labour Attendance</h2>
-            <p className="text-xs text-slate-600">Site: <span className="font-bold text-slate-800">{currentLocationName}</span> • Track day-wise and work-wise contracts.</p>
+      {/* Header & Quick Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+              <CalendarCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                6. Labour Attendance & Operational Expenses
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                Add Attendance (Day/TC), Team Upad advances, and Other Kharch. Deducted from Cat 2 Capital.
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="flex bg-white rounded-lg p-1 border border-amber-100 shadow-sm w-max">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setActiveSubTab("daywise")}
-            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${activeSubTab === "daywise" ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+            type="button"
+            onClick={() => setIsManageTeamOpen(true)}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
           >
-            Day-wise
-          </button>
-          <button
-            onClick={() => setActiveSubTab("workwise")}
-            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${activeSubTab === "workwise" ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
-          >
-            Work-wise
-          </button>
-          <button
-            onClick={() => setActiveSubTab("records")}
-            className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${activeSubTab === "records" ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
-          >
-            Attendance Records
+            <Users className="w-3.5 h-3.5 text-slate-600" />
+            Manage Teams ({teams.length})
           </button>
         </div>
       </div>
 
-      {activeSubTab === "daywise" && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 max-w-3xl">
-          <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <CheckSquare className="w-5 h-5 text-amber-600" /> Record Day-wise Attendance
-          </h3>
-          <form onSubmit={handleDaySubmit} className="space-y-5">
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Date</label>
-                <input type="date" required value={dayForm.date} onChange={e => setDayForm({...dayForm, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Location</label>
-                <input type="text" disabled value={currentLocationName} className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-semibold cursor-not-allowed" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Select Team</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetFormType("day");
-                      setIsManageTeamOpen(true);
-                    }}
-                    className="text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Manage Team
-                  </button>
-                </div>
-                <select
-                  value={dayForm.teamId}
-                  onChange={e => {
-                    const newTeamId = e.target.value;
-                    setDayForm(prev => {
-                      const currentWorker = workers.find(w => String(w.id) === String(prev.labourId));
-                      const shouldReset = newTeamId && currentWorker && currentWorker.teamId && String(currentWorker.teamId) !== String(newTeamId);
-                      return {
-                        ...prev,
-                        teamId: newTeamId,
-                        labourId: shouldReset ? "" : prev.labourId,
-                        labourName: shouldReset ? "" : prev.labourName
-                      };
-                    });
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="">-- All Teams --</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Select Labour *</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetFormType("day");
-                      setIsManageLabourOpen(true);
-                    }}
-                    className="text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Manage Labour
-                  </button>
-                </div>
-                <LabourSelectCombobox
-                  workers={workers}
-                  selectedId={dayForm.labourId}
-                  selectedName={dayForm.labourName}
-                  selectedTeamId={dayForm.teamId}
-                  locationId={locationId}
-                  placeholder="-- Select or type labour name --"
-                  required={true}
-                  onSelect={(w) => {
-                    setDayForm(prev => ({
-                      ...prev,
-                      labourId: String(w.id),
-                      labourName: w.name,
-                      rate: w.dailyRate && Number(w.dailyRate) > 0 ? String(w.dailyRate) : prev.rate,
-                      teamId: w.teamId ? String(w.teamId) : prev.teamId
-                    }));
-                  }}
-                  onClear={() => {
-                    setDayForm(prev => ({
-                      ...prev,
-                      labourId: "",
-                      labourName: ""
-                    }));
-                  }}
-                  onWorkerCreated={(newW) => {
-                    setWorkers(prev => [newW, ...prev]);
-                  }}
-                  onOpenManageModal={() => {
-                    setTargetFormType("day");
-                    setIsManageLabourOpen(true);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Shift (Half / Full Day)</label>
-                <select value={dayForm.attendanceType} onChange={e => setDayForm({...dayForm, attendanceType: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500">
-                  <option value="Full Day">Full Day (1.0)</option>
-                  <option value="Half Day">Half Day (0.5)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Daily Rate (₹)</label>
-                <input type="number" step="0.01" required value={dayForm.rate} onChange={e => setDayForm({...dayForm, rate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500" placeholder="0.00" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Notes / Remark</label>
-              <input type="text" value={dayForm.notes} onChange={e => setDayForm({...dayForm, notes: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500" placeholder="Optional notes..." />
-            </div>
-
-            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex justify-between items-center">
-              <span className="text-xs font-bold text-slate-600">Calculated Wages:</span>
-              <span className="text-xl font-black text-amber-700">
-                ₹{((dayForm.attendanceType === 'Half Day' ? 0.5 : 1) * (parseFloat(dayForm.rate) || 0)).toLocaleString()}
-              </span>
-            </div>
-
-            <button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors">
-              Save Day-wise Attendance
-            </button>
-          </form>
-        </div>
-      )}
-
-      {activeSubTab === "workwise" && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 max-w-3xl">
-          <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <Settings className="w-5 h-5 text-amber-600" /> Record Work-wise Attendance
-          </h3>
-          <form onSubmit={handleWorkSubmit} className="space-y-5">
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Date</label>
-                <input type="date" required value={workForm.date} onChange={e => setWorkForm({...workForm, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Location</label>
-                <input type="text" disabled value={currentLocationName} className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-semibold cursor-not-allowed" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Labour Team</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetFormType("work");
-                      setIsManageTeamOpen(true);
-                    }}
-                    className="text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Manage Team
-                  </button>
-                </div>
-                <select
-                  value={workForm.teamId}
-                  onChange={e => {
-                    const newTeamId = e.target.value;
-                    setWorkForm(prev => {
-                      const currentWorker = workers.find(w => String(w.id) === String(prev.labourId));
-                      const shouldReset = newTeamId && currentWorker && currentWorker.teamId && String(currentWorker.teamId) !== String(newTeamId);
-                      return {
-                        ...prev,
-                        teamId: newTeamId,
-                        labourId: shouldReset ? "" : prev.labourId,
-                        labourName: shouldReset ? "" : prev.labourName
-                      };
-                    });
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="">-- Select Team --</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">Labour / Contractor (Optional)</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetFormType("work");
-                      setIsManageLabourOpen(true);
-                    }}
-                    className="text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Manage Labour
-                  </button>
-                </div>
-                <LabourSelectCombobox
-                  workers={workers}
-                  selectedId={workForm.labourId}
-                  selectedName={workForm.labourName}
-                  selectedTeamId={workForm.teamId}
-                  locationId={locationId}
-                  placeholder="-- Entire Team / Select Labour (Optional) --"
-                  required={false}
-                  onSelect={(w) => {
-                    setWorkForm(prev => ({
-                      ...prev,
-                      labourId: String(w.id),
-                      labourName: w.name,
-                      rate: w.dailyRate && Number(w.dailyRate) > 0 ? String(w.dailyRate) : prev.rate,
-                      teamId: w.teamId ? String(w.teamId) : prev.teamId
-                    }));
-                  }}
-                  onClear={() => {
-                    setWorkForm(prev => ({
-                      ...prev,
-                      labourId: "",
-                      labourName: ""
-                    }));
-                  }}
-                  onWorkerCreated={(newW) => {
-                    setWorkers(prev => [newW, ...prev]);
-                  }}
-                  onOpenManageModal={() => {
-                    setTargetFormType("work");
-                    setIsManageLabourOpen(true);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Work Description / Task</label>
-              <input type="text" required value={workForm.workName} onChange={e => setWorkForm({...workForm, workName: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500" placeholder="e.g. Plastering, Brickwork, Excavation" />
-            </div>
-
-            <div className="grid grid-cols-3 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Quantity Completed</label>
-                <input type="number" step="0.01" required value={workForm.quantity} onChange={e => setWorkForm({...workForm, quantity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500" placeholder="0.00" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Unit (UOM)</label>
-                <select value={workForm.unitOfMeasurement} onChange={e => setWorkForm({...workForm, unitOfMeasurement: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500">
-                  {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Rate per Unit (₹)</label>
-                <input type="number" step="0.01" required value={workForm.rate} onChange={e => setWorkForm({...workForm, rate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500" placeholder="0.00" />
-              </div>
-            </div>
-
-            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex justify-between items-center">
-              <span className="text-xs font-bold text-slate-600">Total Work Amount:</span>
-              <span className="text-xl font-black text-amber-700">
-                ₹{((parseFloat(workForm.quantity) || 0) * (parseFloat(workForm.rate) || 0)).toLocaleString()}
-              </span>
-            </div>
-
-            <button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors">
-              Save Work-wise Attendance
-            </button>
-          </form>
-        </div>
-      )}
-
-      {activeSubTab === "records" && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-900 flex items-center gap-2"><List className="w-5 h-5 text-amber-600" /> Overall Attendance Records</h3>
-            <span className="text-xs font-semibold text-slate-500">{records.length} records</span>
+      {/* High-Level Overview Metrics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. Total Attendance Wages */}
+        <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-800">1. Attendance Wages</span>
+            <Calendar className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Labour / Team</th>
-                  <th className="p-3">Mode & Task</th>
-                  <th className="p-3 text-right">Qty / Days</th>
-                  <th className="p-3 text-right">Rate (₹)</th>
-                  <th className="p-3 text-right">Gross Amount (₹)</th>
-                  <th className="p-3 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {records.map(r => {
-                  const isWork = (r.attendanceType || "").includes("Work");
-                  return (
-                    <tr key={r.id} className="hover:bg-slate-50">
-                      <td className="p-3 text-slate-600">{r.date}</td>
-                      <td className="p-3">
-                        <div className="font-bold text-slate-900">{r.labourName}</div>
-                        {r.labourTeam && <div className="text-[10px] text-slate-500 flex items-center gap-1"><HardHat className="w-3 h-3 text-amber-600"/> {r.labourTeam}</div>}
-                      </td>
-                      <td className="p-3">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isWork ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {r.attendanceType}
-                        </span>
-                        {r.workType && <div className="text-[11px] text-slate-700 font-semibold mt-0.5">{r.workType}</div>}
-                      </td>
-                      <td className="p-3 text-right font-bold">
-                        {isWork ? `${r.quantity || r.workQuantity || r.tcQuantity || 0} ${r.unitOfMeasurement || ''}` : `${r.days} Days`}
-                      </td>
-                      <td className="p-3 text-right text-slate-600">₹{isWork ? (r.rate || r.workRate || r.tcRate || r.dailyRate) : r.dailyRate}</td>
-                      <td className="p-3 text-right font-black text-slate-900">₹{Number(r.grossSalary).toLocaleString()}</td>
-                      <td className="p-3 text-center">
+          <p className="text-2xl font-black text-slate-900">₹{summaries.totalAttendanceWages.toLocaleString()}</p>
+          <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            <span>Day: ₹{summaries.totalDayWiseWages.toLocaleString()} ({summaries.totalDayWiseDays}d)</span>
+            <span>TC: ₹{summaries.totalTcWiseWages.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* 2. Total Team Upad */}
+        <div className="bg-white border border-indigo-200/80 rounded-2xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-800">2. Team Upad (Advances)</span>
+            <ArrowDownRight className="w-4 h-4 text-indigo-600" />
+          </div>
+          <p className="text-2xl font-black text-indigo-700">₹{summaries.totalTeamUpad.toLocaleString()}</p>
+          <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            Cash & online advances given to teams
+          </p>
+        </div>
+
+        {/* 3. Total Other Kharch */}
+        <div className="bg-white border border-rose-200/80 rounded-2xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-800">3. Other Kharch</span>
+            <Coffee className="w-4 h-4 text-rose-600" />
+          </div>
+          <p className="text-2xl font-black text-rose-700">₹{summaries.totalOtherKharch.toLocaleString()}</p>
+          <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            Tea, travel, tools, fuel & site sundry costs
+          </p>
+        </div>
+
+        {/* 4. Total Labour Deduction for Cat 2 */}
+        <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-amber-400 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider">Cat 2 Capital Deduction</span>
+              <Calculator className="w-4 h-4" />
+            </div>
+            <p className="text-2xl font-black text-white">₹{summaries.totalLabourOutflow.toLocaleString()}</p>
+          </div>
+          <p className="text-[11px] text-slate-300 mt-2 pt-2 border-t border-slate-800">
+            Total deducted from Cat 2 Investment Capital
+          </p>
+        </div>
+      </div>
+
+      {/* Primary Category 6 Subtabs: 1. Add Attendance, 2. Team Upad, 3. Other Kharch */}
+      <div className="bg-slate-100/80 p-1.5 rounded-2xl flex flex-col sm:flex-row gap-1 border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab("add_attendance")}
+          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            activeSubTab === "add_attendance"
+              ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+          }`}
+        >
+          <CalendarCheck className="w-4 h-4 text-amber-600" />
+          <span>1. Add Attendance</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-black">
+            ₹{summaries.totalAttendanceWages.toLocaleString()}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab("team_upad")}
+          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            activeSubTab === "team_upad"
+              ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+          }`}
+        >
+          <ArrowDownRight className="w-4 h-4 text-indigo-600" />
+          <span>2. Team Upad</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-black">
+            ₹{summaries.totalTeamUpad.toLocaleString()}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab("other_kharch")}
+          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            activeSubTab === "other_kharch"
+              ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+          }`}
+        >
+          <Receipt className="w-4 h-4 text-rose-600" />
+          <span>3. Other Kharch</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-black">
+            ₹{summaries.totalOtherKharch.toLocaleString()}
+          </span>
+        </button>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 1. SUBTAB: ADD ATTENDANCE (DAY WISE & TC WISE - NO SELECT LABOUR FIELD) */}
+      {/* ========================================================================= */}
+      {activeSubTab === "add_attendance" && (
+        <div className="space-y-6">
+          {/* Day Wise vs TC Wise Mode Toggle */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                  <CalendarCheck className="w-4 h-4 text-amber-600" />
+                  Select Attendance Mode
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Select Team and record attendance by Days or Task/Contract Quantity (TC).
+                </p>
+              </div>
+
+              <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setAttendanceMode("day_wise")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    attendanceMode === "day_wise"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Day Wise Attendance
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceMode("tc_wise")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    attendanceMode === "tc_wise"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  TC Wise Attendance
+                </button>
+              </div>
+            </div>
+
+            {/* A. Day Wise Attendance Form */}
+            {attendanceMode === "day_wise" && (
+              <form onSubmit={handleDaySubmit} className="mt-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {/* Date */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={dayForm.date}
+                      onChange={e => setDayForm({ ...dayForm, date: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    />
+                  </div>
+
+                  {/* Team Name Dropdown / Input with Quick Select & Manage Teams */}
+                  <div className="sm:col-span-1 lg:col-span-1">
+                    <TeamSelectInput
+                      value={dayForm.teamName}
+                      onChange={(name) => setDayForm({ ...dayForm, teamName: name })}
+                      availableTeams={availableTeams}
+                      onOpenManageTeams={() => {
+                        setManageTeamTarget("day");
+                        setIsManageTeamOpen(true);
+                      }}
+                      label="Select Team *"
+                      themeColor="amber"
+                      placeholder="Select or enter Team..."
+                    />
+                  </div>
+
+                  {/* Attendance Type / Days */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Attendance Type</label>
+                    <select
+                      value={dayForm.attendanceType}
+                      onChange={e => setDayForm({ ...dayForm, attendanceType: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    >
+                      <option value="Full Day">Full Day (1.0)</option>
+                      <option value="Half Day">Half Day (0.5)</option>
+                      <option value="Custom">Custom Days (Team Total)</option>
+                    </select>
+                  </div>
+
+                  {/* Custom Days if selected */}
+                  {dayForm.attendanceType === "Custom" ? (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Total Days Count *</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        required
+                        placeholder="e.g. 5.5 worker-days"
+                        value={dayForm.customDays}
+                        onChange={e => setDayForm({ ...dayForm, customDays: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Daily Rate (₹) *</label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        required
+                        placeholder="e.g. 700"
+                        value={dayForm.dailyRate}
+                        onChange={e => setDayForm({ ...dayForm, dailyRate: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                      />
+                    </div>
+                  )}
+
+                  {/* Calculated Gross Wages & Submit */}
+                  {dayForm.attendanceType === "Custom" ? (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Rate per Day (₹) *</label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        required
+                        placeholder="e.g. 600"
+                        value={dayForm.dailyRate}
+                        onChange={e => setDayForm({ ...dayForm, dailyRate: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Calculated Total (₹)</label>
+                      <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-900">
+                        ₹{(() => {
+                          const days = dayForm.attendanceType === "Half Day" ? 0.5 : 1;
+                          const rate = parseFloat(dayForm.dailyRate) || 0;
+                          return (days * rate).toLocaleString();
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <input
+                    type="text"
+                    placeholder="Work description / notes (optional)..."
+                    value={dayForm.notes}
+                    onChange={e => setDayForm({ ...dayForm, notes: e.target.value })}
+                    className="w-full sm:flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  />
+
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Save Day Attendance
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* B. TC Wise Attendance Form */}
+            {attendanceMode === "tc_wise" && (
+              <form onSubmit={handleTcSubmit} className="mt-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                  {/* Date */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={tcForm.date}
+                      onChange={e => setTcForm({ ...tcForm, date: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    />
+                  </div>
+
+                  {/* Team Name */}
+                  <div className="sm:col-span-1 lg:col-span-1">
+                    <TeamSelectInput
+                      value={tcForm.teamName}
+                      onChange={(name) => setTcForm({ ...tcForm, teamName: name })}
+                      availableTeams={availableTeams}
+                      onOpenManageTeams={() => {
+                        setManageTeamTarget("tc");
+                        setIsManageTeamOpen(true);
+                      }}
+                      label="Select Team *"
+                      themeColor="amber"
+                      placeholder="Select or enter Team..."
+                    />
+                  </div>
+
+                  {/* Work Name / TC Task */}
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Work / TC Task Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Masonry, Brickwork, Plaster, Slab Casting..."
+                      value={tcForm.workName}
+                      onChange={e => setTcForm({ ...tcForm, workName: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    />
+                  </div>
+
+                  {/* Unit of Measurement */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Unit</label>
+                    <select
+                      value={tcForm.unitOfMeasurement}
+                      onChange={e => setTcForm({ ...tcForm, unitOfMeasurement: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    >
+                      {COMMON_UNITS.map(u => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Quantity */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Quantity *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      placeholder="e.g. 500"
+                      value={tcForm.quantity}
+                      onChange={e => setTcForm({ ...tcForm, quantity: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {/* Rate per Unit */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Rate per {tcForm.unitOfMeasurement} (₹) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      placeholder="e.g. 35"
+                      value={tcForm.rate}
+                      onChange={e => setTcForm({ ...tcForm, rate: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    />
+                  </div>
+
+                  {/* Live Total Calculation */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Calculated Total Wages (₹)</label>
+                    <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-900">
+                      ₹{((parseFloat(tcForm.quantity) || 0) * (parseFloat(tcForm.rate) || 0)).toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Notes & Submit */}
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Save TC Wise Attendance
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2. SUBTAB: TEAM UPAD (ADVANCES GIVEN TO TEAMS) */}
+      {/* ========================================================================= */}
+      {activeSubTab === "team_upad" && (
+        <div className="space-y-6">
+          <div className="bg-white border border-indigo-200 rounded-2xl p-4 shadow-2xs">
+            <div className="pb-3 border-b border-indigo-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-indigo-900 text-sm flex items-center gap-2">
+                  <ArrowDownRight className="w-4 h-4 text-indigo-600" />
+                  Record Team Upad (Advance Payment)
+                </h3>
+                <p className="text-xs text-indigo-600">
+                  Track advance money issued to Teams for worker payouts, food/ration, or weekly advances.
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Total Upad: ₹{summaries.totalTeamUpad.toLocaleString()}
+              </span>
+            </div>
+
+            <form onSubmit={handleUpadSubmit} className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Date */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={upadForm.date}
+                    onChange={e => setUpadForm({ ...upadForm, date: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+
+                {/* Team Name */}
+                <div className="sm:col-span-1 lg:col-span-1">
+                  <TeamSelectInput
+                    value={upadForm.teamName}
+                    onChange={(name) => setUpadForm({ ...upadForm, teamName: name })}
+                    availableTeams={availableTeams}
+                    onOpenManageTeams={() => {
+                      setManageTeamTarget("upad");
+                      setIsManageTeamOpen(true);
+                    }}
+                    label="Select Team *"
+                    themeColor="indigo"
+                    placeholder="Select or enter Team..."
+                  />
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Upad Amount (₹) *</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    required
+                    placeholder="e.g. 5000"
+                    value={upadForm.amount}
+                    onChange={e => setUpadForm({ ...upadForm, amount: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-indigo-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Payment Mode</label>
+                  <select
+                    value={upadForm.paymentMethod}
+                    onChange={e => setUpadForm({ ...upadForm, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Online / UPI">Online / UPI</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Ref / Receipt / Trans ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. UPI-984729"
+                    value={upadForm.referenceNumber}
+                    onChange={e => setUpadForm({ ...upadForm, referenceNumber: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 flex items-end gap-3">
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Purpose / Notes</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Weekly advance, Festival food advance..."
+                      value={upadForm.notes}
+                      onChange={e => setUpadForm({ ...upadForm, notes: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Record Team Upad
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. SUBTAB: OTHER KHARCH (SITE & LABOUR SUNDRY EXPENSES) */}
+      {/* ========================================================================= */}
+      {activeSubTab === "other_kharch" && (
+        <div className="space-y-6">
+          <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-2xs">
+            <div className="pb-3 border-b border-rose-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-rose-900 text-sm flex items-center gap-2">
+                  <Coffee className="w-4 h-4 text-rose-600" />
+                  Record Other Kharch (Site Miscellaneous Expenses)
+                </h3>
+                <p className="text-xs text-rose-600">
+                  Record Tea, Snacks, Bhattha, Tools repairs, Medical aid, and miscellaneous site expenses.
+                </p>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
+                Total Other Kharch: ₹{summaries.totalOtherKharch.toLocaleString()}
+              </span>
+            </div>
+
+            <form onSubmit={handleKharchSubmit} className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Date */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={kharchForm.date}
+                    onChange={e => setKharchForm({ ...kharchForm, date: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                  />
+                </div>
+
+                {/* Team / Beneficiary */}
+                <div className="sm:col-span-1 lg:col-span-1">
+                  <TeamSelectInput
+                    value={kharchForm.teamName}
+                    onChange={(name) => setKharchForm({ ...kharchForm, teamName: name })}
+                    availableTeams={availableTeams}
+                    onOpenManageTeams={() => {
+                      setManageTeamTarget("kharch");
+                      setIsManageTeamOpen(true);
+                    }}
+                    label="Team / Spent On"
+                    themeColor="rose"
+                    placeholder="e.g. Site General or Team Name"
+                    allowGeneral={true}
+                    required={false}
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Expense Type *</label>
+                  <select
+                    value={kharchForm.expenseCategory}
+                    onChange={e => setKharchForm({ ...kharchForm, expenseCategory: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                  >
+                    {EXPENSE_CATEGORIES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Amount (₹) *</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    required
+                    placeholder="e.g. 450"
+                    value={kharchForm.amount}
+                    onChange={e => setKharchForm({ ...kharchForm, amount: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-rose-900 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Payment Mode</label>
+                  <select
+                    value={kharchForm.paymentMethod}
+                    onChange={e => setKharchForm({ ...kharchForm, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Online / UPI">Online / UPI</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Bill / Voucher No.</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Bill #104"
+                    value={kharchForm.referenceNumber}
+                    onChange={e => setKharchForm({ ...kharchForm, referenceNumber: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 flex items-end gap-3">
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Details / Items</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Morning tea and breakfast for 12 masons..."
+                      value={kharchForm.notes}
+                      onChange={e => setKharchForm({ ...kharchForm, notes: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Record Kharch
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* RECORDS LEDGER TABLE FOR THE ACTIVE SUBTAB */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        {/* Table Filter Bar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+              <CalendarCheck className="w-4 h-4 text-slate-700" />
+              {activeSubTab === "add_attendance" && "Attendance History (Day & TC Wise)"}
+              {activeSubTab === "team_upad" && "Team Upad & Advances Ledger"}
+              {activeSubTab === "other_kharch" && "Other Kharch & Expenses Register"}
+            </h4>
+            <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold">
+              {currentTabRecords.length} records
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Team Filter */}
+            <select
+              value={teamFilter}
+              onChange={e => setTeamFilter(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
+            >
+              <option value="ALL">All Teams</option>
+              {availableTeams.map((t, idx) => (
+                <option key={idx} value={t}>{t}</option>
+              ))}
+            </select>
+
+            {/* Date Filter */}
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
+            />
+            {dateFilter && (
+              <button
+                type="button"
+                onClick={() => setDateFilter("")}
+                className="text-[11px] text-slate-400 hover:text-slate-700 font-bold"
+              >
+                Clear
+              </button>
+            )}
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search..."
+                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-hidden w-36 sm:w-44"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Table Content */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Team / Spent On</th>
+                <th className="py-3 px-4">
+                  {activeSubTab === "add_attendance" && "Attendance Type & Work"}
+                  {activeSubTab === "team_upad" && "Payment Mode & Ref"}
+                  {activeSubTab === "other_kharch" && "Kharch Category"}
+                </th>
+                <th className="py-3 px-4">
+                  {activeSubTab === "add_attendance" && "Quantity / Days & Rate"}
+                  {activeSubTab === "team_upad" && "Purpose / Notes"}
+                  {activeSubTab === "other_kharch" && "Payment Mode & Ref"}
+                </th>
+                <th className="py-3 px-4 text-right">Amount (₹)</th>
+                <th className="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium">
+              {currentTabRecords.map((r, idx) => {
+                const attUpper = String(r.attendanceType || "").toUpperCase();
+                const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
+                const isKharch = attUpper.includes("KHARCH") || attUpper === "OTHER_KHARCH" || attUpper === "EXPENSE";
+                const isWork = attUpper.includes("WORK") || attUpper.includes("TC") || attUpper === "TC_WISE";
+                const amount = parseFloat(r.grossSalary || r.upad || r.paymentAmount || r.netSalary || "0") || 0;
+
+                return (
+                  <tr key={r.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                    {/* Date */}
+                    <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                      {r.date}
+                    </td>
+
+                    {/* Team */}
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{r.labourTeam || r.teamName || r.labourName || "General Team"}</span>
+                      </div>
+                      {r.notes && (
+                        <p className="text-[11px] text-slate-400 font-normal truncate max-w-xs mt-0.5">
+                          {r.notes}
+                        </p>
+                      )}
+                    </td>
+
+                    {/* Column 3: Type/Category */}
+                    <td className="py-3 px-4">
+                      {activeSubTab === "add_attendance" && (
+                        <div>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            isWork ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"
+                          }`}>
+                            {isWork ? "TC WISE WORK" : "DAY WISE"}
+                          </span>
+                          {isWork && r.workType && (
+                            <div className="font-bold text-slate-800 text-[11px] mt-0.5">{r.workType}</div>
+                          )}
+                        </div>
+                      )}
+
+                      {activeSubTab === "team_upad" && (
+                        <div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-100 text-indigo-800">
+                            {r.paymentMethod || "Cash"}
+                          </span>
+                          {r.referenceNumber && (
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              Ref: {r.referenceNumber}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {activeSubTab === "other_kharch" && (
+                        <div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800">
+                            {r.workType || r.expenseCategory || "Site Kharch"}
+                          </span>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Column 4: Details / Breakdown */}
+                    <td className="py-3 px-4 text-slate-600">
+                      {activeSubTab === "add_attendance" && (
+                        <div>
+                          {isWork ? (
+                            <span>{r.tcQuantity || r.quantity || 0} {r.unitOfMeasurement || "Nos"} @ ₹{r.tcRate || r.rate || 0}</span>
+                          ) : (
+                            <span>{r.days || 1} Days @ ₹{r.dailyRate || 0}/day</span>
+                          )}
+                        </div>
+                      )}
+
+                      {activeSubTab === "team_upad" && (
+                        <span className="text-slate-600">{r.notes || "Team advance"}</span>
+                      )}
+
+                      {activeSubTab === "other_kharch" && (
+                        <div>
+                          <span className="font-semibold text-slate-700">{r.paymentMethod || "Cash"}</span>
+                          {r.referenceNumber && <span className="text-slate-400 ml-1.5 font-mono">({r.referenceNumber})</span>}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Column 5: Amount */}
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <span className={`text-sm font-black ${
+                        isUpad ? "text-indigo-700" : isKharch ? "text-rose-700" : "text-amber-800"
+                      }`}>
+                        ₹{amount.toLocaleString()}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => {
-                            setEditingRecord({ ...r });
-                            setIsEditModalOpen(true);
-                          }}
-                          className="p-1 text-slate-400 hover:text-amber-600"
+                          type="button"
+                          onClick={() => handleEditClick(r)}
+                          className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
+                          title="Edit"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleDeleteRecord(r.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600"
+                          className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                          title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {records.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-slate-500">No attendance records found.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {currentTabRecords.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <CalendarCheck className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p className="font-bold text-xs">No records found for this section.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Use the form above to add an entry.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
+
+      {/* Quick Team Management Modal */}
+      <ManageTeamsModal
+        isOpen={isManageTeamOpen}
+        onClose={() => {
+          setIsManageTeamOpen(false);
+          setManageTeamTarget(null);
+          loadData(true);
+        }}
+        locationId={locationId}
+        onSelectTeam={(team) => {
+          if (manageTeamTarget === "day") {
+            setDayForm((prev) => ({ ...prev, teamName: team.name }));
+          } else if (manageTeamTarget === "tc") {
+            setTcForm((prev) => ({ ...prev, teamName: team.name }));
+          } else if (manageTeamTarget === "upad") {
+            setUpadForm((prev) => ({ ...prev, teamName: team.name }));
+          } else if (manageTeamTarget === "kharch") {
+            setKharchForm((prev) => ({ ...prev, teamName: team.name }));
+          } else if (manageTeamTarget === "edit") {
+            setEditingRecord((prev: any) => (prev ? { ...prev, teamName: team.name } : null));
+          }
+          setIsManageTeamOpen(false);
+          setManageTeamTarget(null);
+          loadData(true);
+        }}
+      />
 
       {/* Edit Record Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingRecord(null); }} title="Edit Attendance Record">
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingRecord(null);
+        }}
+        title="Edit Labour / Expense Record"
+      >
         {editingRecord && (
           <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Date</label>
-                <input type="date" required value={editingRecord.date || ""} onChange={e => setEditingRecord({...editingRecord, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Labour Name</label>
-                <input type="text" required value={editingRecord.labourName || ""} onChange={e => setEditingRecord({...editingRecord, labourName: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Shift / Attendance Type</label>
-                <input type="text" value={editingRecord.attendanceType || ""} onChange={e => setEditingRecord({...editingRecord, attendanceType: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {(editingRecord.attendanceType || '').includes('Work') ? 'Work Quantity' : 'Days'}
-                </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={editingRecord.quantity ?? editingRecord.workQuantity ?? editingRecord.days ?? editingRecord.tcQuantity ?? 0}
-                  onChange={e => setEditingRecord({
-                    ...editingRecord,
-                    days: e.target.value,
-                    quantity: e.target.value,
-                    workQuantity: e.target.value,
-                    tcQuantity: e.target.value
-                  })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                  type="date"
+                  required
+                  value={editingRecord.date}
+                  onChange={e => setEditingRecord({ ...editingRecord, date: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <TeamSelectInput
+                  value={editingRecord.teamName || ""}
+                  onChange={(name) => setEditingRecord({ ...editingRecord, teamName: name })}
+                  availableTeams={availableTeams}
+                  onOpenManageTeams={() => {
+                    setManageTeamTarget("edit");
+                    setIsManageTeamOpen(true);
+                  }}
+                  label="Team Name *"
+                  themeColor="amber"
+                  allowGeneral={editingRecord.attendanceType === "OTHER_KHARCH"}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {(editingRecord.attendanceType || '').includes('Work') ? 'Rate per Unit (₹)' : 'Daily Rate (₹)'}
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editingRecord.rate ?? editingRecord.workRate ?? editingRecord.dailyRate ?? editingRecord.tcRate ?? 0}
-                  onChange={e => setEditingRecord({
-                    ...editingRecord,
-                    dailyRate: e.target.value,
-                    rate: e.target.value,
-                    workRate: e.target.value,
-                    tcRate: e.target.value
-                  })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                />
+            {/* Attendance fields */}
+            {editingRecord.attendanceType !== "TEAM_UPAD" && editingRecord.attendanceType !== "OTHER_KHARCH" && (
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Type</label>
+                    <select
+                      value={editingRecord.attendanceType}
+                      onChange={e => setEditingRecord({ ...editingRecord, attendanceType: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                    >
+                      <option value="DAY_WISE">Day Wise</option>
+                      <option value="TC_WISE">TC Wise</option>
+                    </select>
+                  </div>
+
+                  {editingRecord.attendanceType === "TC_WISE" ? (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Work / TC Task</label>
+                      <input
+                        type="text"
+                        value={editingRecord.workName}
+                        onChange={e => setEditingRecord({ ...editingRecord, workName: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Days Count</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={editingRecord.days}
+                        onChange={e => setEditingRecord({ ...editingRecord, days: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {editingRecord.attendanceType === "TC_WISE" ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Unit</label>
+                      <select
+                        value={editingRecord.unitOfMeasurement}
+                        onChange={e => setEditingRecord({ ...editingRecord, unitOfMeasurement: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                      >
+                        {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Quantity</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingRecord.quantity}
+                        onChange={e => setEditingRecord({ ...editingRecord, quantity: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Rate (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingRecord.rate}
+                        onChange={e => setEditingRecord({ ...editingRecord, rate: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Daily Rate (₹)</label>
+                    <input
+                      type="number"
+                      value={editingRecord.dailyRate}
+                      onChange={e => setEditingRecord({ ...editingRecord, dailyRate: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                    />
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Deduction (₹)</label>
-                <input type="number" step="0.01" value={editingRecord.deduction || 0} onChange={e => setEditingRecord({...editingRecord, deduction: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+            )}
+
+            {/* Upad / Kharch Amount fields */}
+            {(editingRecord.attendanceType === "TEAM_UPAD" || editingRecord.attendanceType === "OTHER_KHARCH") && (
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Amount (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editingRecord.amount}
+                    onChange={e => setEditingRecord({ ...editingRecord, amount: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+                  <select
+                    value={editingRecord.paymentMethod}
+                    onChange={e => setEditingRecord({ ...editingRecord, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Online / UPI">Online / UPI</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Upad / Advance (₹)</label>
-              <input type="number" step="0.01" value={editingRecord.upad || 0} onChange={e => setEditingRecord({...editingRecord, upad: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Description</label>
+              <input
+                type="text"
+                value={editingRecord.notes}
+                onChange={e => setEditingRecord({ ...editingRecord, notes: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
+              />
             </div>
 
-            <button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-lg transition-colors">
-              Update Attendance Record
-            </button>
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm"
+              >
+                Save Changes
+              </button>
+            </div>
           </form>
         )}
       </Modal>
-
-      {/* Quick Manage Labour Modal */}
-      <ManageLabourModal
-        isOpen={isManageLabourOpen}
-        onClose={() => setIsManageLabourOpen(false)}
-        locationId={locationId}
-        currentSelectedId={targetFormType === "day" ? dayForm.labourId : workForm.labourId}
-        onSelectLabour={(selectedLabour) => {
-          setWorkers(prev => {
-            const exists = prev.some(w => String(w.id) === String(selectedLabour.id));
-            if (exists) return prev.map(w => String(w.id) === String(selectedLabour.id) ? selectedLabour : w);
-            return [selectedLabour, ...prev];
-          });
-
-          if (targetFormType === "day") {
-            setDayForm(prev => ({
-              ...prev,
-              labourId: String(selectedLabour.id),
-              labourName: selectedLabour.name,
-              rate: selectedLabour.dailyRate && Number(selectedLabour.dailyRate) > 0 ? String(selectedLabour.dailyRate) : prev.rate,
-              teamId: selectedLabour.teamId ? String(selectedLabour.teamId) : prev.teamId
-            }));
-          } else {
-            setWorkForm(prev => ({
-              ...prev,
-              labourId: String(selectedLabour.id),
-              labourName: selectedLabour.name,
-              rate: selectedLabour.dailyRate && Number(selectedLabour.dailyRate) > 0 ? String(selectedLabour.dailyRate) : prev.rate,
-              teamId: selectedLabour.teamId ? String(selectedLabour.teamId) : prev.teamId
-            }));
-          }
-          loadData(true);
-        }}
-      />
-
-      {/* Quick Manage Team Modal */}
-      <ManageTeamsModal
-        isOpen={isManageTeamOpen}
-        onClose={() => setIsManageTeamOpen(false)}
-        locationId={locationId}
-        currentSelectedId={targetFormType === "day" ? dayForm.teamId : workForm.teamId}
-        onSelectTeam={(selectedTeam) => {
-          if (targetFormType === "day") {
-            setDayForm(prev => ({
-              ...prev,
-              teamId: String(selectedTeam.id)
-            }));
-          } else {
-            setWorkForm(prev => ({
-              ...prev,
-              teamId: String(selectedTeam.id)
-            }));
-          }
-          loadData(true);
-        }}
-      />
     </div>
   );
 }
-

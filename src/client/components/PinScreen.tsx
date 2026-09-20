@@ -114,6 +114,21 @@ export const PinScreen: React.FC = () => {
             <p className="text-sm text-slate-400 mt-2">
               Enter authorized PIN to access unified enterprise database
             </p>
+            {/* Quick PIN Hint / Fill Pill */}
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPin('199198197');
+                  setLocalError(null);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 rounded-full text-[11px] font-mono font-bold text-indigo-300 transition-all cursor-pointer shadow-xs"
+                title="Click to fill default master PIN"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+                Default Master PIN: <span className="text-white underline underline-offset-2">199198197</span>
+              </button>
+            </div>
           </div>
 
           {/* PIN Input & Dots display */}

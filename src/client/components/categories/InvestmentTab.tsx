@@ -5,7 +5,7 @@ import {
   TrendingUp, Pencil, Plus, Trash2, ArrowUpRight, ArrowDownLeft, FileText, Banknote,
   Building2, Calculator, CheckCircle2, Clock, AlertCircle, Package, User,
   Wallet, Layers, Search, Tag, Filter, Check, BarChart3, PieChart, ArrowRight,
-  ShoppingCart, Truck, Wrench, Users, HardHat, RefreshCw, AlertTriangle
+  ShoppingCart, Truck, Wrench, Users, HardHat, RefreshCw, AlertTriangle, Receipt
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
@@ -20,14 +20,15 @@ const GST_PRESETS = ["0", "5", "12", "18", "28"];
 
 export default function InvestmentTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
-  // 6 Distinct Sub-Tabs:
-  // 1. "analytics" - Executive Category 3-7 Deductions & Capital Analytics Dashboard
+  // 7 Distinct Sub-Tabs:
+  // 1. "analytics" - Executive Category 3-6 Deductions & Capital Analytics Dashboard
   // 2. "investor_capital" - Direct Investment from Investors (Investment Karya from Cat 1)
   // 3. "bill_investments" - Bill / Asset / Material Invoiced Investments
-  // 4. "deductions_ledger" - Live Itemized Operational Deductions Passbook (Cat 3 to 7)
-  // 5. "investor_payments" - Returns / Upad paid to Investors
-  // 6. "combined" - Consolidated Investment Ledger & Balance Sheet
-  const [activeSubTab, setActiveSubTab] = useState<"analytics" | "investor_capital" | "bill_investments" | "deductions_ledger" | "investor_payments" | "combined">("analytics");
+  // 4. "refundable_records" - Refundable Record (લેવાના બાકી - Security Deposit & Advances)
+  // 5. "deductions_ledger" - Live Itemized Operational Deductions Passbook (Cat 3 to 6 & Refundables)
+  // 6. "investor_payments" - Returns / Upad paid to Investors
+  // 7. "combined" - Consolidated Investment Ledger & Balance Sheet
+  const [activeSubTab, setActiveSubTab] = useState<"analytics" | "investor_capital" | "bill_investments" | "refundable_records" | "deductions_ledger" | "investor_payments" | "combined">("analytics");
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -36,20 +37,26 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   const [masterMaterials, setMasterMaterials] = useState<any[]>([]);
   const [investorTxs, setInvestorTxs] = useState<any[]>([]);
   const [billIncomes, setBillIncomes] = useState<any[]>([]);
+  const [refundableRecords, setRefundableRecords] = useState<any[]>([]);
   const [projectUtilization, setProjectUtilization] = useState<any>(null);
 
   // Modals
   const [isCapitalModalOpen, setIsCapitalModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
+  const [isRefundableModalOpen, setIsRefundableModalOpen] = useState(false);
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isManageMaterialOpen, setIsManageMaterialOpen] = useState(false);
 
   const [editingTxId, setEditingTxId] = useState<number | null>(null);
   const [editingBillId, setEditingBillId] = useState<number | null>(null);
+  const [activeRefundRecord, setActiveRefundRecord] = useState<any | null>(null);
 
   // Filters & Search
   const [deductionCategoryFilter, setDeductionCategoryFilter] = useState<string>("ALL");
   const [deductionSearch, setDeductionSearch] = useState("");
+  const [refundableFilter, setRefundableFilter] = useState<string>("ALL");
+  const [refundableSearch, setRefundableSearch] = useState("");
 
   // Forms
   const [capitalFormData, setCapitalFormData] = useState({
@@ -87,6 +94,22 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     notes: "",
   });
 
+  const [refundableFormData, setRefundableFormData] = useState({
+    partyName: "",
+    amount: "",
+    depositType: "Security Deposit",
+    date: new Date().toISOString().split("T")[0],
+    paymentMethod: "Bank Transfer",
+    referenceNumber: "",
+    notes: "",
+  });
+
+  const [refundActionData, setRefundActionData] = useState({
+    refundedAmount: "",
+    refundDate: new Date().toISOString().split("T")[0],
+    refundNotes: "",
+  });
+
   const [unitMode, setUnitMode] = useState("Nos");
   const [customUnit, setCustomUnit] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -96,20 +119,24 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   const loadData = async (isBackground = false) => {
     if (!isBackground && investorTxs.length === 0 && billIncomes.length === 0 && !projectUtilization) setLoading(true);
     try {
-      const [partiesRes, masterPartiesRes, masterMaterialsRes, txsRes, billsRes, utilRes] = await Promise.all([
+      const [partiesRes, masterPartiesRes, masterMaterialsRes, txsRes, billsRes, utilRes, refundablesRes] = await Promise.all([
         apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => []),
         apiFetch(`/master/parties?locationId=${locationId}`).catch(() => []),
         apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
         apiFetch(`/investments/transactions?locationId=${locationId}`).catch(() => []),
         apiFetch(`/incomes?locationId=${locationId}`).catch(() => []),
         apiFetch(`/investments/project-utilization?locationId=${locationId}`).catch(() => null),
+        apiFetch(`/investments/refundable-records?locationId=${locationId}`).catch(() => []),
       ]);
-      setParties(partiesRes || []);
-      setMasterParties(masterPartiesRes || []);
-      setMasterMaterials(masterMaterialsRes || []);
-      setInvestorTxs(txsRes || []);
+      setParties(Array.isArray(partiesRes) ? partiesRes : (partiesRes?.parties || []));
+      setMasterParties(Array.isArray(masterPartiesRes) ? masterPartiesRes : (masterPartiesRes?.parties || []));
+      setMasterMaterials(Array.isArray(masterMaterialsRes) ? masterMaterialsRes : (masterMaterialsRes?.materials || []));
+      setInvestorTxs(Array.isArray(txsRes) ? txsRes : (txsRes?.transactions || []));
+      const refItems = Array.isArray(refundablesRes) ? refundablesRes : (refundablesRes?.records || []);
+      setRefundableRecords(refItems);
       // Filter incomes to show only Bill / Material Incomes
-      setBillIncomes((billsRes || []).filter((i: any) => i.isBillIncome || i.materialName || i.type === "BILL_INCOME"));
+      const billItems = Array.isArray(billsRes) ? billsRes : (billsRes?.incomes || []);
+      setBillIncomes(billItems.filter((i: any) => i.isBillIncome || i.materialName || i.type === "BILL_INCOME"));
       if (utilRes) {
         setProjectUtilization(utilRes);
       }
@@ -130,11 +157,13 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
   // Categorized Transactions - Strictly INVESTMENT (Investment Karya from Category 1)
   const capitalInflowTxs = useMemo(() => {
-    return investorTxs.filter(t => t.type === "INVESTMENT");
+    const list = Array.isArray(investorTxs) ? investorTxs : [];
+    return list.filter(t => t.type === "INVESTMENT");
   }, [investorTxs]);
 
   const investorPaymentTxs = useMemo(() => {
-    return investorTxs.filter(t => t.type === "UPAD" || t.type === "PAYMENT");
+    const list = Array.isArray(investorTxs) ? investorTxs : [];
+    return list.filter(t => t.type === "UPAD" || t.type === "PAYMENT");
   }, [investorTxs]);
 
   // Aggregate Capital Totals: Category 2 Capital - Investment from Investors Capital is strictly Investment Karya total
@@ -150,7 +179,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   }, [investorPaymentTxs]);
 
   const totalBillInvestments = useMemo(() => {
-    return billIncomes.reduce((sum, b) => sum + Number(b.totalAmount || b.amount || 0), 0);
+    const list = Array.isArray(billIncomes) ? billIncomes : [];
+    return list.reduce((sum, b) => sum + Number(b.totalAmount || b.amount || 0), 0);
   }, [billIncomes]);
 
   // Full Capital = Investment from Investors (Investment Karya) + Bill Investment
@@ -164,21 +194,20 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   // Category 2 Capital Pool
   const totalGrossInvestment = fullCapital;
 
-  // Operational Deductions from Categories 3 to 8
+  // Operational Deductions from Categories 3 to 6
   const cat3Data = projectUtilization?.linkedExpenditures?.category3MaterialPurchases || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat4Data = projectUtilization?.linkedExpenditures?.category4MaterialSupplies || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat5Data = projectUtilization?.linkedExpenditures?.category5SiteSupplies || { total: 0, count: 0 };
-  const cat67Data = projectUtilization?.linkedExpenditures?.category67Labour || { totalNetSalary: 0, totalPaid: 0, totalUpad: 0, outstandingBalance: 0, count: 0 };
-  const cat8Data = projectUtilization?.linkedExpenditures?.category8Supervisor || { total: 0, count: 0 };
+  const cat6Data = projectUtilization?.linkedExpenditures?.category6Labour || projectUtilization?.linkedExpenditures?.category67Labour || { totalNetSalary: 0, totalPaid: 0, totalUpad: 0, outstandingBalance: 0, count: 0 };
 
   const totalDeductions = useMemo(() => {
     if (projectUtilization?.budgetBalance?.totalProjectExpenditure !== undefined) {
       return Number(projectUtilization.budgetBalance.totalProjectExpenditure || 0);
     }
-    return (Number(cat3Data.total || 0) + Number(cat4Data.total || 0) + Number(cat5Data.total || 0) + Number(cat67Data.totalNetSalary || 0) + Number(cat8Data.total || 0));
-  }, [projectUtilization, cat3Data, cat4Data, cat5Data, cat67Data, cat8Data]);
+    return (Number(cat3Data.total || 0) + Number(cat4Data.total || 0) + Number(cat5Data.total || 0) + Number(cat6Data.totalNetSalary || 0));
+  }, [projectUtilization, cat3Data, cat4Data, cat5Data, cat6Data]);
 
-  // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Cat 3-8) - Investor Upad / Return
+  // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Cat 3-6) - Investor Upad / Return
   const netRemainingCapital = useMemo(() => {
     if (projectUtilization?.budgetBalance?.remainingInvestmentCapital !== undefined) {
       return Number(projectUtilization.budgetBalance.remainingInvestmentCapital || 0);
@@ -207,6 +236,121 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   const netActiveInvestment = useMemo(() => {
     return totalGrossInvestment - totalInvestorPayments;
   }, [totalGrossInvestment, totalInvestorPayments]);
+
+  const safeRefundableRecords = useMemo(() => {
+    return Array.isArray(refundableRecords) ? refundableRecords : [];
+  }, [refundableRecords]);
+
+  const refundableSummary = useMemo(() => {
+    let totalRefundable = 0;
+    let totalRefunded = 0;
+    for (const r of safeRefundableRecords) {
+      totalRefundable += Number(r.amount || 0);
+      totalRefunded += Number(r.refundedAmount || 0);
+    }
+    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
+    return {
+      totalRefundable: Math.round(totalRefundable * 100) / 100,
+      totalRefunded: Math.round(totalRefunded * 100) / 100,
+      pendingRefundable,
+      count: safeRefundableRecords.length,
+    };
+  }, [safeRefundableRecords]);
+
+  const filteredRefundables = useMemo(() => {
+    return safeRefundableRecords.filter(r => {
+      const matchFilter = refundableFilter === "ALL" || r.refundStatus === refundableFilter;
+      const matchSearch = !refundableSearch.trim() ||
+        (r.partyName || "").toLowerCase().includes(refundableSearch.toLowerCase()) ||
+        (r.depositType || "").toLowerCase().includes(refundableSearch.toLowerCase()) ||
+        (r.referenceNumber || "").toLowerCase().includes(refundableSearch.toLowerCase()) ||
+        (r.notes || "").toLowerCase().includes(refundableSearch.toLowerCase());
+      return matchFilter && matchSearch;
+    });
+  }, [safeRefundableRecords, refundableFilter, refundableSearch]);
+
+  // Handle Save Refundable Record
+  const handleSaveRefundable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundableFormData.partyName || !refundableFormData.amount) {
+      showToast("Please provide Party Name and Amount", "error");
+      return;
+    }
+    try {
+      await apiFetch("/investments/refundable-records", {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          partyName: refundableFormData.partyName.trim(),
+          amount: parseFloat(refundableFormData.amount),
+          depositType: refundableFormData.depositType,
+          date: refundableFormData.date,
+          paymentMethod: refundableFormData.paymentMethod,
+          referenceNumber: refundableFormData.referenceNumber,
+          notes: refundableFormData.notes,
+        }),
+      });
+
+      triggerSync("investments");
+      setRefundableFormData({
+        partyName: "",
+        amount: "",
+        depositType: "Security Deposit",
+        date: new Date().toISOString().split("T")[0],
+        paymentMethod: "Bank Transfer",
+        referenceNumber: "",
+        notes: "",
+      });
+      setIsRefundableModalOpen(false);
+      showToast("Refundable record added and deducted from Project Capital", "success");
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to save refundable record.", "error");
+    }
+  };
+
+  // Handle Process Refund
+  const handleProcessRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeRefundRecord || !refundActionData.refundedAmount) return;
+    try {
+      await apiFetch(`/investments/refundable-records/${activeRefundRecord.id}/refund`, {
+        method: "PUT",
+        body: JSON.stringify({
+          refundedAmount: parseFloat(refundActionData.refundedAmount),
+          refundDate: refundActionData.refundDate,
+          refundNotes: refundActionData.refundNotes,
+        }),
+      });
+
+      triggerSync("investments");
+      setIsRefundModalOpen(false);
+      setActiveRefundRecord(null);
+      showToast("Refund recorded successfully", "success");
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to record refund.", "error");
+    }
+  };
+
+  // Handle Delete Refundable
+  const handleDeleteRefundable = async (id: number) => {
+    const confirmed = await confirmAction({
+      title: "Delete Refundable Record",
+      message: "Are you sure you want to delete this refundable record?",
+      confirmLabel: "Delete",
+      isDanger: true,
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/investments/refundable-records/${id}?locationId=${locationId}`, { method: "DELETE" });
+      triggerSync("investments");
+      showToast("Refundable record deleted", "success");
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete refundable record.", "error");
+    }
+  };
 
   // Live Bill Calculation Breakdown
   const billCalc = useMemo(() => {
@@ -497,6 +641,24 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           <button
             onClick={() => {
+              setRefundableFormData({
+                partyName: "",
+                amount: "",
+                depositType: "Security Deposit",
+                date: new Date().toISOString().split("T")[0],
+                paymentMethod: "Bank Transfer",
+                referenceNumber: "",
+                notes: "",
+              });
+              setIsRefundableModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+          >
+            <Receipt className="w-3.5 h-3.5" /> + Add Refundable Record
+          </button>
+
+          <button
+            onClick={() => {
               setEditingTxId(null);
               setPaymentFormData({
                 partyId: parties[0]?.id?.toString() || "",
@@ -559,7 +721,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </div>
         </div>
 
-        {/* 4. Deductions (Cat 3 to 8 & Upad) */}
+        {/* 4. Deductions (Cat 3 to 6 & Upad & Refundable) */}
         <div className="bg-rose-50/90 border border-rose-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-rose-800">
             <span className="text-xs font-bold uppercase tracking-wider">4. Deductions & Upad</span>
@@ -568,7 +730,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           <div className="mt-3">
             <div className="text-xl font-black text-rose-900">-₹{(totalDeductions + totalInvestorPayments).toLocaleString()}</div>
             <p className="text-[11px] text-rose-700 mt-0.5 font-medium">
-              ખર્ચ: ₹{totalDeductions.toLocaleString()} + ઉપાડ: ₹{totalInvestorPayments.toLocaleString()}
+              ખર્ચ/ડિપોઝિટ: ₹{totalDeductions.toLocaleString()} + ઉપાડ: ₹{totalInvestorPayments.toLocaleString()}
             </p>
           </div>
         </div>
@@ -594,7 +756,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       </div>
 
-      {/* 6 Distinct Sub-Tabs Navigation */}
+      {/* 7 Distinct Sub-Tabs Navigation */}
       <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1.5 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab("analytics")}
@@ -605,7 +767,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           }`}
         >
           <BarChart3 className="w-4 h-4" />
-          Analytics & Cat 3–7 Deductions
+          Analytics & Cat 3–6 Deductions
         </button>
 
         <button
@@ -630,6 +792,23 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         >
           <FileText className="w-4 h-4" />
           Bill Investments ({billIncomes.length})
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab("refundable_records")}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === "refundable_records"
+              ? "bg-purple-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Receipt className="w-4 h-4" />
+          Refundable Records ({refundableRecords.length})
+          {refundableSummary.pendingRefundable > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 bg-amber-400 text-slate-900 rounded-full text-[10px] font-black">
+              ₹{refundableSummary.pendingRefundable.toLocaleString()}
+            </span>
+          )}
         </button>
 
         <button
@@ -678,10 +857,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <div>
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                   <PieChart className="w-5 h-5 text-indigo-600" />
-                  Investment Capital & Categories 3–7 Deductions Flow
+                  Investment Capital & Categories 3–6 Deductions Flow
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Real-time synchronization showing how project operational expenses in Categories 3–7 cut into Investment Capital.
+                  Real-time synchronization showing how project operational expenses in Categories 3–6 cut into Investment Capital.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -714,18 +893,13 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     />
                     <div
                       style={{ width: `${Math.min(100, (Number(cat5Data.total || 0) / totalGrossInvestment) * 100)}%` }}
-                      className="bg-amber-500 h-full transition-all"
+                      className="bg-teal-500 h-full transition-all"
                       title={`Cat 5 Site Supplies: ₹${Number(cat5Data.total || 0).toLocaleString()}`}
                     />
                     <div
-                      style={{ width: `${Math.min(100, (Number(cat67Data.totalNetSalary || 0) / totalGrossInvestment) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (Number(cat6Data.totalNetSalary || 0) / totalGrossInvestment) * 100)}%` }}
                       className="bg-rose-500 h-full transition-all"
-                      title={`Cat 6/7 Labour Wages: ₹${Number(cat67Data.totalNetSalary || 0).toLocaleString()}`}
-                    />
-                    <div
-                      style={{ width: `${Math.min(100, (Number(cat8Data.total || 0) / totalGrossInvestment) * 100)}%` }}
-                      className="bg-cyan-500 h-full transition-all"
-                      title={`Cat 8 Supervisor Costs: ₹${Number(cat8Data.total || 0).toLocaleString()}`}
+                      title={`Cat 6 Labour Wages & Kharch: ₹${Number(cat6Data.totalNetSalary || 0).toLocaleString()}`}
                     />
                     <div
                       style={{ width: `${Math.min(100, (Number(totalInvestorPayments || 0) / totalGrossInvestment) * 100)}%` }}
@@ -738,16 +912,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1">
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-500 inline-block" /> Cat 3 Material Purchases</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> Cat 4 Material Supplies</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" /> Cat 5 Site Supplies</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" /> Cat 6/7 Labour Wages</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-cyan-500 inline-block" /> Cat 8 Supervisor</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-teal-500 inline-block" /> Cat 5 Site Supplies</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" /> Cat 6 Labour & Kharch</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-600 inline-block" /> Investor Upad</span>
                 <span className="flex items-center gap-1.5 ml-auto font-bold text-slate-800">Remaining Capital: ₹{netRemainingCapital.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          {/* The 5 Connected Category Operational Deductions Cards */}
+          {/* The 4 Connected Category Operational Deductions Cards */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
@@ -762,7 +935,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Category 3: Material Purchases */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-purple-300 transition-colors flex flex-col justify-between">
                 <div>
@@ -838,26 +1011,26 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </div>
 
               {/* Category 5: Site Supplies */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-amber-300 transition-colors flex flex-col justify-between">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-teal-300 transition-colors flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">
                       Category 5
                     </span>
-                    <Wrench className="w-4 h-4 text-amber-600" />
+                    <Wrench className="w-4 h-4 text-teal-600" />
                   </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Site Supplies & Consumables</h5>
-                  <p className="text-xs text-slate-500 mt-0.5">{cat5Data.count} site tools & safety issues</p>
+                  <h5 className="font-black text-slate-900 text-sm mt-2">Site Supplies & Materials</h5>
+                  <p className="text-xs text-slate-500 mt-0.5">{cat5Data.count} site supply issues</p>
                   
                   <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
                     <span className="text-xs font-bold text-slate-600">Total Deducted:</span>
-                    <span className="text-base font-black text-amber-700">-₹{Number(cat5Data.total || 0).toLocaleString()}</span>
+                    <span className="text-base font-black text-teal-700">-₹{Number(cat5Data.total || 0).toLocaleString()}</span>
                   </div>
                   
                   <div className="mt-2 text-xs space-y-1 text-slate-600">
                     <div className="flex justify-between">
                       <span>Status:</span>
-                      <span className="font-semibold text-emerald-600">100% Incurred & Settled</span>
+                      <span className="font-semibold text-emerald-600">100% Direct Incurred</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Entries:</span>
@@ -868,41 +1041,41 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 
                 <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
                   <span>Share of Capital:</span>
-                  <span className="font-bold text-amber-800">
+                  <span className="font-bold text-teal-800">
                     {totalGrossInvestment > 0 ? ((Number(cat5Data.total || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
                   </span>
                 </div>
               </div>
 
-              {/* Category 6 & 7: Labour Salaries & Wages */}
+              {/* Category 6: Labour Attendance, Upad & Other Kharch */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-rose-300 transition-colors flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                      Category 6 & 7
+                      Category 6
                     </span>
                     <Users className="w-4 h-4 text-rose-600" />
                   </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Labour Salaries & Wages (મજૂરી)</h5>
-                  <p className="text-xs text-slate-500 mt-0.5">{cat67Data.count} workers enrolled</p>
+                  <h5 className="font-black text-slate-900 text-sm mt-2">Labour Attendance & Kharch (મજૂરી)</h5>
+                  <p className="text-xs text-slate-500 mt-0.5">Attendance, Team Upad & Other Kharch</p>
                   
                   <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
-                    <span className="text-xs font-bold text-slate-600">Total Net Wages:</span>
-                    <span className="text-base font-black text-rose-700">-₹{Number(cat67Data.totalNetSalary || 0).toLocaleString()}</span>
+                    <span className="text-xs font-bold text-slate-600">Total Deducted:</span>
+                    <span className="text-base font-black text-rose-700">-₹{Number(cat6Data.totalNetSalary || 0).toLocaleString()}</span>
                   </div>
                   
                   <div className="mt-2 text-xs space-y-1 text-slate-600">
                     <div className="flex justify-between">
-                      <span>Direct Paid Wages:</span>
-                      <span className="font-semibold text-slate-800">₹{Number(cat67Data.totalPaid || 0).toLocaleString()}</span>
+                      <span>Attendance / Paid:</span>
+                      <span className="font-semibold text-slate-800">₹{Number(cat6Data.totalPaid || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Worker Upad / Advances:</span>
-                      <span className="font-semibold text-amber-600">₹{Number(cat67Data.totalUpad || 0).toLocaleString()}</span>
+                      <span>Team Upad / Advances:</span>
+                      <span className="font-semibold text-amber-600">₹{Number(cat6Data.totalUpad || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Unpaid Balance:</span>
-                      <span className="font-semibold text-rose-600">₹{Number(cat67Data.outstandingBalance || 0).toLocaleString()}</span>
+                      <span className="font-semibold text-rose-600">₹{Number(cat6Data.outstandingBalance || 0).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -910,89 +1083,11 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
                   <span>Share of Capital:</span>
                   <span className="font-bold text-rose-800">
-                    {totalGrossInvestment > 0 ? ((Number(cat67Data.totalNetSalary || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
+                    {totalGrossInvestment > 0 ? ((Number(cat6Data.totalNetSalary || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
                   </span>
                 </div>
               </div>
 
-              {/* Category 8: Supervisor Costs */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-cyan-300 transition-colors flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
-                      Category 8
-                    </span>
-                    <HardHat className="w-4 h-4 text-cyan-600" />
-                  </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Supervisor & Site Overhead</h5>
-                  <p className="text-xs text-slate-500 mt-0.5">{cat8Data.count} expense entries</p>
-                  
-                  <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
-                    <span className="text-xs font-bold text-slate-600">Total Deducted:</span>
-                    <span className="text-base font-black text-cyan-700">-₹{Number(cat8Data.total || 0).toLocaleString()}</span>
-                  </div>
-                  
-                  <div className="mt-2 text-xs space-y-1 text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Status:</span>
-                      <span className="font-semibold text-emerald-600">Fully Incurred</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Cost Centers:</span>
-                      <span className="font-semibold text-slate-800">Site Management & Supervision</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Share of Capital:</span>
-                  <span className="font-bold text-cyan-800">
-                    {totalGrossInvestment > 0 ? ((Number(cat8Data.total || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Summary Balance Card */}
-              <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between text-indigo-300">
-                    <span className="text-xs font-bold uppercase tracking-wider">Net Financial Equation</span>
-                    <Calculator className="w-4 h-4" />
-                  </div>
-                  <h5 className="font-black text-white text-sm mt-2">Investment Capital Balance</h5>
-                  <p className="text-xs text-slate-400 mt-0.5">Automated balance after all operational deductions</p>
-                  
-                  <div className="mt-3 text-xs space-y-1.5">
-                    <div className="flex justify-between text-emerald-400">
-                      <span>(+) Investment from Investors:</span>
-                      <span className="font-bold">+₹{investmentFromInvestorsCapital.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-cyan-400">
-                      <span>(+) Bill Investment:</span>
-                      <span className="font-bold">+₹{totalBillInvestments.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-white font-bold border-t border-slate-800 pt-1">
-                      <span>(=) Full Capital:</span>
-                      <span>₹{fullCapital.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-rose-400">
-                      <span>(-) Cat 3–8 Deductions:</span>
-                      <span className="font-bold">-₹{totalDeductions.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-amber-400">
-                      <span>(-) Investor Upad:</span>
-                      <span className="font-bold">-₹{totalInvestorPayments.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-baseline">
-                  <span className="text-xs font-bold text-slate-300">Net Remaining:</span>
-                  <span className={`text-lg font-black ${netRemainingCapital >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                    ₹{netRemainingCapital.toLocaleString()}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -1001,7 +1096,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-slate-600" />
-                Latest Deductions Recorded Across Categories 3 to 7
+                Latest Deductions Recorded Across Categories 3 to 6
               </h4>
               <button
                 onClick={() => setActiveSubTab("deductions_ledger")}
@@ -1018,8 +1113,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     <span className={`px-2 py-0.5 rounded text-[10px] font-black shrink-0 ${
                       item.categoryKey === "CAT3_PURCHASE" ? "bg-purple-100 text-purple-800" :
                       item.categoryKey === "CAT4_SUPPLY" ? "bg-blue-100 text-blue-800" :
-                      item.categoryKey === "CAT5_SITE" ? "bg-amber-100 text-amber-800" :
-                      item.categoryKey === "CAT67_LABOUR" ? "bg-rose-100 text-rose-800" : "bg-cyan-100 text-cyan-800"
+                      item.categoryKey === "CAT5_SITE" ? "bg-teal-100 text-teal-800" :
+                      "bg-rose-100 text-rose-800"
                     }`}>
                       {item.categoryName}
                     </span>
@@ -1037,7 +1132,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 </div>
               ))}
               {(!projectUtilization?.itemizedDeductions || projectUtilization.itemizedDeductions.length === 0) && (
-                <div className="py-6 text-center text-slate-400 text-xs">No expenditure deductions recorded yet in Categories 3–7.</div>
+                <div className="py-6 text-center text-slate-400 text-xs">No expenditure deductions recorded yet in Categories 3–6.</div>
               )}
             </div>
           </div>
@@ -1051,10 +1146,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <div>
               <h3 className="font-black text-rose-900 text-sm flex items-center gap-2">
                 <Tag className="w-4 h-4 text-rose-700" />
-                Live Operational Deductions Passbook (Categories 3 to 7)
+                Live Operational Deductions Passbook (Categories 3 to 6)
               </h3>
               <p className="text-xs text-rose-700">
-                All transactions across Categories 3, 4, 5, 6, 7 & 8 that reduce and consume this project's Investment Capital.
+                All transactions across Categories 3, 4, 5 & 6 that reduce and consume this project's Investment Capital.
               </p>
             </div>
 
@@ -1074,8 +1169,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 { key: "CAT3_PURCHASE", label: "Cat 3 Purchases" },
                 { key: "CAT4_SUPPLY", label: "Cat 4 Supplies" },
                 { key: "CAT5_SITE", label: "Cat 5 Site Supplies" },
-                { key: "CAT67_LABOUR", label: "Cat 6/7 Labour" },
-                { key: "CAT8_SUPERVISOR", label: "Cat 8 Supervisor" },
+                { key: "CAT6_LABOUR", label: "Cat 6 Labour & Kharch" },
               ].map(f => (
                 <button
                   key={f.key}
@@ -1111,7 +1205,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   <tr>
                     <th className="p-3.5">Date</th>
                     <th className="p-3.5">Category Source</th>
-                    <th className="p-3.5">Party / Worker / Vendor</th>
+                    <th className="p-3.5">Party / Team / Vendor</th>
                     <th className="p-3.5">Item Particulars / Notes</th>
                     <th className="p-3.5">Ref / Invoice No.</th>
                     <th className="p-3.5 text-center">Status</th>
@@ -1126,9 +1220,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
                           item.categoryKey === "CAT3_PURCHASE" ? "bg-purple-100 text-purple-800 border border-purple-200" :
                           item.categoryKey === "CAT4_SUPPLY" ? "bg-blue-100 text-blue-800 border border-blue-200" :
-                          item.categoryKey === "CAT5_SITE" ? "bg-amber-100 text-amber-800 border border-amber-200" :
-                          item.categoryKey === "CAT67_LABOUR" ? "bg-rose-100 text-rose-800 border border-rose-200" :
-                          "bg-cyan-100 text-cyan-800 border border-cyan-200"
+                          item.categoryKey === "CAT5_SITE" ? "bg-teal-100 text-teal-800 border border-teal-200" :
+                          "bg-rose-100 text-rose-800 border border-rose-200"
                         }`}>
                           {item.categoryName}
                         </span>
@@ -1471,7 +1564,204 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       )}
 
-      {/* SUBTAB 4: INVESTOR PAYMENTS / UPAD */}
+      {/* SUBTAB 4: REFUNDABLE RECORDS (લેવાના બાકી - Security Deposit & Advances) */}
+      {activeSubTab === "refundable_records" && (
+        <div className="space-y-4">
+          {/* Header Action Bar */}
+          <div className="bg-purple-50 border border-purple-200 p-5 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <h3 className="font-black text-purple-950 text-base flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-purple-700" />
+                Refundable Records & Security Deposits (લેવાના બાકી)
+              </h3>
+              <p className="text-xs text-purple-800 mt-0.5">
+                સિક્યોરિટી ડિપોઝિટ, એડવાન્સ તથા રિફંડેબલ રકમ. આ રકમ પ્રોજેક્ટ મૂડી (Category 2 Investment) માંથી બાદ થાય છે અને પરત મળે ત્યારે જમા થાય છે.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setRefundableFormData({
+                  partyName: "",
+                  amount: "",
+                  depositType: "Security Deposit",
+                  date: new Date().toISOString().split("T")[0],
+                  paymentMethod: "Bank Transfer",
+                  referenceNumber: "",
+                  notes: "",
+                });
+                setIsRefundableModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4" /> + Add Refundable Record
+            </button>
+          </div>
+
+          {/* 3 Metrics Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="bg-white border border-purple-200 rounded-2xl p-4 shadow-sm">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-purple-700 block">Total Refundable Paid</span>
+              <div className="text-2xl font-black text-purple-950 mt-1">₹{refundableSummary.totalRefundable.toLocaleString()}</div>
+              <p className="text-[11px] text-slate-500 mt-0.5">{refundableRecords.length} records deposited</p>
+            </div>
+
+            <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-700 block">Total Refund Received (જમા થયેલ)</span>
+              <div className="text-2xl font-black text-emerald-700 mt-1">₹{refundableSummary.totalRefunded.toLocaleString()}</div>
+              <p className="text-[11px] text-slate-500 mt-0.5">Returned back to project</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-2xl p-4 shadow-sm">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-amber-100 block">Pending Refund (લેવાના બાકી)</span>
+              <div className="text-2xl font-black text-white mt-1">₹{refundableSummary.pendingRefundable.toLocaleString()}</div>
+              <p className="text-[11px] text-amber-100 mt-0.5">Currently deducted from Category 2 Capital</p>
+            </div>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Search className="w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search party, deposit type, notes..."
+                value={refundableSearch}
+                onChange={e => setRefundableSearch(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <Filter className="w-3.5 h-3.5 text-slate-500" />
+              <select
+                value={refundableFilter}
+                onChange={e => setRefundableFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="ALL">All Statuses ({safeRefundableRecords.length})</option>
+                <option value="PENDING">Pending (બાકી)</option>
+                <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
+                <option value="REFUNDED">Fully Refunded (પરત મળેલ)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3.5">Date</th>
+                    <th className="p-3.5">Party / Beneficiary</th>
+                    <th className="p-3.5">Deposit Type</th>
+                    <th className="p-3.5">Payment Method / Ref</th>
+                    <th className="p-3.5 text-right font-bold text-slate-900">Total Amount (₹)</th>
+                    <th className="p-3.5 text-right font-bold text-emerald-700">Refunded (₹)</th>
+                    <th className="p-3.5 text-right font-black text-amber-700">Pending Balance (₹)</th>
+                    <th className="p-3.5 text-center">Status</th>
+                    <th className="p-3.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredRefundables.map(rec => {
+                    const totalAmt = Number(rec.amount || 0);
+                    const refAmt = Number(rec.refundedAmount || 0);
+                    const pendAmt = Math.max(0, totalAmt - refAmt);
+
+                    return (
+                      <tr key={rec.id} className="hover:bg-purple-50/30 transition-colors">
+                        <td className="p-3.5 text-slate-600 font-medium">{rec.date}</td>
+                        <td className="p-3.5 font-bold text-slate-900">
+                          <div>{rec.partyName}</div>
+                          {rec.notes && <div className="text-[10px] text-slate-400 font-normal truncate max-w-xs">{rec.notes}</div>}
+                        </td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded font-semibold text-[11px]">
+                            {rec.depositType || "Deposit"}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-slate-600">
+                          <div>{rec.paymentMethod || "Bank Transfer"}</div>
+                          {rec.referenceNumber && <div className="text-[10px] font-mono text-slate-400">{rec.referenceNumber}</div>}
+                        </td>
+                        <td className="p-3.5 text-right font-bold text-slate-900 text-sm">
+                          ₹{totalAmt.toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-right font-bold text-emerald-700 text-sm">
+                          ₹{refAmt.toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-right font-black text-amber-700 text-sm">
+                          ₹{pendAmt.toLocaleString()}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                            rec.refundStatus === "REFUNDED"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              : rec.refundStatus === "PARTIALLY_REFUNDED"
+                              ? "bg-blue-100 text-blue-800 border border-blue-200"
+                              : "bg-amber-100 text-amber-900 border border-amber-200"
+                          }`}>
+                            {rec.refundStatus === "REFUNDED" ? "Refunded" : rec.refundStatus === "PARTIALLY_REFUNDED" ? "Partial" : "Pending"}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {rec.refundStatus !== "REFUNDED" && (
+                              <button
+                                onClick={() => {
+                                  setActiveRefundRecord(rec);
+                                  setRefundActionData({
+                                    refundedAmount: String(pendAmt),
+                                    refundDate: new Date().toISOString().split("T")[0],
+                                    refundNotes: "",
+                                  });
+                                  setIsRefundModalOpen(true);
+                                }}
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold shadow-xs cursor-pointer"
+                                title="Record Refund Received"
+                              >
+                                Record Refund
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteRefundable(rec.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                              title="Delete Record"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredRefundables.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-slate-500">
+                        No refundable records found. Click "+ Add Refundable Record" to register security deposits or advances.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {safeRefundableRecords.length > 0 && (
+              <div className="p-4 bg-purple-50/50 border-t border-purple-100 flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs gap-2">
+                <span className="font-bold text-purple-900">
+                  Total Records: {safeRefundableRecords.length} &bull; Total Deposited: ₹{refundableSummary.totalRefundable.toLocaleString()}
+                </span>
+                <span className="text-sm font-black text-amber-800">
+                  Total Pending to Receive (લેવાના બાકી): ₹{refundableSummary.pendingRefundable.toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SUBTAB 5: INVESTOR PAYMENTS / UPAD */}
       {activeSubTab === "investor_payments" && (
         <div className="space-y-4">
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-3">
@@ -2126,6 +2416,212 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm"
           >
             {editingBillId ? "Update Bill Investment" : "Save Bill Investment"}
+          </button>
+        </form>
+      </Modal>
+
+      {/* MODAL: Add Refundable Record (લેવાના બાકી - Security Deposit & Advances) */}
+      <Modal
+        isOpen={isRefundableModalOpen}
+        onClose={() => setIsRefundableModalOpen(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-purple-100 text-purple-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
+            <div>
+              <span className="font-black text-slate-900 text-base">Add Refundable Record (રિફંડેબલ રેકોર્ડ / ડિપોઝિટ)</span>
+              <p className="text-xs text-slate-500 font-normal">
+                આ રકમ ઇન્વેસ્ટમેન્ટ મૂડીમાંથી બાદ થશે અને પરત મળશે ત્યારે પાછી ઉમેરાશે.
+              </p>
+            </div>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveRefundable} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Party / Company / Beneficiary Name *</label>
+            <input
+              type="text"
+              required
+              value={refundableFormData.partyName}
+              onChange={e => setRefundableFormData({ ...refundableFormData, partyName: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
+              placeholder="e.g. Torrent Power, MGVCL, Cylinder Security, Landlord Advance"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Type</label>
+              <select
+                value={refundableFormData.depositType}
+                onChange={e => setRefundableFormData({ ...refundableFormData, depositType: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
+              >
+                <option value="Security Deposit">Security Deposit</option>
+                <option value="Electricity / Meter Deposit">Electricity / Meter Deposit</option>
+                <option value="Gas / Cylinder Deposit">Gas / Cylinder Deposit</option>
+                <option value="Rent Advance Deposit">Rent Advance Deposit</option>
+                <option value="Tender / EMD Deposit">Tender / EMD Deposit</option>
+                <option value="Material Security Advance">Material Security Advance</option>
+                <option value="Other Refundable">Other Refundable</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
+              <input
+                type="date"
+                required
+                value={refundableFormData.date}
+                onChange={e => setRefundableFormData({ ...refundableFormData, date: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Amount (₹) *</label>
+              <input
+                type="number"
+                step="any"
+                min="0.01"
+                required
+                value={refundableFormData.amount}
+                onChange={e => setRefundableFormData({ ...refundableFormData, amount: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-purple-900"
+                placeholder="0.00"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+              <select
+                value={refundableFormData.paymentMethod}
+                onChange={e => setRefundableFormData({ ...refundableFormData, paymentMethod: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI / NEFT">UPI / NEFT</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Receipt / Reference / Cheque No.</label>
+            <input
+              type="text"
+              value={refundableFormData.referenceNumber}
+              onChange={e => setRefundableFormData({ ...refundableFormData, referenceNumber: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+              placeholder="e.g. REC-9921 / UTR..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Refund Terms</label>
+            <textarea
+              value={refundableFormData.notes}
+              onChange={e => setRefundableFormData({ ...refundableFormData, notes: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              rows={2}
+              placeholder="Refundable upon meter removal / completion of project..."
+            />
+          </div>
+
+          <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 text-xs text-purple-900 font-medium">
+            💡 <strong>નોંધ:</strong> આ રેકોર્ડ ઉમેર્યા પછી Category 2 ના Investment Capital માંથી ₹{parseFloat(refundableFormData.amount) || 0} બાદ થઈ જશે અને Dashboard પર "લેવાના બાકી" તરીકે દેખાશે.
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
+          >
+            Save Refundable Record & Deduct from Capital
+          </button>
+        </form>
+      </Modal>
+
+      {/* MODAL: Record Refund Received (જમા થયેલ રિફંડ) */}
+      <Modal
+        isOpen={isRefundModalOpen}
+        onClose={() => setIsRefundModalOpen(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
+            <div>
+              <span className="font-black text-slate-900 text-base">Record Refund Received (રિફંડ પરત મળ્યું)</span>
+              <p className="text-xs text-slate-500 font-normal">
+                {activeRefundRecord?.partyName} ({activeRefundRecord?.depositType})
+              </p>
+            </div>
+          </div>
+        }
+      >
+        <form onSubmit={handleProcessRefund} className="space-y-4">
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total Deposited Amount:</span>
+              <span className="font-bold text-slate-800">₹{Number(activeRefundRecord?.amount || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Previously Refunded:</span>
+              <span className="font-bold text-emerald-700">₹{Number(activeRefundRecord?.refundedAmount || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between border-t border-slate-200 pt-1">
+              <span className="font-bold text-slate-700">Remaining Pending (લેવાના બાકી):</span>
+              <span className="font-black text-amber-800">
+                ₹{Math.max(0, Number(activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0)).toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Refund Received Date *</label>
+              <input
+                type="date"
+                required
+                value={refundActionData.refundDate}
+                onChange={e => setRefundActionData({ ...refundActionData, refundDate: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Amount Received (₹) *</label>
+              <input
+                type="number"
+                step="any"
+                min="0.01"
+                max={Math.max(0, Number(activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0))}
+                required
+                value={refundActionData.refundedAmount}
+                onChange={e => setRefundActionData({ ...refundActionData, refundedAmount: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-700"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Refund Notes / Receipt Ref</label>
+            <input
+              type="text"
+              value={refundActionData.refundNotes}
+              onChange={e => setRefundActionData({ ...refundActionData, refundNotes: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              placeholder="e.g. Deposit refunded to project bank account"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
+          >
+            Confirm & Record Refund
           </button>
         </form>
       </Modal>

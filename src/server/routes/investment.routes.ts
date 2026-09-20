@@ -368,7 +368,215 @@ investmentRouter.delete('/parties/:id', async (req: AuthRequest, res: Response) 
   }
 });
 
-// Category 2 Linkage: Project Investment Capital & Categories 3, 4, 5, 6, 7 Linked Utilization
+// Category 2: Refundable Record Endpoints
+investmentRouter.get('/refundable-records', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
+    const locationId = parseInt(req.query.locationId as string, 10);
+    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+
+    await assertLocationAccess(userId, locationId);
+
+    const refRecords = await db.select({
+      id: records.id,
+      locationId: records.locationId,
+      date: records.date,
+      partyName: records.partyName,
+      category: records.category,
+      description: records.description,
+      amount: records.amount,
+      refundableAmount: records.refundableAmount,
+      refundedAmount: records.refundedAmount,
+      refundStatus: records.refundStatus,
+      paymentMethod: records.paymentMethod,
+      referenceNumber: records.referenceNumber,
+      notes: records.notes,
+      createdAt: records.createdAt
+    })
+    .from(records)
+    .where(and(
+      eq(records.locationId, locationId),
+      eq(records.isDeleted, 0),
+      sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
+    ))
+    .orderBy(desc(records.date), desc(records.id));
+
+    let totalRefundable = 0;
+    let totalRefunded = 0;
+
+    refRecords.forEach(r => {
+      totalRefundable += parseFloat(r.refundableAmount || r.amount || '0') || 0;
+      totalRefunded += parseFloat(r.refundedAmount || '0') || 0;
+    });
+
+    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
+
+    res.json({
+      records: refRecords,
+      summary: {
+        totalRefundable: Math.round(totalRefundable * 100) / 100,
+        totalRefunded: Math.round(totalRefunded * 100) / 100,
+        pendingRefundable,
+        count: refRecords.length
+      }
+    });
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Failed to fetch refundable records:', error);
+    res.status(500).json({ error: 'Failed to fetch refundable records' });
+  }
+});
+
+investmentRouter.post('/refundable-records', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
+    const {
+      locationId,
+      date,
+      partyName,
+      amount,
+      description,
+      paymentMethod,
+      referenceNumber,
+      notes
+    } = req.body;
+
+    if (!locationId || isNaN(parseInt(locationId, 10))) {
+      return res.status(400).json({ error: 'locationId is required' });
+    }
+    const locId = parseInt(locationId, 10);
+    await assertLocationAccess(userId, locId);
+
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt <= 0) {
+      return res.status(400).json({ error: 'A valid amount is required' });
+    }
+
+    const newRecord = await db.insert(records).values({
+      locationId: locId,
+      userId,
+      type: 'EXPENSE',
+      category: 'REFUNDABLE_RECORD',
+      partyName: partyName?.trim() || 'Refundable Party',
+      amount: amt.toFixed(2),
+      refundableAmount: amt.toFixed(2),
+      refundedAmount: '0.00',
+      refundStatus: 'PENDING',
+      date: date || new Date().toISOString().split('T')[0],
+      description: description?.trim() || 'Refundable Deposit / Security',
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNumber: referenceNumber?.trim() || null,
+      notes: notes?.trim() || null
+    }).returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'CREATE_REFUNDABLE_RECORD',
+      entityType: 'INVESTMENT',
+      entityId: newRecord[0].id,
+      metadata: JSON.stringify({ amount: amt, partyName })
+    });
+
+    res.status(201).json(newRecord[0]);
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Failed to create refundable record:', error);
+    res.status(500).json({ error: 'Failed to create refundable record' });
+  }
+});
+
+investmentRouter.put('/refundable-records/:id/refund', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const { refundAmount, notes } = req.body;
+    const addedRefund = parseFloat(refundAmount);
+    if (isNaN(addedRefund) || addedRefund <= 0) {
+      return res.status(400).json({ error: 'A valid refund received amount is required' });
+    }
+
+    const existing = await db.select().from(records).where(eq(records.id, id)).limit(1);
+    if (!existing.length) {
+      return res.status(404).json({ error: 'Refundable record not found' });
+    }
+
+    await assertLocationAccess(userId, existing[0].locationId);
+
+    const totalRef = parseFloat(existing[0].refundableAmount || existing[0].amount || '0');
+    const currRefunded = parseFloat(existing[0].refundedAmount || '0');
+    const newRefunded = Math.min(totalRef, Math.round((currRefunded + addedRefund) * 100) / 100);
+    const newStatus = newRefunded >= totalRef ? 'FULL' : (newRefunded > 0 ? 'PARTIAL' : 'PENDING');
+
+    const updated = await db.update(records)
+      .set({
+        refundedAmount: newRefunded.toFixed(2),
+        refundStatus: newStatus,
+        notes: notes ? `${existing[0].notes ? existing[0].notes + ' | ' : ''}Refund received ₹${addedRefund}: ${notes}` : existing[0].notes,
+        updatedAt: new Date()
+      })
+      .where(eq(records.id, id))
+      .returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'UPDATE_REFUNDABLE_RECORD_REFUND',
+      entityType: 'INVESTMENT',
+      entityId: id,
+      metadata: JSON.stringify({ addedRefund, newRefunded, newStatus })
+    });
+
+    res.json(updated[0]);
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Failed to update refund on record:', error);
+    res.status(500).json({ error: 'Failed to update refund' });
+  }
+});
+
+investmentRouter.delete('/refundable-records/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const existing = await db.select().from(records).where(eq(records.id, id)).limit(1);
+    if (!existing.length) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+
+    await assertLocationAccess(userId, existing[0].locationId);
+
+    await db.update(records)
+      .set({ isDeleted: 1, updatedAt: new Date() })
+      .where(eq(records.id, id));
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'DELETE_REFUNDABLE_RECORD',
+      entityType: 'INVESTMENT',
+      entityId: id,
+      metadata: JSON.stringify({ recordId: id })
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Failed to delete refundable record:', error);
+    res.status(500).json({ error: 'Failed to delete refundable record' });
+  }
+});
+
+// Category 2 Linkage: Project Investment Capital & Categories 3, 4, 5, 6 Linked Utilization
 investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.dbUser?.id;
@@ -478,11 +686,12 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const cat5Total = parseFloat(siteSuppliesData[0]?.total || '0');
     const cat5Count = Number(siteSuppliesData[0]?.count || 0);
 
-    // 6. Category 6 & 7: Labour Salaries & Attendance Wages
+    // 6. Category 6: Labour Salaries, Team Upad & Other Kharch
     const labourData = await db.select({
       netSalary: sql<string>`sum(${labourSalaries.netSalary})`,
       upad: sql<string>`sum(${labourSalaries.upad})`,
       paid: sql<string>`sum(${labourSalaries.paymentAmount})`,
+      grossSalary: sql<string>`sum(${labourSalaries.grossSalary})`,
       balance: sql<string>`sum(${labourSalaries.balance})`,
       count: sql<number>`count(*)`
     })
@@ -495,30 +704,39 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const labourNetSalary = parseFloat(labourData[0]?.netSalary || '0');
     const labourUpad = parseFloat(labourData[0]?.upad || '0');
     const labourPaid = parseFloat(labourData[0]?.paid || '0');
+    const labourGross = parseFloat(labourData[0]?.grossSalary || '0');
     const labourBalance = parseFloat(labourData[0]?.balance || '0');
     const labourCount = Number(labourData[0]?.count || 0);
-    const cat67Total = Math.round(labourNetSalary * 100) / 100;
-    const cat67CashPaid = Math.round((labourPaid + labourUpad) * 100) / 100;
 
-    // 7. Category 8: Supervisor Costs
-    const supCosts = await db.select({
-      total: sql<string>`sum(${supervisorCosts.amount})`,
+    // In Cat 6, total deduction is calculated from gross wages + team upad + other kharch
+    // For records: grossSalary holds attendance / other kharch, upad holds team upad
+    // Note: netSalary + upad accurately represents all labour expenditure
+    const cat6Total = Math.round((labourNetSalary + labourUpad) * 100) / 100;
+    const cat6CashPaid = Math.round((labourPaid + labourUpad) * 100) / 100;
+
+    // Refundable Records Outflows (Deposits / Advances to be refunded)
+    const refData = await db.select({
+      totalRefundable: sql<string>`sum(${records.refundableAmount})`,
+      totalRefunded: sql<string>`sum(${records.refundedAmount})`,
       count: sql<number>`count(*)`
     })
-    .from(supervisorCosts)
+    .from(records)
     .where(and(
-      eq(supervisorCosts.locationId, locationId),
-      eq(supervisorCosts.isDeleted, 0)
+      eq(records.locationId, locationId),
+      eq(records.isDeleted, 0),
+      sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
     ));
 
-    const cat8Total = parseFloat(supCosts[0]?.total || '0');
-    const cat8Count = Number(supCosts[0]?.count || 0);
+    const totalRefundable = parseFloat(refData[0]?.totalRefundable || '0');
+    const totalRefunded = parseFloat(refData[0]?.totalRefunded || '0');
+    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
+    const refCount = Number(refData[0]?.count || 0);
 
-    // Grand Project Deductions across Categories 3, 4, 5, 6, 7, 8 funded by Investment Capital
-    const totalProjectExpenditure = Math.round((cat3Total + cat4Total + cat5Total + cat67Total + cat8Total) * 100) / 100;
-    const totalCashPaidExpenditure = Math.round((cat3Paid + cat4Paid + cat5Total + cat67CashPaid + cat8Total) * 100) / 100;
+    // Grand Project Deductions across Categories 3, 4, 5, 6 and Refundable Outflows funded by Investment Capital
+    const totalProjectExpenditure = Math.round((cat3Total + cat4Total + cat5Total + cat6Total + pendingRefundable) * 100) / 100;
+    const totalCashPaidExpenditure = Math.round((cat3Paid + cat4Paid + cat5Total + cat6CashPaid + pendingRefundable) * 100) / 100;
     
-    // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions - Investor Upad / Return
+    // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Cat 3 to 6 + Refundable) - Investor Upad / Return
     const remainingInvestmentCapital = Math.round((fullCapital - totalProjectExpenditure - returnsToInvestors) * 100) / 100;
     
     const utilizationRate = fullCapital > 0
@@ -532,12 +750,13 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       status = 'WARNING';
     }
 
-    // Itemized recent deductions across Categories 3, 4, 5, 6, 7/8 for live passbook
-    const [recentPurchases, recentSupplies, recentSiteSupplies, recentLabour, recentSupervisor, recentCapitalInflows] = await Promise.all([
+    // Itemized recent deductions across Categories 3, 4, 5, 6 and Refundables for live passbook
+    const [recentPurchases, recentSupplies, recentSiteSupplies, recentLabour, recentRefundables, recentCapitalInflows] = await Promise.all([
       db.select({
         id: materialPurchases.id,
         date: materialPurchases.date,
         category: sql<string>`'CAT_3_PURCHASE'`,
+        categoryKey: sql<string>`'CAT3_PURCHASE'`,
         categoryName: sql<string>`'Cat 3: Material Purchase'`,
         partyName: materialPurchases.partyName,
         description: sql<string>`concat(${materialPurchases.materialName}, ' (', ${materialPurchases.quantity}, ' ', ${materialPurchases.unit}, ')')`,
@@ -549,12 +768,13 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       .from(materialPurchases)
       .where(and(eq(materialPurchases.locationId, locationId), eq(materialPurchases.isDeleted, 0)))
       .orderBy(desc(materialPurchases.date), desc(materialPurchases.id))
-      .limit(30),
+      .limit(40),
 
       db.select({
         id: materialSupplies.id,
         date: materialSupplies.date,
         category: sql<string>`'CAT_4_SUPPLY'`,
+        categoryKey: sql<string>`'CAT4_SUPPLY'`,
         categoryName: sql<string>`'Cat 4: Material Supply'`,
         partyName: materialSupplies.partyName,
         description: sql<string>`concat(${materialSupplies.materialName}, ' (', ${materialSupplies.quantity}, ' ', ${materialSupplies.unit}, ')')`,
@@ -566,12 +786,13 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       .from(materialSupplies)
       .where(and(eq(materialSupplies.locationId, locationId), eq(materialSupplies.isDeleted, 0)))
       .orderBy(desc(materialSupplies.date), desc(materialSupplies.id))
-      .limit(30),
+      .limit(40),
 
       db.select({
         id: siteSupplies.id,
         date: siteSupplies.date,
         category: sql<string>`'CAT_5_SITE_SUPPLY'`,
+        categoryKey: sql<string>`'CAT5_SITE'`,
         categoryName: sql<string>`'Cat 5: Site Supply'`,
         partyName: sql<string>`coalesce(${siteSupplies.responsiblePerson}, 'Site Team')`,
         description: sql<string>`coalesce(${siteSupplies.workDescription}, 'Site Equipment / Tool Supply')`,
@@ -583,41 +804,66 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       .from(siteSupplies)
       .where(and(eq(siteSupplies.locationId, locationId), eq(siteSupplies.isDeleted, 0)))
       .orderBy(desc(siteSupplies.date), desc(siteSupplies.id))
-      .limit(30),
+      .limit(40),
 
       db.select({
         id: labourSalaries.id,
         date: labourSalaries.date,
-        category: sql<string>`'CAT_6_7_LABOUR'`,
-        categoryName: sql<string>`'Cat 6/7: Labour Salary & Wages'`,
-        partyName: labourSalaries.labourName,
-        description: sql<string>`concat(coalesce(${labourSalaries.workType}, 'Labour Work'), ' (Days: ', coalesce(${labourSalaries.days}, '0'), ')')`,
-        amount: labourSalaries.netSalary,
-        paidAmount: labourSalaries.paymentAmount,
-        referenceNumber: labourSalaries.tcNumber,
-        paymentStatus: sql<string>`case when ${labourSalaries.balance} = '0' then 'PAID' else 'OUTSTANDING' end`
+        category: sql<string>`'CAT_6_LABOUR'`,
+        categoryKey: sql<string>`'CAT6_LABOUR'`,
+        categoryName: sql<string>`case 
+          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then 'Cat 6: Team Upad'
+          when upper(${labourSalaries.attendanceType}) like '%KHARCH%' or upper(${labourSalaries.attendanceType}) like '%EXPENSE%' then 'Cat 6: Other Kharch'
+          else 'Cat 6: Labour Attendance'
+        end`,
+        partyName: sql<string>`coalesce(${labourSalaries.labourTeam}, ${labourSalaries.labourName})`,
+        description: sql<string>`case
+          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then concat('Team Advance: ', coalesce(${labourSalaries.notes}, 'Upad'))
+          when upper(${labourSalaries.attendanceType}) like '%KHARCH%' then concat('Kharch: ', coalesce(${labourSalaries.workType}, ${labourSalaries.notes}, 'Expense'))
+          when upper(${labourSalaries.attendanceType}) like '%WORK%' or upper(${labourSalaries.attendanceType}) like '%TC%' then concat('TC: ', coalesce(${labourSalaries.workType}, 'Work'), ' (', coalesce(${labourSalaries.tcQuantity}, '0'), ' ', coalesce(${labourSalaries.unitOfMeasurement}, 'Nos'), ')')
+          else concat('Day Attendance (Days: ', coalesce(${labourSalaries.days}, '0'), ')')
+        end`,
+        amount: sql<string>`case
+          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then ${labourSalaries.upad}
+          else ${labourSalaries.netSalary}
+        end`,
+        paidAmount: sql<string>`case
+          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then ${labourSalaries.upad}
+          else ${labourSalaries.paymentAmount}
+        end`,
+        referenceNumber: sql<string>`coalesce(${labourSalaries.referenceNumber}, ${labourSalaries.tcNumber}, '')`,
+        paymentStatus: sql<string>`case 
+          when upper(${labourSalaries.attendanceType}) like '%UPAD%' or upper(${labourSalaries.attendanceType}) like '%KHARCH%' then 'PAID'
+          when ${labourSalaries.balance} = '0' then 'PAID' 
+          else 'OUTSTANDING' 
+        end`
       })
       .from(labourSalaries)
       .where(and(eq(labourSalaries.locationId, locationId), eq(labourSalaries.isDeleted, 0)))
       .orderBy(desc(labourSalaries.date), desc(labourSalaries.id))
-      .limit(30),
+      .limit(60),
 
       db.select({
-        id: supervisorCosts.id,
-        date: supervisorCosts.date,
-        category: sql<string>`'CAT_8_SUPERVISOR'`,
-        categoryName: sql<string>`'Cat 8: Supervisor Cost'`,
-        partyName: supervisorCosts.supervisorName,
-        description: supervisorCosts.description,
-        amount: supervisorCosts.amount,
-        paidAmount: supervisorCosts.amount,
-        referenceNumber: supervisorCosts.referenceNumber,
-        paymentStatus: sql<string>`'PAID'`
+        id: records.id,
+        date: records.date,
+        category: sql<string>`'REFUNDABLE_RECORD'`,
+        categoryKey: sql<string>`'CAT_REFUNDABLE'`,
+        categoryName: sql<string>`'Refundable Record'`,
+        partyName: records.partyName,
+        description: sql<string>`concat('Refundable Deposit: ', coalesce(${records.description}, ${records.partyName}))`,
+        amount: records.refundableAmount,
+        paidAmount: records.refundedAmount,
+        referenceNumber: sql<string>`coalesce(${records.referenceNumber}, '')`,
+        paymentStatus: records.refundStatus
       })
-      .from(supervisorCosts)
-      .where(and(eq(supervisorCosts.locationId, locationId), eq(supervisorCosts.isDeleted, 0)))
-      .orderBy(desc(supervisorCosts.date), desc(supervisorCosts.id))
-      .limit(30),
+      .from(records)
+      .where(and(
+        eq(records.locationId, locationId),
+        eq(records.isDeleted, 0),
+        sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
+      ))
+      .orderBy(desc(records.date), desc(records.id))
+      .limit(40),
 
       db.select({
         id: investmentTransactions.id,
@@ -648,7 +894,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       ...recentSupplies,
       ...recentSiteSupplies,
       ...recentLabour,
-      ...recentSupervisor
+      ...recentRefundables
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     res.json({
@@ -682,16 +928,29 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
           total: cat5Total,
           count: cat5Count
         },
+        category6Labour: {
+          totalNetSalary: labourNetSalary,
+          totalPaid: labourPaid,
+          totalUpad: labourUpad,
+          totalGross: labourGross,
+          totalDeduction: cat6Total,
+          outstandingBalance: labourBalance,
+          count: labourCount
+        },
         category67Labour: {
           totalNetSalary: labourNetSalary,
           totalPaid: labourPaid,
           totalUpad: labourUpad,
+          totalGross: labourGross,
+          totalDeduction: cat6Total,
           outstandingBalance: labourBalance,
           count: labourCount
         },
-        category8Supervisor: {
-          total: cat8Total,
-          count: cat8Count
+        refundableRecords: {
+          totalRefundable,
+          totalRefunded,
+          pendingRefundable,
+          count: refCount
         },
         totalProjectExpenditure,
         totalCashPaidExpenditure
@@ -704,6 +963,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
         netInvestmentCapital,
         totalProjectExpenditure,
         totalCashPaidExpenditure,
+        pendingRefundable,
         returnsToInvestors,
         remainingInvestmentCapital,
         utilizationRate,

@@ -155,12 +155,57 @@ export function calculateLabourSalaryTotals(input: {
   quantity?: number | string;
   rate?: number | string;
   otherEarnings?: number | string;
+  grossSalary?: number | string;
+  netSalary?: number | string;
   deduction?: number | string;
   upad?: number | string;
   paymentAmount?: number | string;
+  amount?: number | string;
 }): LabourSalaryCalculation {
   const attUpper = String(input.attendanceType || '').toUpperCase();
-  const isWork = attUpper.includes('WORK') || attUpper === 'TC';
+
+  // 1. Team Upad (Advance Payment to Team)
+  if (attUpper.includes('UPAD') || attUpper === 'TEAM_UPAD') {
+    const upadAmt = Math.max(0, parseFloat(String(input.upad || input.paymentAmount || input.amount || 0)) || 0);
+    return {
+      days: 0,
+      dailyRate: 0,
+      tcQuantity: 0,
+      tcRate: 0,
+      quantity: 0,
+      rate: 0,
+      otherEarnings: 0,
+      grossSalary: 0,
+      deduction: 0,
+      netSalary: 0,
+      upad: upadAmt,
+      paymentAmount: upadAmt,
+      balance: -upadAmt // negative balance represents advance taken
+    };
+  }
+
+  // 2. Other Kharch (Site / Labour Miscellaneous Expense)
+  if (attUpper.includes('KHARCH') || attUpper === 'OTHER_KHARCH' || attUpper === 'EXPENSE') {
+    const expAmt = Math.max(0, parseFloat(String(input.amount || input.paymentAmount || input.grossSalary || input.otherEarnings || 0)) || 0);
+    return {
+      days: 0,
+      dailyRate: 0,
+      tcQuantity: 0,
+      tcRate: 0,
+      quantity: 0,
+      rate: 0,
+      otherEarnings: 0,
+      grossSalary: expAmt,
+      deduction: 0,
+      netSalary: expAmt,
+      upad: 0,
+      paymentAmount: expAmt,
+      balance: 0
+    };
+  }
+
+  // 3. Add Attendance: Day Wise or TC Wise
+  const isWork = attUpper.includes('WORK') || attUpper.includes('TC');
   const days = Math.max(0, parseFloat(String(input.days || 0)) || 0);
   const dailyRate = Math.max(0, parseFloat(String(input.dailyRate || 0)) || 0);
   const workQuantity = Math.max(0, parseFloat(String(input.quantity ?? input.tcQuantity ?? 0)) || 0);
@@ -174,7 +219,7 @@ export function calculateLabourSalaryTotals(input: {
   const grossSalary = round2(baseSalary + otherEarnings);
   const netSalary = Math.max(0, round2(grossSalary - deduction));
   const totalPaidOut = round2(upad + paymentAmount);
-  // Allow negative balance to track excess advance/upad
+  // Balance calculation
   const balance = round2(netSalary - totalPaidOut);
 
   return {
@@ -229,16 +274,19 @@ export function calculateInvestorSummary(transactions: Array<{
 /**
  * Category 2 (Project Investment) Capital Flow & Deductions calculation
  * Full Capital = Investment from Investors (Investment Karya) + Bill Investment
- * Remaining Capital = Full Capital - Deductions (Cat 3 to 8) - Investor Upad / Return
+ * Total Deductions = Cat 3 (Material Purchases) + Cat 4 (Material Supplies) + Cat 5 (Site Supplies) + Cat 6 (Labour Attendance + Team Upad + Other Kharch) + Refundable Outflows
+ * Remaining Capital = Full Capital - Total Deductions (Cat 3 to 6 & Refundables) - Investor Upad / Return
  */
 export function calculateCategory2Capital(input: {
   investmentFromInvestors: number;
   billInvestment?: number;
   cat3Deduction: number;
-  cat4Deduction: number;
+  cat4Deduction?: number;
   cat5Deduction: number;
-  cat67Deduction: number;
-  cat8Deduction: number;
+  cat6Deduction: number;
+  cat67Deduction?: number;
+  cat8Deduction?: number;
+  refundableDeduction?: number;
   investorUpadReturn?: number;
 }): {
   investmentFromInvestors: number;
@@ -248,8 +296,9 @@ export function calculateCategory2Capital(input: {
   cat3Deduction: number;
   cat4Deduction: number;
   cat5Deduction: number;
+  cat6Deduction: number;
   cat67Deduction: number;
-  cat8Deduction: number;
+  refundableDeduction: number;
   investorUpadReturn: number;
   remainingCapital: number;
 } {
@@ -259,11 +308,12 @@ export function calculateCategory2Capital(input: {
   const cat3 = round2(input.cat3Deduction || 0);
   const cat4 = round2(input.cat4Deduction || 0);
   const cat5 = round2(input.cat5Deduction || 0);
-  const cat67 = round2(input.cat67Deduction || 0);
-  const cat8 = round2(input.cat8Deduction || 0);
+  const cat6 = round2(input.cat6Deduction ?? input.cat67Deduction ?? 0);
+  const refundableDeduction = round2(input.refundableDeduction || 0);
   const investorUpadReturn = round2(input.investorUpadReturn || 0);
 
-  const totalDeductions = round2(cat3 + cat4 + cat5 + cat67 + cat8);
+  // Total deductions across Categories 3, 4, 5, 6 and Refundable Outflows
+  const totalDeductions = round2(cat3 + cat4 + cat5 + cat6 + refundableDeduction);
   const remainingCapital = round2(fullCapital - totalDeductions - investorUpadReturn);
 
   return {
@@ -274,10 +324,85 @@ export function calculateCategory2Capital(input: {
     cat3Deduction: cat3,
     cat4Deduction: cat4,
     cat5Deduction: cat5,
-    cat67Deduction: cat67,
-    cat8Deduction: cat8,
+    cat6Deduction: cat6,
+    cat67Deduction: cat6,
+    refundableDeduction,
     investorUpadReturn,
     remainingCapital
+  };
+}
+
+export interface SiteSupplyItemCalculation {
+  materialId: number;
+  quantity: number;
+  unit: string;
+  rate: number;
+  subtotal: number;
+  taxPercentage: number;
+  taxAmount: number;
+  totalAmount: number;
+}
+
+export function calculateSiteSupplyItemTotals(input: {
+  materialId: number | string;
+  quantity: number | string;
+  unit?: string;
+  rate: number | string;
+  taxPercentage?: number | string;
+  taxAmount?: number | string;
+}): SiteSupplyItemCalculation {
+  const quantity = Math.max(0, parseFloat(String(input.quantity)) || 0);
+  const rate = Math.max(0, parseFloat(String(input.rate)) || 0);
+  const subtotal = round2(quantity * rate);
+  const taxPercentage = Math.max(0, parseFloat(String(input.taxPercentage || 0)) || 0);
+
+  let taxAmount = 0;
+  if (input.taxAmount !== undefined && !isNaN(parseFloat(String(input.taxAmount))) && parseFloat(String(input.taxAmount)) > 0) {
+    taxAmount = round2(input.taxAmount);
+  } else {
+    taxAmount = round2(subtotal * (taxPercentage / 100));
+  }
+
+  const totalAmount = round2(subtotal + taxAmount);
+
+  return {
+    materialId: parseInt(String(input.materialId), 10),
+    quantity,
+    unit: input.unit || 'Nos',
+    rate,
+    subtotal,
+    taxPercentage,
+    taxAmount,
+    totalAmount
+  };
+}
+
+export function calculateSiteSupplyTotals(items: Array<{
+  materialId: number | string;
+  quantity: number | string;
+  unit?: string;
+  rate: number | string;
+  taxPercentage?: number | string;
+  taxAmount?: number | string;
+}>): {
+  items: SiteSupplyItemCalculation[];
+  totalQuantity: number;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+} {
+  const processedItems = items.map(calculateSiteSupplyItemTotals);
+  const totalQuantity = round2(processedItems.reduce((acc, i) => acc + i.quantity, 0));
+  const subtotal = round2(processedItems.reduce((acc, i) => acc + i.subtotal, 0));
+  const taxAmount = round2(processedItems.reduce((acc, i) => acc + i.taxAmount, 0));
+  const totalAmount = round2(subtotal + taxAmount);
+
+  return {
+    items: processedItems,
+    totalQuantity,
+    subtotal,
+    taxAmount,
+    totalAmount
   };
 }
 

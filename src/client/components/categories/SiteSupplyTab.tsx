@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Pencil, Plus, Trash2, HardHat, ArrowRightCircle } from "lucide-react";
+import { Pencil, Plus, Trash2, HardHat, ArrowRightCircle, RefreshCw, FileText, CheckCircle2, Receipt } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
@@ -25,7 +25,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
     siteLocationId: locationId.toString(),
     teamId: "",
     notes: "",
-    items: [{ materialId: "", quantity: "", unit: "Nos", rate: "0" }]
+    items: [{ materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }]
   });
 
   const loadData = async (isBackground = false) => {
@@ -59,7 +59,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   const addItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { materialId: "", quantity: "", unit: "Nos", rate: "0" }]
+      items: [...formData.items, { materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }]
     });
   };
 
@@ -87,6 +87,76 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
     setFormData({ ...formData, items: newItems });
   };
 
+  // Live calculation of current modal form
+  const modalCalculations = useMemo(() => {
+    let totalTaxable = 0;
+    let totalTax = 0;
+    let totalQty = 0;
+
+    const computedItems = formData.items.map(item => {
+      const qty = Math.max(0, parseFloat(item.quantity) || 0);
+      const rate = Math.max(0, parseFloat(item.rate) || 0);
+      const taxRate = Math.max(0, parseFloat(item.taxPercentage) || 0);
+      const subtotal = Math.round(qty * rate * 100) / 100;
+      const itemTax = Math.round(subtotal * (taxRate / 100) * 100) / 100;
+      const itemTotal = Math.round((subtotal + itemTax) * 100) / 100;
+
+      totalQty += qty;
+      totalTaxable += subtotal;
+      totalTax += itemTax;
+
+      return {
+        ...item,
+        qty,
+        rate,
+        subtotal,
+        taxRate,
+        itemTax,
+        itemTotal
+      };
+    });
+
+    const grandTotal = Math.round((totalTaxable + totalTax) * 100) / 100;
+
+    return {
+      computedItems,
+      totalQty,
+      totalTaxable: Math.round(totalTaxable * 100) / 100,
+      totalTax: Math.round(totalTax * 100) / 100,
+      grandTotal
+    };
+  }, [formData.items]);
+
+  // Overall Statistics for Tab
+  const stats = useMemo(() => {
+    let totalEntries = records.length;
+    let totalDispatchedQty = 0;
+    let totalSubtotal = 0;
+    let totalTax = 0;
+    let grandSupplyValue = 0;
+
+    records.forEach(r => {
+      grandSupplyValue += parseFloat(r.totalAmount || 0) || 0;
+      if (r.subtotal) totalSubtotal += parseFloat(r.subtotal) || 0;
+      else totalSubtotal += parseFloat(r.totalAmount || 0) || 0;
+      if (r.taxAmount) totalTax += parseFloat(r.taxAmount) || 0;
+
+      if (r.items && Array.isArray(r.items)) {
+        r.items.forEach((it: any) => {
+          totalDispatchedQty += parseFloat(it.quantity || 0) || 0;
+        });
+      }
+    });
+
+    return {
+      totalEntries,
+      totalDispatchedQty: Math.round(totalDispatchedQty * 100) / 100,
+      totalSubtotal: Math.round(totalSubtotal * 100) / 100,
+      totalTax: Math.round(totalTax * 100) / 100,
+      grandSupplyValue: Math.round(grandSupplyValue * 100) / 100
+    };
+  }, [records]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -111,7 +181,8 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
             materialId: parseInt(i.materialId),
             quantity: parseFloat(i.quantity),
             unit: i.unit || 'Nos',
-            rate: parseFloat(i.rate) || 0
+            rate: parseFloat(i.rate) || 0,
+            taxPercentage: parseFloat(i.taxPercentage) || 0
           }))
         }),
       });
@@ -136,7 +207,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       siteLocationId: locationId.toString(),
       teamId: "",
       notes: "",
-      items: [{ materialId: "", quantity: "", unit: "Nos", rate: "0" }]
+      items: [{ materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }]
     });
   };
 
@@ -147,14 +218,15 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       materialId: i.materialId?.toString() || "",
       quantity: i.quantity?.toString() || "",
       unit: i.unit || "Nos",
-      rate: i.rate?.toString() || "0"
-    })) : [{ materialId: "", quantity: "", unit: "Nos", rate: "0" }];
+      rate: i.rate?.toString() || "0",
+      taxPercentage: i.taxPercentage?.toString() || "18"
+    })) : [{ materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }];
     
     setFormData({
       date: record.date || new Date().toISOString().split("T")[0],
       siteLocationId: record.locationId?.toString() || locationId.toString(),
       teamId: record.teamId?.toString() || "",
-      notes: record.notes || "",
+      notes: record.displayNotes || record.notes || "",
       items
     });
     setIsModalOpen(true);
@@ -183,85 +255,165 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
 
   return (
     <div className="space-y-6">
+      {/* Top Header & Actions */}
       <div className="bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-teal-500/10 border border-teal-200/80 p-5 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div className="flex items-center gap-3.5">
           <div className="p-3 bg-teal-600 text-white rounded-xl shadow-md shrink-0">
-            <ArrowRightCircle className="w-6 h-6" />
+            <Receipt className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-900">Site Material Supply</h2>
-            <p className="text-xs text-slate-600">Issue materials to internal teams & site. Reduces inventory stock.</p>
+            <h2 className="text-xl font-black text-slate-900">Category 5: Site Material Supply with GST</h2>
+            <p className="text-xs text-slate-600">Issue materials to internal teams & site with itemized GST computation and automatic capital deduction.</p>
           </div>
         </div>
-        <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-teal-700 transition-colors shrink-0 cursor-pointer">
-          <Plus className="w-4 h-4" /> Add Site Supply
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => loadData(false)}
+            disabled={loading}
+            className="p-2 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+            title="Refresh Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-teal-700 transition-colors shrink-0 cursor-pointer">
+            <Plus className="w-4 h-4" /> Add Site Supply
+          </button>
+        </div>
       </div>
 
+      {/* KPI Stats Banner */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Supplies</div>
+          <div className="text-xl font-black text-slate-800 mt-1">{stats.totalEntries} Records</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-0.5">{stats.totalDispatchedQty} Total Units Dispatched</div>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Subtotal</div>
+          <div className="text-xl font-black text-slate-700 mt-1">₹{stats.totalSubtotal.toLocaleString()}</div>
+          <div className="text-[11px] text-slate-500 font-medium mt-0.5">Taxable Base Amount</div>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">GST Tax Amount</div>
+          <div className="text-xl font-black text-teal-700 mt-1">₹{stats.totalTax.toLocaleString()}</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-0.5">Total GST (CGST/SGST)</div>
+        </div>
+        <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-200 shadow-sm">
+          <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">Grand Total with GST</div>
+          <div className="text-xl font-black text-teal-900 mt-1">₹{stats.grandSupplyValue.toLocaleString()}</div>
+          <div className="text-[11px] text-teal-700 font-medium mt-0.5">Deducted from Cat 2 Capital</div>
+        </div>
+      </div>
+
+      {/* Main Records Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-          <h3 className="font-bold text-slate-900">Site Supply Records</h3>
+          <h3 className="font-bold text-slate-900 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-teal-600" />
+            Site Supply Dispatches & GST Details
+          </h3>
           <span className="text-xs text-slate-500 font-semibold">{records.length} records</span>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs whitespace-nowrap">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
               <tr>
                 <th className="p-3">Date</th>
                 <th className="p-3">Site Location</th>
                 <th className="p-3">Labour Team</th>
-                <th className="p-3">Materials</th>
+                <th className="p-3">Dispatched Materials (with GST)</th>
+                <th className="p-3 text-right">Taxable Subtotal</th>
+                <th className="p-3 text-right">GST Tax</th>
+                <th className="p-3 text-right">Grand Total</th>
                 <th className="p-3 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {records.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="p-3 text-slate-600">{r.date}</td>
-                  <td className="p-3 font-semibold text-slate-700">
-                     {locations.find(l => l.id === r.locationId)?.name || `Location ${r.locationId}`}
-                  </td>
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900 flex items-center gap-1.5"><HardHat className="w-3.5 h-3.5 text-teal-600" /> {teams.find(t => t.id === r.teamId)?.name || "-"}</div>
-                  </td>
-                  <td className="p-3">
-                    <div className="space-y-1">
-                      {r.items && r.items.map((item: any, i: number) => {
-                         const matName = materials.find(m => m.id === item.materialId)?.name || 'Unknown';
-                         return (
-                           <div key={i} className="flex gap-2 items-center text-[11px]">
-                             <span className="font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{matName}</span>
-                             <span className="text-slate-600 font-semibold">{item.quantity} {item.unit || ''}</span>
-                             {parseFloat(item.rate) > 0 && <span className="text-slate-400">(₹{item.rate})</span>}
-                           </div>
-                         )
-                      })}
-                    </div>
-                  </td>
-                  <td className="p-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-teal-600 p-1.5 rounded-lg hover:bg-teal-50 transition-colors" title="Edit"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {records.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-slate-500">No site supply records found.</td></tr>}
+              {records.map(r => {
+                const subtotalVal = parseFloat(r.subtotal || r.totalAmount || 0);
+                const taxVal = parseFloat(r.taxAmount || 0);
+                const totalVal = parseFloat(r.totalAmount || 0);
+
+                return (
+                  <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3 text-slate-700 font-medium">{r.date}</td>
+                    <td className="p-3 font-bold text-slate-800">
+                       {locations.find(l => l.id === r.locationId)?.name || `Location ${r.locationId}`}
+                    </td>
+                    <td className="p-3">
+                      <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <HardHat className="w-3.5 h-3.5 text-teal-600" />
+                        {teams.find(t => t.id === r.teamId)?.name || <span className="text-slate-400 font-normal">Direct Site</span>}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="space-y-1 max-w-md">
+                        {r.items && r.items.map((item: any, i: number) => {
+                           const matName = materials.find(m => m.id === item.materialId)?.name || 'Material #' + item.materialId;
+                           const itemQty = parseFloat(item.quantity) || 0;
+                           const itemRate = parseFloat(item.rate) || 0;
+                           const itemGstPct = parseFloat(item.taxPercentage) || 0;
+                           const itemGstAmt = parseFloat(item.taxAmount) || 0;
+                           const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemQty * itemRate);
+
+                           return (
+                             <div key={i} className="flex flex-wrap gap-1.5 items-center text-[11px] bg-slate-50/90 border border-slate-200/80 rounded px-2 py-1">
+                               <span className="font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">{matName}</span>
+                               <span className="text-slate-700 font-semibold">{itemQty} {item.unit || 'Nos'}</span>
+                               {itemRate > 0 && <span className="text-slate-500 font-medium">@ ₹{itemRate}</span>}
+                               {itemGstPct > 0 && (
+                                 <span className="text-amber-700 font-semibold bg-amber-50 px-1 rounded border border-amber-100">
+                                   +{itemGstPct}% GST (₹{itemGstAmt.toFixed(2)})
+                                 </span>
+                               )}
+                               <span className="font-bold text-slate-900 ml-auto">= ₹{itemTotalAmt.toLocaleString()}</span>
+                             </div>
+                           )
+                        })}
+                        {r.displayNotes && (
+                          <div className="text-[10px] text-slate-500 italic mt-0.5">
+                            Note: {r.displayNotes}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3 text-right font-medium text-slate-600">
+                      ₹{subtotalVal.toLocaleString()}
+                    </td>
+                    <td className="p-3 text-right font-bold text-teal-700">
+                      {taxVal > 0 ? `₹${taxVal.toLocaleString()}` : <span className="text-slate-400 font-normal">₹0.00</span>}
+                    </td>
+                    <td className="p-3 text-right font-black text-slate-900">
+                      <span className="bg-teal-50 text-teal-900 px-2 py-0.5 rounded-md border border-teal-200">
+                        ₹{totalVal.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-teal-600 p-1.5 rounded-lg hover:bg-teal-50 transition-colors cursor-pointer" title="Edit"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {records.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-slate-500">No site supply records found. Click "+ Add Site Supply" above to record a dispatch.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Site Supply" : "Add Site Supply"} maxWidth="lg">
-        <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+      {/* Modal with Full GST Calculation */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Site Supply (સાઇટ સપ્લાય સુધારો)" : "Add Site Supply with GST (નવી સાઇટ સપ્લાય & જીએસટી)"} maxWidth="2xl">
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[82vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
-              <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500" />
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date (તારીખ) *</label>
+              <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 font-medium" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Site Location Name *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Site Location (સાઇટ લોકેશન) *</label>
               <select required value={formData.siteLocationId} onChange={e => setFormData({...formData, siteLocationId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 font-medium">
                 <option value="">-- Select Site --</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -271,7 +423,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
           
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700">Labour Team</label>
+              <label className="block text-xs font-bold text-slate-700">Labour Team (લેબર ટીમ / જવાબદાર)</label>
               <button
                 type="button"
                 onClick={() => setIsManageTeamOpen(true)}
@@ -286,9 +438,12 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
             </select>
           </div>
           
+          {/* Material List with GST Box */}
           <div className="border border-slate-200 rounded-xl overflow-hidden mt-4">
             <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">MATERIAL LIST</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">MATERIAL LIST WITH GST (મટીરીયલ લિસ્ટ & જીએસટી)</span>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -301,58 +456,108 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
               </button>
             </div>
             <div className="p-3 space-y-3 bg-white">
-               {formData.items.map((item, index) => (
-                 <div key={index} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                   <div className="flex items-center justify-between">
-                     <span className="text-xs font-bold text-slate-700">Material #{index + 1}</span>
-                     {formData.items.length > 1 && (
-                       <button
-                         type="button"
-                         onClick={() => removeItem(index)}
-                         className="p-1 text-rose-500 hover:bg-rose-50 rounded-md transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer"
-                       >
-                         <Trash2 className="w-3.5 h-3.5" /> Remove
-                       </button>
-                     )}
-                   </div>
-                   
-                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                     <div className="sm:col-span-6">
-                       <label className="block text-[11px] font-bold text-slate-600 mb-1">Material *</label>
-                       <select required value={item.materialId} onChange={e => updateItem(index, 'materialId', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium">
-                         <option value="">- Select Material -</option>
-                         {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                       </select>
+               {formData.items.map((item, index) => {
+                 const computed = modalCalculations.computedItems[index] || { subtotal: 0, itemTax: 0, itemTotal: 0 };
+
+                 return (
+                   <div key={index} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                     <div className="flex items-center justify-between">
+                       <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                         <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 text-[11px] font-bold flex items-center justify-center">
+                           {index + 1}
+                         </span>
+                         Material Item
+                       </span>
+                       {formData.items.length > 1 && (
+                         <button
+                           type="button"
+                           onClick={() => removeItem(index)}
+                           className="p-1 text-rose-500 hover:bg-rose-50 rounded-md transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer"
+                         >
+                           <Trash2 className="w-3.5 h-3.5" /> Remove
+                         </button>
+                       )}
                      </div>
-                     <div className="grid grid-cols-3 sm:col-span-6 gap-2">
-                       <div>
-                         <label className="block text-[11px] font-bold text-slate-600 mb-1">Qty *</label>
-                         <input type="number" step="any" inputMode="decimal" required placeholder="0.00" value={item.quantity} onChange={e => updateItem(index, 'quantity', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold" />
+                     
+                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                       <div className="sm:col-span-5">
+                         <label className="block text-[11px] font-bold text-slate-600 mb-1">Material (મટીરીયલ) *</label>
+                         <select required value={item.materialId} onChange={e => updateItem(index, 'materialId', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800">
+                           <option value="">- Select Material -</option>
+                           {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                         </select>
                        </div>
-                       <div>
-                         <label className="block text-[11px] font-bold text-slate-600 mb-1">Unit</label>
-                         <input type="text" placeholder="Unit" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs" />
+                       <div className="grid grid-cols-4 sm:col-span-7 gap-2">
+                         <div>
+                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Qty (જથ્થો) *</label>
+                           <input type="number" step="any" inputMode="decimal" required placeholder="0.00" value={item.quantity} onChange={e => updateItem(index, 'quantity', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-teal-800" />
+                         </div>
+                         <div>
+                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Unit</label>
+                           <input type="text" placeholder="Unit" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs" />
+                         </div>
+                         <div>
+                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Rate (ભાવ ₹)</label>
+                           <input type="number" step="any" inputMode="decimal" placeholder="0.00" value={item.rate} onChange={e => updateItem(index, 'rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-700" />
+                         </div>
+                         <div>
+                           <label className="block text-[11px] font-bold text-slate-600 mb-1">GST %</label>
+                           <select value={item.taxPercentage} onChange={e => updateItem(index, 'taxPercentage', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs font-bold text-amber-700">
+                             <option value="0">0% (Nil)</option>
+                             <option value="5">5% GST</option>
+                             <option value="12">12% GST</option>
+                             <option value="18">18% GST</option>
+                             <option value="28">28% GST</option>
+                           </select>
+                         </div>
                        </div>
-                       <div>
-                         <label className="block text-[11px] font-bold text-slate-600 mb-1">Rate (₹)</label>
-                         <input type="number" step="any" inputMode="decimal" placeholder="0.00" value={item.rate} onChange={e => updateItem(index, 'rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs" />
+                     </div>
+
+                     {/* Live Item Total Strip */}
+                     <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 flex flex-wrap justify-between items-center text-[11px]">
+                       <div className="flex gap-3 text-slate-600">
+                         <span>Taxable Subtotal: <strong className="text-slate-800">₹{computed.subtotal.toFixed(2)}</strong></span>
+                         <span>GST Tax: <strong className="text-amber-700">₹{computed.itemTax.toFixed(2)} ({item.taxPercentage}%)</strong></span>
+                       </div>
+                       <div className="font-bold text-teal-800">
+                         Total with GST: <strong>₹{computed.itemTotal.toFixed(2)}</strong>
                        </div>
                      </div>
                    </div>
-                 </div>
-               ))}
-               <button type="button" onClick={addItem} className="w-full py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                 );
+               })}
+               <button type="button" onClick={addItem} className="w-full py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-teal-200/60">
                  <Plus className="w-3.5 h-3.5" /> Add another material
                </button>
+            </div>
+
+            {/* Live Form Summary Banner */}
+            <div className="bg-teal-900 text-white p-3.5 border-t border-teal-800">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-teal-300">Base Subtotal</div>
+                  <div className="text-sm font-bold mt-0.5">₹{modalCalculations.totalTaxable.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-amber-300">Total GST Tax</div>
+                  <div className="text-sm font-bold text-amber-300 mt-0.5">₹{modalCalculations.totalTax.toLocaleString()}</div>
+                </div>
+                <div className="bg-teal-800/80 rounded-lg p-1">
+                  <div className="text-[10px] uppercase font-black text-white">Grand Total with GST</div>
+                  <div className="text-base font-black text-white mt-0.5">₹{modalCalculations.grandTotal.toLocaleString()}</div>
+                </div>
+              </div>
             </div>
           </div>
           
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Notes</label>
-            <input type="text" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Optional remarks" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500" />
+            <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Remarks (વિગત / શરતો)</label>
+            <input type="text" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Optional remarks or delivery details" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500" />
           </div>
-          <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm cursor-pointer">
-            {editingId ? "Update Site Supply" : "Save Site Supply"}
+
+          <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm cursor-pointer flex items-center justify-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            {editingId ? "Update Site Supply" : "Save Site Supply with GST"}
           </button>
         </form>
       </Modal>
@@ -369,7 +574,6 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
           if (targetItemIndex !== null && formData.items[targetItemIndex]) {
             updateItem(targetItemIndex, 'materialId', String(selectedMat.id));
           } else {
-            // Check if last item is empty
             const lastIdx = formData.items.length - 1;
             if (lastIdx >= 0 && !formData.items[lastIdx].materialId) {
               updateItem(lastIdx, 'materialId', String(selectedMat.id));
@@ -382,7 +586,8 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                     materialId: String(selectedMat.id),
                     quantity: "",
                     unit: selectedMat.defaultUnit || "Nos",
-                    rate: selectedMat.defaultRate ? String(selectedMat.defaultRate) : "0"
+                    rate: selectedMat.defaultRate ? String(selectedMat.defaultRate) : "0",
+                    taxPercentage: "18"
                   }
                 ]
               }));
