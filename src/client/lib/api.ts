@@ -92,9 +92,17 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     headers.set("Content-Type", "application/json");
   }
 
+  // Normalize endpoint URL to prevent double /api/api or missing slashes
+  const cleanEndpoint = endpoint.startsWith('/api/')
+    ? endpoint.slice(4)
+    : endpoint.startsWith('api/')
+    ? endpoint.slice(3)
+    : endpoint;
+  const targetUrl = cleanEndpoint.startsWith('/') ? `/api${cleanEndpoint}` : `/api/${cleanEndpoint}`;
+
   let response: Response;
   try {
-    response = await fetch(`/api${endpoint}`, {
+    response = await fetch(targetUrl, {
       ...options,
       headers,
     });
@@ -102,33 +110,46 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     console.error("Network error during fetch:", netErr);
     // Transient network error (e.g. server restarting), wait and retry once
     await new Promise(r => setTimeout(r, 1000));
-    response = await fetch(`/api${endpoint}`, {
+    response = await fetch(targetUrl, {
       ...options,
       headers,
     });
   }
 
-  if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+  if (response.status === 401 && !cleanEndpoint.startsWith('/auth/')) {
     // Dispatch lock event if session expired
     window.dispatchEvent(new CustomEvent('bd_erp_unauthorized'));
   }
 
+  const responseText = await response.text();
+
   if (!response.ok) {
-    let errorMsg = "API Error";
+    let errorMsg = `API Error (${response.status})`;
     try {
-      const data = await response.json();
-      errorMsg = data.error || errorMsg;
-    } catch (e) {
-      // JSON parse failed
+      const data = JSON.parse(responseText);
+      errorMsg = data.error || data.message || errorMsg;
+    } catch {
+      if (responseText && !responseText.includes('<!doctype') && !responseText.includes('<html')) {
+        errorMsg = responseText.slice(0, 120);
+      }
     }
     throw new Error(errorMsg);
   }
 
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) && !endpoint.includes('/auth/')) {
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) && !cleanEndpoint.includes('/auth/')) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('bd_erp_data_updated'));
     }
   }
 
-  return response.json();
+  if (!responseText || responseText.trim() === '') {
+    return null;
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch (err) {
+    console.warn(`Non-JSON response received from ${targetUrl}:`, responseText.slice(0, 100));
+    return responseText;
+  }
 }

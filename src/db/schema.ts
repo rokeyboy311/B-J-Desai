@@ -55,7 +55,7 @@ export const records = pgTable('records', {
   isDeleted: integer('is_deleted').default(0).notNull(), // Soft delete flag
 });
 
-// Category 1: Investment Parties
+// Category 1: Investment Parties (Legacy / Location Linked)
 export const investmentParties = pgTable('investment_parties', {
   id: serial('id').primaryKey(),
   locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
@@ -66,18 +66,79 @@ export const investmentParties = pgTable('investment_parties', {
   isDeleted: integer('is_deleted').default(0).notNull(),
 });
 
-// Category 1: Investment Transactions
+// Category 1: Investment Transactions (Legacy / Location Linked)
 export const investmentTransactions = pgTable('investment_transactions', {
   id: serial('id').primaryKey(),
   partyId: integer('party_id').references(() => investmentParties.id, { onDelete: 'cascade' }).notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  type: investmentTypeEnum('type').notNull(), // INVESTMENT, PAYMENT, UPAD
+  type: investmentTypeEnum('type').notNull(), // INVESTMENT, PAYMENT, UPAD, CONTRIBUTION
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   date: text('date').notNull(),
   description: text('description'),
   paymentMethod: text('payment_method'),
   referenceNumber: text('reference_number'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+// --- GLOBAL INVESTOR ARCHITECTURE ---
+export const investors = pgTable('investors', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  mobile: text('mobile'),
+  email: text('email'),
+  address: text('address'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+export const investorTransactions = pgTable('investor_transactions', {
+  id: serial('id').primaryKey(),
+  investorId: integer('investor_id').references(() => investors.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  type: text('type').notNull(), // 'CONTRIBUTION' / 'CAPITAL', 'UPAD' / 'WITHDRAWAL'
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  date: text('date').notNull(),
+  paymentMethod: text('payment_method'),
+  referenceNumber: text('reference_number'),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+export const investorLocationAllocations = pgTable('investor_location_allocations', {
+  id: serial('id').primaryKey(),
+  investorId: integer('investor_id').references(() => investors.id, { onDelete: 'cascade' }).notNull(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  date: text('date').notNull(),
+  paymentMethod: text('payment_method'),
+  referenceNumber: text('reference_number'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  isDeleted: integer('is_deleted').default(0).notNull(),
+});
+
+// --- CATEGORY 7: CONTRACTOR COSTS ---
+export const contractorCosts = pgTable('contractor_costs', {
+  id: serial('id').primaryKey(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  contractorName: text('contractor_name').notNull(),
+  teamId: integer('team_id').references(() => labourTeams.id),
+  teamName: text('team_name'),
+  date: text('date').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  workDescription: text('work_description'),
+  paymentMethod: text('payment_method'),
+  referenceNumber: text('reference_number'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
   isDeleted: integer('is_deleted').default(0).notNull(),
 });
 
@@ -266,7 +327,7 @@ export const supervisorCosts = pgTable('supervisor_costs', {
 export const materials = pgTable('materials', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }).notNull(),
+  locationId: integer('location_id').references(() => locations.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   category: text('category'),
   defaultUnit: text('default_unit'),
@@ -460,6 +521,29 @@ export const siteSuppliesRelations = relations(siteSupplies, ({ one, many }) => 
 export const siteSupplyItemsRelations = relations(siteSupplyItems, ({ one }) => ({
   siteSupply: one(siteSupplies, { fields: [siteSupplyItems.siteSupplyId], references: [siteSupplies.id] }),
   material: one(materials, { fields: [siteSupplyItems.materialId], references: [materials.id] }),
+}));
+
+export const investorsRelations = relations(investors, ({ one, many }) => ({
+  author: one(users, { fields: [investors.userId], references: [users.id] }),
+  transactions: many(investorTransactions),
+  allocations: many(investorLocationAllocations),
+}));
+
+export const investorTransactionsRelations = relations(investorTransactions, ({ one }) => ({
+  investor: one(investors, { fields: [investorTransactions.investorId], references: [investors.id] }),
+  author: one(users, { fields: [investorTransactions.userId], references: [users.id] }),
+}));
+
+export const investorLocationAllocationsRelations = relations(investorLocationAllocations, ({ one }) => ({
+  investor: one(investors, { fields: [investorLocationAllocations.investorId], references: [investors.id] }),
+  location: one(locations, { fields: [investorLocationAllocations.locationId], references: [locations.id] }),
+  author: one(users, { fields: [investorLocationAllocations.userId], references: [users.id] }),
+}));
+
+export const contractorCostsRelations = relations(contractorCosts, ({ one }) => ({
+  location: one(locations, { fields: [contractorCosts.locationId], references: [locations.id] }),
+  author: one(users, { fields: [contractorCosts.userId], references: [users.id] }),
+  team: one(labourTeams, { fields: [contractorCosts.teamId], references: [labourTeams.id] }),
 }));
 
 // Security & Protected Categories Settings (e.g., Category 1 & 2 PIN Lock)

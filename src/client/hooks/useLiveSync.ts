@@ -75,10 +75,15 @@ export function initRealtimeSyncManager() {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.version && data.version > globalKnownVersion) {
-          globalKnownVersion = data.version;
-          dispatchUpdateEvent();
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (data && typeof data.version === 'number' && data.version > globalKnownVersion) {
+            globalKnownVersion = data.version;
+            dispatchUpdateEvent();
+          }
+        } catch {
+          // ignore non-json responses (e.g. dev server reloads)
         }
       }
     } catch (err) {

@@ -16,14 +16,18 @@ import masterRouter from "./routes/master.routes.ts";
 import siteSupplyRouter from "./routes/siteSupply.routes.ts";
 import syncRouter from "./routes/sync.routes.ts";
 import incomeRouter from "./routes/income.routes.ts";
+import contractorRouter from "./routes/contractor.routes.ts";
 import { realtimeSyncMiddleware } from "./lib/realtimeSync.ts";
 import { 
   initializeSinglePasswordInDB, 
   verifyPasswordAgainstDB 
 } from "./lib/security.ts";
-import { normalizeMaterialsAndStockDB } from "./lib/accounting.ts";
+import { normalizeMaterialsAndStockDB, runDatabaseMigrations } from "./lib/accounting.ts";
 
 async function startServer() {
+  // Ensure database DDL tables & migrations are in place
+  await runDatabaseMigrations();
+
   // Ensure strictly 1 universal password exists in the database on boot
   await initializeSinglePasswordInDB();
 
@@ -119,6 +123,7 @@ async function startServer() {
   app.use("/api/site-supplies", siteSupplyRouter);
   app.use("/api/labour", labourRouter);
   app.use("/api/supervisor-costs", supervisorRouter);
+  app.use("/api/contractor-costs", contractorRouter);
   app.use("/api/master", masterRouter);
   app.use("/api/incomes", incomeRouter);
   

@@ -4,7 +4,9 @@ import { db } from '../../db/index.ts';
 import { 
   investmentParties, investmentTransactions, auditLogs,
   materialPurchases, materialSupplies, siteSupplies,
-  labourSalaries, supervisorCosts, records
+  labourSalaries, supervisorCosts, records,
+  investors, investorTransactions as globalInvTx, investorLocationAllocations,
+  locations
 } from '../../db/schema.ts';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -29,6 +31,475 @@ const txSchema = z.object({
   description: z.string().optional().nullable(),
   paymentMethod: z.string().optional().nullable(),
   referenceNumber: z.string().optional().nullable(),
+});
+
+// --- GLOBAL INVESTORS ENDPOINTS ---
+
+/**
+ * GET /api/investments/global-investors
+ * Returns all global investors for this user with real-time balance calculations:
+ * Total Capital (Contributions) - Total Upad - Total Allocated = Available Balance
+ */
+investmentRouter.get('/global-investors', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
+    const allInvestors = await db.select().from(investors).where(
+      and(eq(investors.userId, userId), eq(investors.isDeleted, 0))
+    ).orderBy(desc(investors.createdAt));
+
+    const investorIds = allInvestors.map(i => i.id);
+
+    let allTxs: any[] = [];
+    let allAllocs: any[] = [];
+
+    if (investorIds.length > 0) {
+      allTxs = await db.select().from(globalInvTx).where(
+        and(
+          sql`${globalInvTx.investorId} IN (${sql.join(investorIds, sql`, `)})`,
+          eq(globalInvTx.isDeleted, 0)
+        )
+      ).orderBy(desc(globalInvTx.date), desc(globalInvTx.id));
+
+      allAllocs = await db.select({
+        id: investorLocationAllocations.id,
+        investorId: investorLocationAllocations.investorId,
+        locationId: investorLocationAllocations.locationId,
+        locationName: locations.name,
+        amount: investorLocationAllocations.amount,
+        date: investorLocationAllocations.date,
+        paymentMethod: investorLocationAllocations.paymentMethod,
+        referenceNumber: investorLocationAllocations.referenceNumber,
+        notes: investorLocationAllocations.notes,
+        createdAt: investorLocationAllocations.createdAt,
+      })
+      .from(investorLocationAllocations)
+      .innerJoin(locations, eq(investorLocationAllocations.locationId, locations.id))
+      .where(
+        and(
+          sql`${investorLocationAllocations.investorId} IN (${sql.join(investorIds, sql`, `)})`,
+          eq(investorLocationAllocations.isDeleted, 0)
+        )
+      ).orderBy(desc(investorLocationAllocations.date));
+    }
+
+    const result = allInvestors.map(inv => {
+      const txs = allTxs.filter(t => t.investorId === inv.id);
+      const allocs = allAllocs.filter(a => a.investorId === inv.id);
+
+      const totalCapital = Math.round(
+        txs.filter(t => t.type === 'CONTRIBUTION' || t.type === 'CAPITAL' || t.type === 'INVESTMENT')
+           .reduce((acc, t) => acc + (parseFloat(String(t.amount || 0)) || 0), 0) * 100
+      ) / 100;
+
+      const totalUpad = Math.round(
+        txs.filter(t => t.type === 'UPAD' || t.type === 'WITHDRAWAL' || t.type === 'PAYMENT')
+           .reduce((acc, t) => acc + (parseFloat(String(t.amount || 0)) || 0), 0) * 100
+      ) / 100;
+
+      const totalAllocated = Math.round(
+        allocs.reduce((acc, a) => acc + (parseFloat(String(a.amount || 0)) || 0), 0) * 100
+      ) / 100;
+
+      const availableBalance = Math.round((totalCapital - totalUpad - totalAllocated) * 100) / 100;
+
+      return {
+        ...inv,
+        totalCapital,
+        totalUpad,
+        totalAllocated,
+        availableBalance,
+        transactions: txs,
+        allocations: allocs
+      };
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Global Investors GET Error]', error);
+    res.status(500).json({ error: 'Failed to fetch global investors' });
+  }
+});
+
+/**
+ * POST /api/investments/global-investors
+ * Create a new global investor
+ */
+investmentRouter.post('/global-investors', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { name, mobile, email, address, notes, initialContribution, initialDate, paymentMethod, referenceNumber } = req.body;
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Investor Name is required' });
+
+    const cleanName = String(name).trim();
+
+    const inserted = await db.insert(investors).values({
+      userId,
+      name: cleanName,
+      mobile: mobile ? String(mobile).trim() : null,
+      email: email ? String(email).trim() : null,
+      address: address ? String(address).trim() : null,
+      notes: notes ? String(notes).trim() : null,
+      isDeleted: 0
+    }).returning();
+
+    const newInvestor = inserted[0];
+
+    const initAmt = parseFloat(String(initialContribution || 0));
+    if (initAmt > 0) {
+      await db.insert(globalInvTx).values({
+        investorId: newInvestor.id,
+        userId,
+        type: 'CONTRIBUTION',
+        amount: String(initAmt),
+        date: initialDate || new Date().toISOString().split('T')[0],
+        paymentMethod: paymentMethod || 'Bank Transfer',
+        referenceNumber: referenceNumber || null,
+        description: 'Initial Capital Contribution',
+        isDeleted: 0
+      });
+    }
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'CREATE_GLOBAL_INVESTOR',
+      entityType: 'INVESTMENT',
+      entityId: newInvestor.id,
+      metadata: JSON.stringify({ name: cleanName, initialContribution: initAmt })
+    });
+
+    res.status(201).json(newInvestor);
+  } catch (error: any) {
+    console.error('[Global Investor POST Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to create investor' });
+  }
+});
+
+/**
+ * PUT /api/investments/global-investors/:id
+ * Update global investor profile
+ */
+investmentRouter.put('/global-investors/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Valid ID required' });
+
+    const { name, mobile, email, address, notes } = req.body;
+
+    const updated = await db.update(investors).set({
+      ...(name !== undefined && { name: String(name).trim() }),
+      ...(mobile !== undefined && { mobile: mobile ? String(mobile).trim() : null }),
+      ...(email !== undefined && { email: email ? String(email).trim() : null }),
+      ...(address !== undefined && { address: address ? String(address).trim() : null }),
+      ...(notes !== undefined && { notes: notes ? String(notes).trim() : null }),
+      updatedAt: new Date()
+    }).where(and(eq(investors.id, id), eq(investors.userId, userId))).returning();
+
+    if (!updated.length) return res.status(404).json({ error: 'Investor not found' });
+
+    res.json(updated[0]);
+  } catch (error: any) {
+    console.error('[Global Investor PUT Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to update investor' });
+  }
+});
+
+/**
+ * DELETE /api/investments/global-investors/:id
+ * Soft delete global investor
+ */
+investmentRouter.delete('/global-investors/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Valid ID required' });
+
+    const updated = await db.update(investors).set({
+      isDeleted: 1,
+      updatedAt: new Date()
+    }).where(and(eq(investors.id, id), eq(investors.userId, userId))).returning();
+
+    if (!updated.length) return res.status(404).json({ error: 'Investor not found' });
+
+    res.json({ success: true, message: 'Investor deleted successfully' });
+  } catch (error: any) {
+    console.error('[Global Investor DELETE Error]', error);
+    res.status(500).json({ error: 'Failed to delete investor' });
+  }
+});
+
+/**
+ * POST /api/investments/global-investors/:id/transactions
+ * Add Contribution (Capital) or Upad (Withdrawal)
+ */
+investmentRouter.post('/global-investors/:id/transactions', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const investorId = parseInt(String(req.params.id), 10);
+    if (isNaN(investorId)) return res.status(400).json({ error: 'Valid investor ID required' });
+
+    const { type, amount, date, paymentMethod, referenceNumber, description } = req.body;
+    const parsedAmount = parseFloat(String(amount));
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: 'Valid positive amount required' });
+    }
+
+    const txType = String(type || 'CONTRIBUTION').toUpperCase();
+    if (!['CONTRIBUTION', 'UPAD', 'CAPITAL', 'WITHDRAWAL'].includes(txType)) {
+      return res.status(400).json({ error: 'Invalid transaction type' });
+    }
+
+    const inserted = await db.insert(globalInvTx).values({
+      investorId,
+      userId,
+      type: txType === 'CAPITAL' ? 'CONTRIBUTION' : (txType === 'WITHDRAWAL' ? 'UPAD' : txType),
+      amount: String(parsedAmount),
+      date: date || new Date().toISOString().split('T')[0],
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNumber: referenceNumber || null,
+      description: description || null,
+      isDeleted: 0
+    }).returning();
+
+    res.status(201).json(inserted[0]);
+  } catch (error: any) {
+    console.error('[Investor Tx POST Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to add investor transaction' });
+  }
+});
+
+/**
+ * DELETE /api/investments/global-investors/transactions/:txId
+ */
+investmentRouter.delete('/global-investors/transactions/:txId', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const txId = parseInt(String(req.params.txId), 10);
+    if (isNaN(txId)) return res.status(400).json({ error: 'Valid transaction ID required' });
+
+    await db.update(globalInvTx).set({ isDeleted: 1 })
+      .where(and(eq(globalInvTx.id, txId), eq(globalInvTx.userId, userId)));
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Investor Tx DELETE Error]', error);
+    res.status(500).json({ error: 'Failed to delete transaction' });
+  }
+});
+
+/**
+ * GET /api/investments/location-allocations?locationId=X
+ * Category 1 Part 1: List all capital allocations from investors to this location
+ */
+investmentRouter.get('/location-allocations', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const locationId = parseInt(req.query.locationId as string, 10);
+    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+
+    await assertLocationAccess(userId, locationId);
+
+    const allocs = await db.select({
+      id: investorLocationAllocations.id,
+      investorId: investorLocationAllocations.investorId,
+      investorName: investors.name,
+      investorMobile: investors.mobile,
+      locationId: investorLocationAllocations.locationId,
+      amount: investorLocationAllocations.amount,
+      date: investorLocationAllocations.date,
+      paymentMethod: investorLocationAllocations.paymentMethod,
+      referenceNumber: investorLocationAllocations.referenceNumber,
+      notes: investorLocationAllocations.notes,
+      createdAt: investorLocationAllocations.createdAt,
+    })
+    .from(investorLocationAllocations)
+    .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+    .where(
+      and(
+        eq(investorLocationAllocations.locationId, locationId),
+        eq(investorLocationAllocations.isDeleted, 0)
+      )
+    )
+    .orderBy(desc(investorLocationAllocations.date), desc(investorLocationAllocations.id));
+
+    res.json(allocs);
+  } catch (error: any) {
+    console.error('[Location Allocations GET Error]', error);
+    res.status(500).json({ error: 'Failed to fetch location allocations' });
+  }
+});
+
+/**
+ * POST /api/investments/location-allocations
+ * Category 1 Part 1: Allocate capital from global investor to a location
+ */
+investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { investorId, locationId, amount, date, paymentMethod, referenceNumber, notes } = req.body;
+    const invId = parseInt(String(investorId), 10);
+    const locId = parseInt(String(locationId), 10);
+    const allocAmount = parseFloat(String(amount));
+
+    if (isNaN(invId) || isNaN(locId) || isNaN(allocAmount) || allocAmount <= 0) {
+      return res.status(400).json({ error: 'Valid investor, location, and positive amount are required' });
+    }
+
+    await assertLocationAccess(userId, locId);
+
+    // Verify investor exists
+    const inv = await db.select().from(investors).where(
+      and(eq(investors.id, invId), eq(investors.userId, userId), eq(investors.isDeleted, 0))
+    ).limit(1);
+    if (!inv.length) return res.status(404).json({ error: 'Investor not found' });
+
+    const inserted = await db.insert(investorLocationAllocations).values({
+      investorId: invId,
+      locationId: locId,
+      userId,
+      amount: String(allocAmount),
+      date: date || new Date().toISOString().split('T')[0],
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNumber: referenceNumber || null,
+      notes: notes || null,
+      isDeleted: 0
+    }).returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'ALLOCATE_INVESTOR_CAPITAL',
+      entityType: 'INVESTMENT',
+      entityId: inserted[0].id,
+      metadata: JSON.stringify({ investorId: invId, locationId: locId, amount: allocAmount })
+    });
+
+    res.status(201).json(inserted[0]);
+  } catch (error: any) {
+    console.error('[Location Allocation POST Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to allocate capital' });
+  }
+});
+
+/**
+ * DELETE /api/investments/location-allocations/:id
+ */
+investmentRouter.delete('/location-allocations/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Valid ID required' });
+
+    const existing = await db.select().from(investorLocationAllocations)
+      .where(and(eq(investorLocationAllocations.id, id), eq(investorLocationAllocations.isDeleted, 0)))
+      .limit(1);
+    if (!existing.length) return res.status(404).json({ error: 'Allocation record not found' });
+
+    await assertLocationAccess(userId, existing[0].locationId);
+
+    await db.update(investorLocationAllocations).set({ isDeleted: 1 })
+      .where(eq(investorLocationAllocations.id, id));
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Location Allocation DELETE Error]', error);
+    res.status(500).json({ error: 'Failed to delete allocation' });
+  }
+});
+
+/**
+ * GET /api/investments/bills?locationId=X
+ * Category 1 Part 2: Inflow from bills / invoices
+ */
+investmentRouter.get('/bills', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const locationId = parseInt(req.query.locationId as string, 10);
+    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+
+    await assertLocationAccess(userId, locationId);
+
+    const bills = await db.select().from(records).where(
+      and(
+        eq(records.locationId, locationId),
+        eq(records.isDeleted, 0),
+        eq(records.type, 'INCOME'),
+        eq(records.category, 'BILL_INVESTMENT')
+      )
+    ).orderBy(desc(records.date), desc(records.id));
+
+    res.json(bills);
+  } catch (error: any) {
+    console.error('[Investment Bills GET Error]', error);
+    res.status(500).json({ error: 'Failed to fetch bill investments' });
+  }
+});
+
+/**
+ * POST /api/investments/bills
+ * Category 1 Part 2: Add an investment from bill
+ */
+investmentRouter.post('/bills', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { locationId, partyName, amount, date, description, paymentMethod, referenceNumber } = req.body;
+    const locId = parseInt(String(locationId), 10);
+    const parsedAmount = parseFloat(String(amount));
+
+    if (isNaN(locId) || !partyName || isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: 'Valid Location, Party/Invoice Name, and positive amount are required' });
+    }
+
+    await assertLocationAccess(userId, locId);
+
+    const inserted = await db.insert(records).values({
+      userId,
+      locationId: locId,
+      type: 'INCOME',
+      category: 'BILL_INVESTMENT',
+      partyName: String(partyName).trim(),
+      amount: String(parsedAmount),
+      date: date || new Date().toISOString().split('T')[0],
+      description: description || null,
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNumber: referenceNumber || null,
+      isDeleted: 0
+    }).returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'CREATE_BILL_INVESTMENT',
+      entityType: 'INVESTMENT',
+      entityId: inserted[0].id,
+      metadata: JSON.stringify({ locationId: locId, partyName, amount: parsedAmount })
+    });
+
+    res.status(201).json(inserted[0]);
+  } catch (error: any) {
+    console.error('[Investment Bills POST Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to create bill investment' });
+  }
 });
 
 investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
@@ -587,7 +1058,18 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
 
     await assertLocationAccess(userId, locationId);
 
-    // 1. Investment Capital from Investors (INVESTMENT type) & Upad
+    // 1. Investment Capital from Investors (Direct Allocations + Legacy INVESTMENT/CONTRIBUTION transactions)
+    const directAllocations = await db.select({
+      total: sql<string>`sum(${investorLocationAllocations.amount})`,
+      count: sql<number>`count(*)`
+    })
+    .from(investorLocationAllocations)
+    .where(and(
+      eq(investorLocationAllocations.locationId, locationId),
+      eq(investorLocationAllocations.isDeleted, 0)
+    ));
+    const totalFromDirectAllocations = parseFloat(directAllocations[0]?.total || '0') || 0;
+
     const invTxs = await db.select({
       type: investmentTransactions.type,
       total: sql<string>`sum(${investmentTransactions.amount})`,
@@ -611,7 +1093,10 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       else if (t.type === 'CONTRIBUTION') fromContributions += amt;
       else if (t.type === 'UPAD' || t.type === 'PAYMENT') returnsToInvestors += amt;
     });
-    const fromInvestors = Math.round((fromInvestmentKarya + fromContributions) * 100) / 100;
+    
+    // Capital allocated to this location from investors (Direct Allocations + Investment Karya)
+    const investmentFromInvestorsCapital = Math.round((fromInvestmentKarya + totalFromDirectAllocations) * 100) / 100;
+    const fromInvestors = investmentFromInvestorsCapital;
 
     // 2. Bill Investments (Material/Asset invoices recorded as Investment Inflows)
     const billRecords = await db.select({
@@ -629,9 +1114,6 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const fromBills = parseFloat(billRecords[0]?.total || '0');
     const billCount = Number(billRecords[0]?.count || 0);
 
-    // 1st category capital is separate (investors' personal pool) and 2nd category capital is separate:
-    // Category 2 Capital: Investment from Investors Capital is strictly Investment Karya total
-    const investmentFromInvestorsCapital = Math.round(fromInvestmentKarya * 100) / 100;
     // Full Capital = Investment from Investors + Bill Investment
     const fullCapital = Math.round((investmentFromInvestorsCapital + fromBills) * 100) / 100;
     const netInvestmentCapital = Math.round((fullCapital - returnsToInvestors) * 100) / 100;
@@ -751,7 +1233,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     }
 
     // Itemized recent deductions across Categories 3, 4, 5, 6 and Refundables for live passbook
-    const [recentPurchases, recentSupplies, recentSiteSupplies, recentLabour, recentRefundables, recentCapitalInflows] = await Promise.all([
+    const [recentPurchases, recentSupplies, recentSiteSupplies, recentLabour, recentRefundables, recentLegacyTxs, recentDirectAllocs, recentBills] = await Promise.all([
       db.select({
         id: materialPurchases.id,
         date: materialPurchases.date,
@@ -885,8 +1367,56 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
         sql`${investmentTransactions.type} IN ('INVESTMENT', 'CONTRIBUTION')`
       ))
       .orderBy(desc(investmentTransactions.date), desc(investmentTransactions.id))
+      .limit(50),
+
+      db.select({
+        id: investorLocationAllocations.id,
+        date: investorLocationAllocations.date,
+        partyId: investors.id,
+        partyName: investors.name,
+        type: sql<string>`'INVESTMENT'`,
+        amount: investorLocationAllocations.amount,
+        description: sql<string>`coalesce(${investorLocationAllocations.notes}, 'Investor Allocation')`,
+        paymentMethod: investorLocationAllocations.paymentMethod,
+        referenceNumber: investorLocationAllocations.referenceNumber,
+      })
+      .from(investorLocationAllocations)
+      .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+      .where(and(
+        eq(investorLocationAllocations.locationId, locationId),
+        eq(investorLocationAllocations.isDeleted, 0)
+      ))
+      .orderBy(desc(investorLocationAllocations.date), desc(investorLocationAllocations.id))
+      .limit(50),
+
+      db.select({
+        id: records.id,
+        date: records.date,
+        partyId: sql<number>`0`,
+        partyName: records.partyName,
+        type: sql<string>`'BILL_INVESTMENT'`,
+        amount: records.amount,
+        description: sql<string>`concat('Bill Inflow: ', coalesce(${records.description}, 'Invoice Investment'))`,
+        paymentMethod: records.paymentMethod,
+        referenceNumber: records.referenceNumber,
+      })
+      .from(records)
+      .where(and(
+        eq(records.locationId, locationId),
+        eq(records.isDeleted, 0),
+        eq(records.type, 'INCOME'),
+        eq(records.category, 'BILL_INVESTMENT')
+      ))
+      .orderBy(desc(records.date), desc(records.id))
       .limit(50)
     ]);
+
+    // Merge all capital inflows (legacy + allocations + bills)
+    const recentCapitalInflows = [
+      ...recentLegacyTxs,
+      ...recentDirectAllocs,
+      ...recentBills
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Merge and sort all deductions chronologically descending
     const itemizedDeductions = [

@@ -649,6 +649,106 @@ export async function normalizeMaterialsAndStockDB(): Promise<void> {
   }
 }
 
+/**
+ * Safely backfills legacy investment data into global investors and location allocations
+ */
+export async function runDatabaseMigrations(): Promise<void> {
+  try {
+    // Backfill / migrate data from legacy investment_parties & investment_transactions if any
+    try {
+      const legacyParties = await db.execute(sql`
+        SELECT DISTINCT ip.id, ip.user_id, ip.party_name, ip.location_id
+        FROM investment_parties ip
+        WHERE ip.is_deleted = 0
+      `);
+
+      for (const row of legacyParties.rows as any[]) {
+        const cleanName = String(row.party_name || '').trim();
+        if (!cleanName) continue;
+
+        // Check if investor already exists in global investors
+        let invRes = await db.execute(sql`
+          SELECT id FROM investors 
+          WHERE user_id = ${row.user_id} AND UPPER(TRIM(name)) = UPPER(TRIM(${cleanName})) AND is_deleted = 0
+          LIMIT 1
+        `);
+
+        let investorId: number;
+        if (invRes.rows.length > 0) {
+          investorId = Number((invRes.rows[0] as any).id);
+        } else {
+          const inserted = await db.execute(sql`
+            INSERT INTO investors (user_id, name, created_at, updated_at, is_deleted)
+            VALUES (${row.user_id}, ${cleanName}, NOW(), NOW(), 0)
+            RETURNING id
+          `);
+          investorId = Number((inserted.rows[0] as any).id);
+        }
+
+        // Migrate legacy transactions for this party
+        const legacyTxs = await db.execute(sql`
+          SELECT id, user_id, party_id, type, amount, date, description, payment_method, reference_number
+          FROM investment_transactions
+          WHERE party_id = ${row.id} AND is_deleted = 0
+        `);
+
+        for (const tx of legacyTxs.rows as any[]) {
+          const txType = String(tx.type || '').toUpperCase();
+          const amt = parseFloat(String(tx.amount || 0));
+          if (isNaN(amt) || amt <= 0) continue;
+
+          if (txType === 'CONTRIBUTION') {
+            // Check if already in investor_transactions
+            const existTx = await db.execute(sql`
+              SELECT id FROM investor_transactions 
+              WHERE investor_id = ${investorId} AND type = 'CONTRIBUTION' AND amount = ${tx.amount} AND date = ${tx.date} AND is_deleted = 0
+              LIMIT 1
+            `);
+            if (existTx.rows.length === 0) {
+              await db.execute(sql`
+                INSERT INTO investor_transactions (investor_id, user_id, type, amount, date, payment_method, reference_number, description, is_deleted)
+                VALUES (${investorId}, ${tx.user_id}, 'CONTRIBUTION', ${tx.amount}, ${tx.date}, ${tx.payment_method}, ${tx.reference_number}, ${tx.description}, 0)
+              `);
+            }
+          } else if (txType === 'INVESTMENT') {
+            // Location allocation
+            const existAlloc = await db.execute(sql`
+              SELECT id FROM investor_location_allocations
+              WHERE investor_id = ${investorId} AND location_id = ${row.location_id} AND amount = ${tx.amount} AND date = ${tx.date} AND is_deleted = 0
+              LIMIT 1
+            `);
+            if (existAlloc.rows.length === 0) {
+              await db.execute(sql`
+                INSERT INTO investor_location_allocations (investor_id, location_id, user_id, amount, date, payment_method, reference_number, notes, is_deleted)
+                VALUES (${investorId}, ${row.location_id}, ${tx.user_id}, ${tx.amount}, ${tx.date}, ${tx.payment_method}, ${tx.reference_number}, ${tx.description}, 0)
+              `);
+            }
+          } else if (txType === 'UPAD' || txType === 'PAYMENT') {
+            // Investor Upad
+            const existUpad = await db.execute(sql`
+              SELECT id FROM investor_transactions 
+              WHERE investor_id = ${investorId} AND type = 'UPAD' AND amount = ${tx.amount} AND date = ${tx.date} AND is_deleted = 0
+              LIMIT 1
+            `);
+            if (existUpad.rows.length === 0) {
+              await db.execute(sql`
+                INSERT INTO investor_transactions (investor_id, user_id, type, amount, date, payment_method, reference_number, description, is_deleted)
+                VALUES (${investorId}, ${tx.user_id}, 'UPAD', ${tx.amount}, ${tx.date}, ${tx.payment_method}, ${tx.reference_number}, ${tx.description}, 0)
+              `);
+            }
+          }
+        }
+      }
+    } catch (migErr) {
+      console.warn('[Accounting] Legacy migration check notice:', migErr);
+    }
+
+    console.log('[Accounting] Historical data sync check completed.');
+  } catch (err) {
+    console.error('[Accounting] Data sync error:', err);
+  }
+}
+
 export class AccountingCalculator {
   static calculateMaterialTotal(
     quantity: number,
