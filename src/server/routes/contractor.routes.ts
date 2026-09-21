@@ -23,6 +23,9 @@ const contractorCostSchema = z.object({
   teamName: z.string().optional().nullable(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Valid YYYY-MM-DD date required"),
   amount: z.union([z.number().positive(), z.string()]).transform(v => parseFloat(String(v))),
+  deductionAmount: z.union([z.number(), z.string()]).transform(v => parseFloat(String(v || 0))).default(0),
+  netAmount: z.union([z.number(), z.string()]).transform(v => parseFloat(String(v || 0))).optional(),
+  paymentStatus: z.enum(["PAID", "PENDING", "PARTIAL"]).default("PAID"),
   workDescription: z.string().optional().nullable(),
   paymentMethod: z.string().optional().nullable(),
   referenceNumber: z.string().optional().nullable(),
@@ -142,7 +145,7 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
     );
 
     const difference = round2(recordedContractorCost - expectedContractorCost);
-    let status: 'MATCH' | 'SURPLUS' | 'DEFICIT' = 'MATCH';
+    let status: 'MATCHED' | 'SURPLUS' | 'DEFICIT' = 'MATCHED';
     if (difference > 0.01) {
       status = 'SURPLUS';
     } else if (difference < -0.01) {
@@ -150,6 +153,20 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
     }
 
     res.json({
+      summary: {
+        totalSiteSupplies: totalSiteSupplyAmount,
+        totalLabourCost: totalLabourAttendance,
+        expectedCost: expectedContractorCost,
+        recordedCost: recordedContractorCost,
+        variance: difference,
+        reconciliationStatus: status,
+        contractorCostCount: recordedCosts.length,
+        siteSupplyCount: siteSuppliesData.length,
+        labourCount: labourData.length,
+      },
+      contractorCosts: recordedCosts,
+      siteSupplies: siteSuppliesData,
+      labourSalaries: labourData,
       locationId,
       teamId: teamIdQuery,
       totalSiteSupplyAmount,
@@ -182,6 +199,10 @@ contractorRouter.post('/', async (req: AuthRequest, res: Response) => {
     const data = contractorCostSchema.parse(req.body);
     await assertLocationAccess(userId, data.locationId);
 
+    const gross = data.amount;
+    const ded = data.deductionAmount || 0;
+    const net = data.netAmount !== undefined ? data.netAmount : Math.max(0, round2(gross - ded));
+
     const inserted = await db.insert(contractorCosts).values({
       userId,
       locationId: data.locationId,
@@ -189,7 +210,10 @@ contractorRouter.post('/', async (req: AuthRequest, res: Response) => {
       teamId: data.teamId || null,
       teamName: data.teamName || null,
       date: data.date,
-      amount: String(data.amount),
+      amount: String(gross),
+      deductionAmount: String(ded),
+      netAmount: String(net),
+      paymentStatus: data.paymentStatus || 'PAID',
       workDescription: data.workDescription || null,
       paymentMethod: data.paymentMethod || 'Cash',
       referenceNumber: data.referenceNumber || null,
@@ -205,7 +229,8 @@ contractorRouter.post('/', async (req: AuthRequest, res: Response) => {
       metadata: JSON.stringify({ 
         locationId: data.locationId, 
         contractorName: data.contractorName, 
-        amount: data.amount 
+        amount: data.amount,
+        netAmount: net
       })
     });
 
@@ -238,12 +263,19 @@ contractorRouter.put('/:id', async (req: AuthRequest, res: Response) => {
 
     const data = contractorCostSchema.partial().parse(req.body);
 
+    const gross = data.amount !== undefined ? data.amount : parseFloat(existing[0].amount);
+    const ded = data.deductionAmount !== undefined ? data.deductionAmount : parseFloat(existing[0].deductionAmount || '0');
+    const net = data.netAmount !== undefined ? data.netAmount : Math.max(0, round2(gross - ded));
+
     const updated = await db.update(contractorCosts).set({
       contractorName: data.contractorName !== undefined ? data.contractorName.trim() : undefined,
       teamId: data.teamId !== undefined ? data.teamId : undefined,
       teamName: data.teamName !== undefined ? data.teamName : undefined,
       date: data.date !== undefined ? data.date : undefined,
-      amount: data.amount !== undefined ? String(data.amount) : undefined,
+      amount: data.amount !== undefined ? String(gross) : undefined,
+      deductionAmount: data.deductionAmount !== undefined ? String(ded) : undefined,
+      netAmount: String(net),
+      paymentStatus: data.paymentStatus !== undefined ? data.paymentStatus : undefined,
       workDescription: data.workDescription !== undefined ? data.workDescription : undefined,
       paymentMethod: data.paymentMethod !== undefined ? data.paymentMethod : undefined,
       referenceNumber: data.referenceNumber !== undefined ? data.referenceNumber : undefined,

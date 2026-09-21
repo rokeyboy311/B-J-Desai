@@ -3,11 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import {
   ArrowLeft, CalendarCheck, Download, Landmark, TrendingDown,
-  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock, Trash2, AlertTriangle
+  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock, Trash2, AlertTriangle, ArrowRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-import InvestorTab from "../components/categories/InvestorTab";
 import InvestmentTab from "../components/categories/InvestmentTab";
 import MaterialPurchaseTab from "../components/categories/MaterialPurchaseTab";
 import MaterialSupplyTab from "../components/categories/MaterialSupplyTab";
@@ -25,7 +24,7 @@ export default function LocationDetailsPage() {
   const { id: locationId } = useParams();
   const navigate = useNavigate();
 
-  const [activeCategory, setActiveCategory] = useState<"investments" | "investor_pool" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "master_data" | "contractor_cost">("investments");
+  const [activeCategory, setActiveCategory] = useState<"investments" | "material_purchase" | "material_supply" | "site_supply" | "labour_attendance" | "master_data" | "contractor_cost">("investments");
   
   const [locationName, setLocationName] = useState("Loading...");
 
@@ -82,33 +81,47 @@ export default function LocationDetailsPage() {
         <div className="flex items-center gap-4">
           <button 
             type="button"
-            onClick={() => navigate("/")}
-            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
+            onClick={() => navigate("/locations")}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 cursor-pointer"
+            title="Back to Locations"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">{locationName}</h1>
-            <p className="text-sm text-slate-500 font-medium">Manage investments, supplies, labour, and contractor costs</p>
+            <p className="text-sm text-slate-500 font-medium">Manage project capital, supplies, labour, and contractor costs</p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleDeleteLocation}
-          className="inline-flex items-center gap-2 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all shadow-xs w-fit cursor-pointer"
-          title="Delete this location"
-        >
-          <Trash2 className="w-4 h-4 text-rose-600" />
-          Delete Location
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(`/investors?locationId=${locationId}`)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            title="Open Investor Pool & Accounts"
+          >
+            <Users className="w-4 h-4 text-emerald-600" />
+            <span>Investor Pool (ઇન્વેસ્ટર પૂલ)</span>
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-600" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteLocation}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            title="Delete this location"
+          >
+            <Trash2 className="w-4 h-4 text-rose-600" />
+            Delete Location
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar Navigation */}
         <div className="w-full lg:w-72 flex lg:flex-col gap-2.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 hide-scrollbar shrink-0">
           
-          <button type="button" onClick={() => setActiveCategory("investments")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "investments" ? "bg-blue-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+          <button type="button" onClick={() => setActiveCategory("investments")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer ${activeCategory === "investments" ? "bg-blue-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "investments" ? "bg-white/20" : "bg-blue-100 text-blue-700"}`}><TrendingUp className="w-4 h-4" /></div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm flex items-center justify-between gap-1">
@@ -119,7 +132,7 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setActiveCategory("material_purchase")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "material_purchase" ? "bg-rose-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+          <button type="button" onClick={() => setActiveCategory("material_purchase")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer ${activeCategory === "material_purchase" ? "bg-rose-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "material_purchase" ? "bg-white/20" : "bg-rose-100 text-rose-700"}`}><ShoppingCart className="w-4 h-4" /></div>
             <div>
               <div className="font-bold text-sm">2. Material Purchase</div>
@@ -127,7 +140,7 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setActiveCategory("material_supply")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "material_supply" ? "bg-orange-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+          <button type="button" onClick={() => setActiveCategory("material_supply")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer ${activeCategory === "material_supply" ? "bg-orange-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "material_supply" ? "bg-white/20" : "bg-orange-100 text-orange-700"}`}><Truck className="w-4 h-4" /></div>
             <div>
               <div className="font-bold text-sm">3. Material Supply</div>
@@ -135,7 +148,7 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setActiveCategory("site_supply")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "site_supply" ? "bg-teal-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+          <button type="button" onClick={() => setActiveCategory("site_supply")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer ${activeCategory === "site_supply" ? "bg-teal-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "site_supply" ? "bg-white/20" : "bg-teal-100 text-teal-700"}`}><Wrench className="w-4 h-4" /></div>
             <div>
               <div className="font-bold text-sm">4. Site Supply</div>
@@ -143,7 +156,7 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setActiveCategory("labour_attendance")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "labour_attendance" ? "bg-amber-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+          <button type="button" onClick={() => setActiveCategory("labour_attendance")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer ${activeCategory === "labour_attendance" ? "bg-amber-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "labour_attendance" ? "bg-white/20" : "bg-amber-100 text-amber-700"}`}><CalendarCheck className="w-4 h-4" /></div>
             <div>
               <div className="font-bold text-sm">5. Labour Attendance</div>
@@ -151,7 +164,7 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setActiveCategory("master_data")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "master_data" ? "bg-indigo-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+          <button type="button" onClick={() => setActiveCategory("master_data")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer ${activeCategory === "master_data" ? "bg-indigo-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "master_data" ? "bg-white/20" : "bg-indigo-100 text-indigo-700"}`}><Database className="w-4 h-4" /></div>
             <div>
               <div className="font-bold text-sm">6. Master Registry</div>
@@ -159,7 +172,7 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setActiveCategory("contractor_cost")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "contractor_cost" ? "bg-purple-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
+          <button type="button" onClick={() => setActiveCategory("contractor_cost")} className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer ${activeCategory === "contractor_cost" ? "bg-purple-600 text-white shadow-md" : "bg-white border border-slate-200 hover:bg-slate-50 text-slate-700"}`}>
             <div className={`p-2 rounded-lg ${activeCategory === "contractor_cost" ? "bg-white/20" : "bg-purple-100 text-purple-700"}`}><HardHat className="w-4 h-4" /></div>
             <div>
               <div className="font-bold text-sm">7. Contractor Cost</div>
@@ -167,15 +180,20 @@ export default function LocationDetailsPage() {
             </div>
           </button>
 
+          {/* Quick link to Central Investor Pool */}
           <div className="pt-2 border-t border-slate-200">
-            <button type="button" onClick={() => setActiveCategory("investor_pool")} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${activeCategory === "investor_pool" ? "bg-emerald-600 text-white shadow-md" : "bg-emerald-50/50 border border-emerald-200/60 hover:bg-emerald-100/60 text-emerald-900"}`}>
-              <div className={`p-2 rounded-lg ${activeCategory === "investor_pool" ? "bg-white/20" : "bg-emerald-100 text-emerald-700"}`}><Users className="w-4 h-4" /></div>
+            <button 
+              type="button" 
+              onClick={() => navigate(`/investors?locationId=${locationId}`)} 
+              className="w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left bg-emerald-50/70 border border-emerald-200/80 hover:bg-emerald-100/80 text-emerald-900 cursor-pointer"
+            >
+              <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700"><Users className="w-4 h-4" /></div>
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-xs flex items-center justify-between gap-1">
-                  <span>Investor Pool & Accounts</span>
-                  <Lock className="w-3 h-3 opacity-70 shrink-0" />
+                  <span>Central Investor Pool</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 </div>
-                <div className={`text-[11px] ${activeCategory === "investor_pool" ? "text-emerald-100" : "text-emerald-700 font-medium"}`}>Capital, Upad & Statements</div>
+                <div className="text-[11px] text-emerald-700 font-medium">Global Capital & Accounts</div>
               </div>
             </button>
           </div>
@@ -203,11 +221,6 @@ export default function LocationDetailsPage() {
               {activeCategory === "labour_attendance" && <LabourAttendanceTab locationId={Number(locationId)} />}
               {activeCategory === "master_data" && <MasterDataTab locationId={Number(locationId)} />}
               {activeCategory === "contractor_cost" && <ContractorCostTab locationId={Number(locationId)} />}
-              {activeCategory === "investor_pool" && (
-                <CategoryPinGate categoryName="Investor Category" categoryNumber={1}>
-                  <InvestorTab locationId={Number(locationId)} />
-                </CategoryPinGate>
-              )}
             </motion.div>
           </AnimatePresence>
         </div>

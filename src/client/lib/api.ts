@@ -100,20 +100,29 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     : endpoint;
   const targetUrl = cleanEndpoint.startsWith('/') ? `/api${cleanEndpoint}` : `/api/${cleanEndpoint}`;
 
-  let response: Response;
-  try {
-    response = await fetch(targetUrl, {
-      ...options,
-      headers,
-    });
-  } catch (netErr) {
-    console.error("Network error during fetch:", netErr);
-    // Transient network error (e.g. server restarting), wait and retry once
-    await new Promise(r => setTimeout(r, 1000));
-    response = await fetch(targetUrl, {
-      ...options,
-      headers,
-    });
+  let response: Response | null = null;
+  let lastError: any = null;
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      response = await fetch(targetUrl, {
+        ...options,
+        headers,
+      });
+      break; // Succeeded
+    } catch (netErr: any) {
+      lastError = netErr;
+      if (attempt < maxRetries) {
+        // Wait before retry (exponential backoff: 300ms, 600ms)
+        await new Promise(r => setTimeout(r, attempt * 300));
+      }
+    }
+  }
+
+  if (!response) {
+    console.warn(`[API] Network connection issue to ${targetUrl} after ${maxRetries} attempts:`, lastError?.message || lastError);
+    throw new Error(`Unable to connect to server. Please check your network or try again in a moment.`);
   }
 
   if (response.status === 401 && !cleanEndpoint.startsWith('/auth/')) {

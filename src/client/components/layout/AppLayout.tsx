@@ -4,7 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { 
   Lock, LayoutDashboard, MapPin, Receipt, FileSpreadsheet, 
   History, Building2, Menu, X, Database, ShieldCheck, 
-  RefreshCw, FileDown, MoreHorizontal, Shield, ChevronRight
+  RefreshCw, FileDown, MoreHorizontal, Shield, ChevronRight, Users
 } from "lucide-react";
 import { PWAInstallButton } from "../PWAInstallButton";
 import { motion, AnimatePresence } from "motion/react";
@@ -34,6 +34,7 @@ export default function AppLayout() {
 
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
+    { name: "Investor Pool", path: "/investors", icon: Users },
     { name: "Locations", path: "/locations", icon: MapPin },
     { name: "Records", path: "/records", icon: Receipt },
     { name: "Reports", path: "/reports", icon: FileSpreadsheet },
@@ -45,13 +46,15 @@ export default function AppLayout() {
   // The 4 primary mobile bottom items
   const primaryMobileNav = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
+    { name: "Investors", path: "/investors", icon: Users },
     { name: "Locations", path: "/locations", icon: MapPin },
     { name: "Records", path: "/records", icon: Receipt },
-    { name: "Reports", path: "/reports", icon: FileSpreadsheet },
   ];
 
   // Secondary items in the "More" drawer / sheet
   const secondaryNav = [
+    { name: "Investor Pool & Accounts", path: "/investors", icon: Users, desc: "Global capital & passbooks" },
+    { name: "Reports & Analytics", path: "/reports", icon: FileSpreadsheet, desc: "Consolidated financial summaries" },
     { name: "Excel Downloads", path: "/excel-downloads", icon: FileDown, desc: "Export ledger & passbooks" },
     { name: "Activity Log", path: "/activity", icon: History, desc: "Audit trail of actions" },
     { name: "Security & PIN", path: "/profile", icon: Shield, desc: "Update access credentials" },

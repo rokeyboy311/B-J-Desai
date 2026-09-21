@@ -158,9 +158,17 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-6 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 relative z-10">
-            <span className="font-medium">હિસાબ સૂત્ર: Total Capital - Investment Karya - Upad</span>
-            <span className="font-black text-emerald-700 text-sm">₹{getMetric(cat1.availableInvestorsBalance)}</span>
+          <div className="mt-6 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 relative z-10">
+            <span className="font-medium">Total Capital - Investment Karya - Upad</span>
+            <button
+              type="button"
+              onClick={() => navigate("/investors")}
+              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20 cursor-pointer"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Investor Pool & Accounts (ખાતા ખોલો)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 

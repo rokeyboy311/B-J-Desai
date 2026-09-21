@@ -36,10 +36,11 @@ interface InvestmentTransaction {
   partyName: string;
 }
 
-export default function InvestorTab({ locationId }: { locationId: number }) {
+export default function InvestorTab({ locationId }: { locationId?: number }) {
   const { showToast, confirmAction } = useToast();
   const [parties, setParties] = useState<InvestmentParty[]>([]);
   const [transactions, setTransactions] = useState<InvestmentTransaction[]>([]);
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Active top-level subtab: 'accounts' | 'investments' | 'payments' | 'contributions'
@@ -57,6 +58,7 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
 
   const [partyForm, setPartyForm] = useState({
     partyName: "",
+    locationId: locationId || 0,
     initialAmount: "",
     initialDate: new Date().toISOString().split('T')[0]
   });
@@ -92,12 +94,30 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPartyId, setFilterPartyId] = useState<string>("ALL");
 
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const res = await apiFetch("/locations");
+        if (Array.isArray(res)) {
+          setLocations(res);
+          if (!locationId && res.length > 0) {
+            setPartyForm(prev => ({ ...prev, locationId: res[0].id }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load locations", err);
+      }
+    };
+    fetchLocations();
+  }, [locationId]);
+
   const loadData = async (isBackground = false) => {
     if (!isBackground && parties.length === 0) setLoading(true);
     try {
+      const locQuery = locationId ? `?locationId=${locationId}` : "";
       const [partiesRes, txsRes] = await Promise.all([
-        apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => []),
-        apiFetch(`/investments/transactions?locationId=${locationId}`).catch(() => [])
+        apiFetch(`/investments/parties${locQuery}`).catch(() => []),
+        apiFetch(`/investments/transactions${locQuery}`).catch(() => [])
       ]);
       setParties(partiesRes || []);
       // Keep ALL transaction types (UPAD, CONTRIBUTION, and INVESTMENT) so Category 1 maintains complete truth
@@ -153,18 +173,24 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
     try {
       const url = editingPartyId ? `/investments/parties/${editingPartyId}` : "/investments/parties";
       const method = editingPartyId ? "PUT" : "POST";
+      const targetLocationId = locationId || partyForm.locationId || locations[0]?.id;
       
+      if (!targetLocationId && !editingPartyId) {
+        showToast("Please select a project location for the investor", "error");
+        return;
+      }
+
       await apiFetch(url, {
         method,
         body: JSON.stringify({
-          locationId,
+          locationId: targetLocationId,
           partyName: partyForm.partyName,
           initialAmount: parseFloat(partyForm.initialAmount) || 0,
           initialDate: partyForm.initialDate
         })
       });
       triggerSync("investor_parties");
-      setPartyForm({ partyName: "", initialAmount: "", initialDate: new Date().toISOString().split('T')[0] });
+      setPartyForm({ partyName: "", locationId: locationId || locations[0]?.id || 0, initialAmount: "", initialDate: new Date().toISOString().split('T')[0] });
       setEditingPartyId(null);
       setIsPartyModalOpen(false);
       showToast(editingPartyId ? "Investor updated" : "Investor added successfully", "success");
@@ -181,11 +207,13 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
     try {
       const url = editingTxId ? `/investments/transactions/${editingTxId}` : "/investments/transactions";
       const method = editingTxId ? "PUT" : "POST";
+      const targetParty = parties.find(p => p.id === parseInt(paymentForm.partyId));
+      const targetLocationId = locationId || targetParty?.locationId || locations[0]?.id;
       
       await apiFetch(url, {
         method,
         body: JSON.stringify({
-          locationId,
+          locationId: targetLocationId,
           partyId: parseInt(paymentForm.partyId),
           type: "UPAD",
           amount: parseFloat(paymentForm.amount),
@@ -220,11 +248,13 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
     try {
       const url = editingTxId ? `/investments/transactions/${editingTxId}` : "/investments/transactions";
       const method = editingTxId ? "PUT" : "POST";
+      const targetParty = parties.find(p => p.id === parseInt(contributionForm.partyId));
+      const targetLocationId = locationId || targetParty?.locationId || locations[0]?.id;
       
       await apiFetch(url, {
         method,
         body: JSON.stringify({
-          locationId,
+          locationId: targetLocationId,
           partyId: parseInt(contributionForm.partyId),
           type: "CONTRIBUTION",
           amount: parseFloat(contributionForm.amount),
@@ -259,11 +289,13 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
     try {
       const url = editingTxId ? `/investments/transactions/${editingTxId}` : "/investments/transactions";
       const method = editingTxId ? "PUT" : "POST";
+      const targetParty = parties.find(p => p.id === parseInt(investmentForm.partyId));
+      const targetLocationId = locationId || targetParty?.locationId || locations[0]?.id;
       
       await apiFetch(url, {
         method,
         body: JSON.stringify({
-          locationId,
+          locationId: targetLocationId,
           partyId: parseInt(investmentForm.partyId),
           type: "INVESTMENT",
           amount: parseFloat(investmentForm.amount),
@@ -1169,6 +1201,22 @@ export default function InvestorTab({ locationId }: { locationId: number }) {
               placeholder="e.g. Rajeshbhai Patel, Shri Hari Developers"
             />
           </div>
+
+          {!editingPartyId && !locationId && locations.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Project Location *</label>
+              <select
+                required
+                value={partyForm.locationId || locations[0]?.id || ""}
+                onChange={e => setPartyForm({ ...partyForm, locationId: parseInt(e.target.value, 10) })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-semibold"
+              >
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {!editingPartyId && (
             <div className="grid grid-cols-2 gap-4">

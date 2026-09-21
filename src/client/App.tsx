@@ -17,6 +17,7 @@ import ReportsPage from './pages/ReportsPage';
 import ExcelDownloadsPage from './pages/ExcelDownloadsPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import ProfilePage from './pages/ProfilePage';
+import InvestorsPage from './pages/InvestorsPage';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<DashboardPage />} />
+                <Route path="/investors" element={<InvestorsPage />} />
                 <Route path="/locations" element={<LocationsPage />} />
                 <Route path="/locations/:id" element={<LocationDetailsPage />} />
                 <Route path="/records" element={<GlobalRecordsPage />} />

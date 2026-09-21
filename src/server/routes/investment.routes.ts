@@ -507,16 +507,25 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locationIdParam = req.query.locationId as string | undefined;
+    const locationId = locationIdParam && locationIdParam !== 'ALL' && locationIdParam !== '0'
+      ? parseInt(locationIdParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId && !isNaN(locationId)) {
+      await assertLocationAccess(userId, locationId);
+    }
+
+    const conditions = [
+      eq(investmentParties.isDeleted, 0)
+    ];
+
+    if (locationId && !isNaN(locationId)) {
+      conditions.push(eq(investmentParties.locationId, locationId));
+    }
 
     const parties = await db.select().from(investmentParties).where(
-      and(
-        eq(investmentParties.locationId, locationId),
-        eq(investmentParties.isDeleted, 0)
-      )
+      and(...conditions)
     ).orderBy(desc(investmentParties.createdAt));
 
     // Get metrics for each party
