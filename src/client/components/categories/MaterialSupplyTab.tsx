@@ -84,15 +84,33 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
       const matchedParty = parties.find(p => p.name.toLowerCase() === enteredPartyName.toLowerCase());
       const material = materials.find(m => m.id.toString() === formData.materialId);
 
+      const payload = {
+        date: formData.date,
+        partyName: enteredPartyName || "Customer",
+        partyId: matchedParty ? matchedParty.id : (formData.partyId ? parseInt(formData.partyId) : null),
+        materialId: formData.materialId ? parseInt(formData.materialId) : null,
+        materialName: material ? material.name : "",
+        quantity: parseFloat(formData.quantity) || 0,
+        unit: formData.unit || material?.defaultUnit || "Nos",
+        rate: parseFloat(formData.rate) || 0,
+        taxPercentage: parseFloat(formData.taxPercentage) || 0,
+        tax: calculations.tax,
+        subtotal: calculations.subtotal,
+        transportCost: parseFloat(formData.transportCost) || 0,
+        discount: parseFloat(formData.discount) || 0,
+        totalAmount: calculations.total,
+        paidAmount: formData.paymentStatus === 'PAID' ? calculations.total : 0,
+        outstandingAmount: formData.paymentStatus === 'PAID' ? 0 : calculations.total,
+        paymentStatus: formData.paymentStatus || 'UNPAID',
+        paymentMethod: formData.paymentMethod || 'CASH',
+        referenceNumber: formData.referenceNumber || null,
+        description: formData.description || formData.notes || null,
+        locationId: parseInt(String(locationId))
+      };
+
       await apiFetch(url, {
         method, 
-        body: JSON.stringify({
-          ...formData,
-          partyName: enteredPartyName,
-          partyId: matchedParty ? matchedParty.id : (formData.partyId ? parseInt(formData.partyId) : null),
-          materialName: material ? material.name : "",
-          locationId
-        }),
+        body: JSON.stringify(payload),
       });
       triggerSync("materials");
       triggerSync("stock");
@@ -351,10 +369,22 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
                     rate: m?.defaultRate ? String(m.defaultRate) : prev.rate
                   }));
                 }} 
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold text-slate-800">
                 <option value="">-- Select Material --</option>
-                {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {materials.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || 'Nos'})
+                  </option>
+                ))}
               </select>
+              {formData.materialId && (
+                <div className="mt-1 text-[11px] font-bold text-orange-700">
+                  {(() => {
+                    const sel = materials.find(m => m.id.toString() === formData.materialId);
+                    return `Available Stock: ${sel?.currentStock ?? 0} ${sel?.defaultUnit || 'Nos'}`;
+                  })()}
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>

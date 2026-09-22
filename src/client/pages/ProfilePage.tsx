@@ -92,10 +92,10 @@ export default function ProfilePage() {
               BD
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">{user?.name || "B_D Administrator"}</h2>
+              <h2 className="text-lg font-bold text-slate-900">{user?.name || "B J Desai Admin"}</h2>
               <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-0.5">
                 <Mail className="w-3.5 h-3.5 text-slate-400" />
-                {user?.email || "admin@bina.enterprise"}
+                {user?.email || "admin@bjdesai.com"}
               </p>
             </div>
           </div>

@@ -230,7 +230,27 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   // Category 2 Capital Pool
   const totalGrossInvestment = fullCapital;
 
-  // Operational Deductions from Categories 3 to 6
+  const safeRefundableRecords = useMemo(() => {
+    return Array.isArray(refundableRecords) ? refundableRecords : [];
+  }, [refundableRecords]);
+
+  const refundableSummary = useMemo(() => {
+    let totalRefundable = 0;
+    let totalRefunded = 0;
+    for (const r of safeRefundableRecords) {
+      totalRefundable += Number(r.amount || 0);
+      totalRefunded += Number(r.refundedAmount || 0);
+    }
+    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
+    return {
+      totalRefundable: Math.round(totalRefundable * 100) / 100,
+      totalRefunded: Math.round(totalRefunded * 100) / 100,
+      pendingRefundable,
+      count: safeRefundableRecords.length,
+    };
+  }, [safeRefundableRecords]);
+
+  // Operational Deductions from Categories 5, 6 and Refundables
   const cat3Data = projectUtilization?.linkedExpenditures?.category3MaterialPurchases || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat4Data = projectUtilization?.linkedExpenditures?.category4MaterialSupplies || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat5Data = projectUtilization?.linkedExpenditures?.category5SiteSupplies || { total: 0, count: 0 };
@@ -240,8 +260,11 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     if (projectUtilization?.budgetBalance?.totalProjectExpenditure !== undefined) {
       return Number(projectUtilization.budgetBalance.totalProjectExpenditure || 0);
     }
-    return (Number(cat3Data.total || 0) + Number(cat4Data.total || 0) + Number(cat5Data.total || 0) + Number(cat6Data.totalNetSalary || 0));
-  }, [projectUtilization, cat3Data, cat4Data, cat5Data, cat6Data]);
+    const cat5Total = Number(cat5Data.total || 0);
+    const cat6Total = Number(cat6Data.totalDeduction ?? (Number(cat6Data.totalNetSalary || 0) + Number(cat6Data.totalUpad || 0)));
+    const refPending = Number(refundableSummary.pendingRefundable || 0);
+    return cat5Total + cat6Total + refPending;
+  }, [projectUtilization, cat5Data, cat6Data, refundableSummary]);
 
   // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Cat 3-6) - Investor Upad / Return
   const netRemainingCapital = useMemo(() => {
@@ -312,26 +335,6 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   const netActiveInvestment = useMemo(() => {
     return totalGrossInvestment - totalInvestorPayments;
   }, [totalGrossInvestment, totalInvestorPayments]);
-
-  const safeRefundableRecords = useMemo(() => {
-    return Array.isArray(refundableRecords) ? refundableRecords : [];
-  }, [refundableRecords]);
-
-  const refundableSummary = useMemo(() => {
-    let totalRefundable = 0;
-    let totalRefunded = 0;
-    for (const r of safeRefundableRecords) {
-      totalRefundable += Number(r.amount || 0);
-      totalRefunded += Number(r.refundedAmount || 0);
-    }
-    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
-    return {
-      totalRefundable: Math.round(totalRefundable * 100) / 100,
-      totalRefunded: Math.round(totalRefunded * 100) / 100,
-      pendingRefundable,
-      count: safeRefundableRecords.length,
-    };
-  }, [safeRefundableRecords]);
 
   const filteredRefundables = useMemo(() => {
     return safeRefundableRecords.filter(r => {
@@ -1105,10 +1108,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <div>
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                   <PieChart className="w-5 h-5 text-indigo-600" />
-                  Investment Capital & Categories 3–6 Deductions Flow
+                  Investment Capital & Operational Deductions Flow
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Real-time synchronization showing how project operational expenses in Categories 3–6 cut into Investment Capital.
+                  Real-time synchronization showing how project site supplies, labour wages, and refundable security deposits cut into Investment Capital.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1130,24 +1133,14 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 {totalGrossInvestment > 0 && (
                   <>
                     <div
-                      style={{ width: `${Math.min(100, (Number(cat3Data.total || 0) / totalGrossInvestment) * 100)}%` }}
-                      className="bg-purple-500 h-full transition-all"
-                      title={`Cat 3 Purchases: ₹${Number(cat3Data.total || 0).toLocaleString()}`}
-                    />
-                    <div
-                      style={{ width: `${Math.min(100, (Number(cat4Data.total || 0) / totalGrossInvestment) * 100)}%` }}
-                      className="bg-blue-500 h-full transition-all"
-                      title={`Cat 4 Material Supplies: ₹${Number(cat4Data.total || 0).toLocaleString()}`}
-                    />
-                    <div
                       style={{ width: `${Math.min(100, (Number(cat5Data.total || 0) / totalGrossInvestment) * 100)}%` }}
                       className="bg-teal-500 h-full transition-all"
                       title={`Cat 5 Site Supplies: ₹${Number(cat5Data.total || 0).toLocaleString()}`}
                     />
                     <div
-                      style={{ width: `${Math.min(100, (Number(cat6Data.totalNetSalary || 0) / totalGrossInvestment) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (Number(cat6Data.totalDeduction ?? (Number(cat6Data.totalNetSalary || 0) + Number(cat6Data.totalUpad || 0))) / totalGrossInvestment) * 100)}%` }}
                       className="bg-rose-500 h-full transition-all"
-                      title={`Cat 6 Labour Wages & Kharch: ₹${Number(cat6Data.totalNetSalary || 0).toLocaleString()}`}
+                      title={`Cat 6 Labour Wages & Kharch: ₹${Number(cat6Data.totalDeduction ?? (Number(cat6Data.totalNetSalary || 0) + Number(cat6Data.totalUpad || 0))).toLocaleString()}`}
                     />
                     {refundableSummary.pendingRefundable > 0 && (
                       <div
@@ -1165,8 +1158,6 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-500 inline-block" /> Cat 3 Material Purchases</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> Cat 4 Material Supplies</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-teal-500 inline-block" /> Cat 5 Site Supplies</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" /> Cat 6 Labour & Kharch</span>
                 {refundableSummary.pendingRefundable > 0 && (
@@ -1178,7 +1169,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             </div>
           </div>
 
-          {/* The 5 Connected Category Operational Deductions Cards */}
+          {/* The Connected Category Operational Deductions Cards */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
@@ -1193,81 +1184,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-              {/* Category 3: Material Purchases */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-purple-300 transition-colors flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                      Category 3
-                    </span>
-                    <ShoppingCart className="w-4 h-4 text-purple-600" />
-                  </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Material Purchases (વસ્તુ ખરીદી)</h5>
-                  <p className="text-xs text-slate-500 mt-0.5">{cat3Data.count} purchase invoice records</p>
-                  
-                  <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
-                    <span className="text-xs font-bold text-slate-600">Total Deducted:</span>
-                    <span className="text-base font-black text-purple-700">-₹{Number(cat3Data.total || 0).toLocaleString()}</span>
-                  </div>
-                  
-                  <div className="mt-2 text-xs space-y-1 text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Paid Cash Outflow:</span>
-                      <span className="font-semibold text-slate-800">₹{Number(cat3Data.paid || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Outstanding Credit:</span>
-                      <span className="font-semibold text-rose-600">₹{Number(cat3Data.outstanding || 0).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Share of Capital:</span>
-                  <span className="font-bold text-purple-800">
-                    {totalGrossInvestment > 0 ? ((Number(cat3Data.total || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Category 4: Material Supplies */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-blue-300 transition-colors flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                      Category 4
-                    </span>
-                    <Truck className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Material Supplies (સપ્લાય)</h5>
-                  <p className="text-xs text-slate-500 mt-0.5">{cat4Data.count} vendor supply transactions</p>
-                  
-                  <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
-                    <span className="text-xs font-bold text-slate-600">Total Deducted:</span>
-                    <span className="text-base font-black text-blue-700">-₹{Number(cat4Data.total || 0).toLocaleString()}</span>
-                  </div>
-                  
-                  <div className="mt-2 text-xs space-y-1 text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Paid Amount:</span>
-                      <span className="font-semibold text-slate-800">₹{Number(cat4Data.paid || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Pending Balance:</span>
-                      <span className="font-semibold text-rose-600">₹{Number(cat4Data.outstanding || 0).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Share of Capital:</span>
-                  <span className="font-bold text-blue-800">
-                    {totalGrossInvestment > 0 ? ((Number(cat4Data.total || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Category 5: Site Supplies */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-teal-300 transition-colors flex flex-col justify-between">
                 <div>
@@ -1277,7 +1194,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     </span>
                     <Wrench className="w-4 h-4 text-teal-600" />
                   </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Site Supplies & Materials</h5>
+                  <h5 className="font-black text-slate-900 text-sm mt-2">Site Supplies & Materials (સાઇટ સપ્લાય)</h5>
                   <p className="text-xs text-slate-500 mt-0.5">{cat5Data.count} site supply issues</p>
                   
                   <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
@@ -1314,12 +1231,12 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     </span>
                     <Users className="w-4 h-4 text-rose-600" />
                   </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Labour Attendance & Kharch (મજૂરી)</h5>
+                  <h5 className="font-black text-slate-900 text-sm mt-2">Labour Attendance & Kharch (મજૂરી & ઉપાડ)</h5>
                   <p className="text-xs text-slate-500 mt-0.5">Attendance, Team Upad & Other Kharch</p>
                   
                   <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
                     <span className="text-xs font-bold text-slate-600">Total Deducted:</span>
-                    <span className="text-base font-black text-rose-700">-₹{Number(cat6Data.totalNetSalary || 0).toLocaleString()}</span>
+                    <span className="text-base font-black text-rose-700">-₹{Number(cat6Data.totalDeduction ?? (Number(cat6Data.totalNetSalary || 0) + Number(cat6Data.totalUpad || 0))).toLocaleString()}</span>
                   </div>
                   
                   <div className="mt-2 text-xs space-y-1 text-slate-600">
@@ -1341,7 +1258,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
                   <span>Share of Capital:</span>
                   <span className="font-bold text-rose-800">
-                    {totalGrossInvestment > 0 ? ((Number(cat6Data.totalNetSalary || 0) / totalGrossInvestment) * 100).toFixed(1) : 0}%
+                    {totalGrossInvestment > 0 ? (((Number(cat6Data.totalDeduction ?? (Number(cat6Data.totalNetSalary || 0) + Number(cat6Data.totalUpad || 0)))) / totalGrossInvestment) * 100).toFixed(1) : 0}%
                   </span>
                 </div>
               </div>
@@ -1395,7 +1312,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-slate-600" />
-                Latest Deductions Recorded Across Categories 3 to 6
+                Latest Deductions Recorded (Site Supply, Labour & Security Deposits)
               </h4>
               <button
                 onClick={() => setActiveSubTab("deductions_ledger")}
@@ -1410,10 +1327,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <div key={idx} className="py-2.5 flex items-center justify-between text-xs hover:bg-slate-50 px-2 rounded-lg transition-colors">
                   <div className="flex items-center gap-3">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-black shrink-0 ${
-                      item.categoryKey === "CAT3_PURCHASE" ? "bg-purple-100 text-purple-800" :
-                      item.categoryKey === "CAT4_SUPPLY" ? "bg-blue-100 text-blue-800" :
                       item.categoryKey === "CAT5_SITE" ? "bg-teal-100 text-teal-800" :
-                      "bg-rose-100 text-rose-800"
+                      item.categoryKey === "CAT6_LABOUR" ? "bg-rose-100 text-rose-800" :
+                      "bg-purple-100 text-purple-800"
                     }`}>
                       {item.categoryName}
                     </span>
@@ -1431,7 +1347,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 </div>
               ))}
               {(!projectUtilization?.itemizedDeductions || projectUtilization.itemizedDeductions.length === 0) && (
-                <div className="py-6 text-center text-slate-400 text-xs">No expenditure deductions recorded yet in Categories 3–6.</div>
+                <div className="py-6 text-center text-slate-400 text-xs">No expenditure deductions recorded yet.</div>
               )}
             </div>
           </div>
@@ -1792,10 +1708,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <div>
               <h3 className="font-black text-rose-900 text-sm flex items-center gap-2">
                 <Tag className="w-4 h-4 text-rose-700" />
-                Live Operational Deductions Passbook (Categories 3 to 6)
+                Live Operational Deductions Passbook (Site Supply, Labour & Security Deposits)
               </h3>
               <p className="text-xs text-rose-700">
-                All transactions across Categories 3, 4, 5 & 6 that reduce and consume this project's Investment Capital.
+                All transactions across Site Supplies, Labour Wages/Upad, and Refundable Deposits that reduce this project's Investment Capital.
               </p>
             </div>
 
@@ -1812,10 +1728,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
               {[
                 { key: "ALL", label: "All Deductions" },
-                { key: "CAT3_PURCHASE", label: "Cat 3 Purchases" },
-                { key: "CAT4_SUPPLY", label: "Cat 4 Supplies" },
                 { key: "CAT5_SITE", label: "Cat 5 Site Supplies" },
                 { key: "CAT6_LABOUR", label: "Cat 6 Labour & Kharch" },
+                { key: "CAT_REFUNDABLE", label: "Security Deposits" },
               ].map(f => (
                 <button
                   key={f.key}

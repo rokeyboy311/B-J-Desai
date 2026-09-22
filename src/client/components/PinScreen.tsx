@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Lock, ShieldCheck, KeyRound, ArrowRight, Delete, AlertCircle, Database, Server } from 'lucide-react';
+import AppLogo from './icons/AppLogo';
 
 export const PinScreen: React.FC = () => {
   const { unlockWithPin, error: authError } = useAuth();
@@ -83,11 +84,11 @@ export const PinScreen: React.FC = () => {
         >
           {/* Header */}
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 text-white shadow-lg shadow-indigo-500/25 mb-4 ring-4 ring-indigo-500/10">
-              <KeyRound className="w-8 h-8" />
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white p-2.5 text-white shadow-2xl shadow-amber-500/20 mb-4 ring-4 ring-slate-800 border border-slate-700 overflow-hidden">
+              <AppLogo />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
-              Bina Enterprise
+              B J Desai
             </h1>
             <p className="text-xs text-indigo-400 font-medium tracking-wide uppercase mt-1">
               CENTRAL SHARED SYSTEM

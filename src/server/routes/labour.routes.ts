@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { db } from '../../db/index.js';
-import { labourSalaries, auditLogs } from '../../db/schema.js';
+import { labourSalaries, auditLogs, locations } from '../../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { assertLocationAccess } from '../lib/locationAuth.js';
@@ -36,13 +36,48 @@ labourRouter.get('/', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
     const locationId = req.query.locationId;
-    const conditions = [eq(labourSalaries.isDeleted, 0)];
-    if (locationId) {
+    const conditions = [eq(labourSalaries.isDeleted, 0), eq(locations.isDeleted, 0)];
+    if (locationId && locationId !== 'ALL' && locationId !== '0') {
       const locId = parseInt(String(locationId), 10);
-      await assertLocationAccess(userId, locId);
-      conditions.push(eq(labourSalaries.locationId, locId));
+      if (!isNaN(locId)) {
+        await assertLocationAccess(userId, locId);
+        conditions.push(eq(labourSalaries.locationId, locId));
+      }
     }
-    const records = await db.select().from(labourSalaries)
+    const records = await db.select({
+      id: labourSalaries.id,
+      locationId: labourSalaries.locationId,
+      userId: labourSalaries.userId,
+      date: labourSalaries.date,
+      siteLocationName: labourSalaries.siteLocationName,
+      labourName: labourSalaries.labourName,
+      labourTeam: labourSalaries.labourTeam,
+      attendanceType: labourSalaries.attendanceType,
+      tcNumber: labourSalaries.tcNumber,
+      description: labourSalaries.description,
+      days: labourSalaries.days,
+      dailyRate: labourSalaries.dailyRate,
+      otherEarnings: labourSalaries.otherEarnings,
+      grossSalary: labourSalaries.grossSalary,
+      deduction: labourSalaries.deduction,
+      netSalary: labourSalaries.netSalary,
+      upad: labourSalaries.upad,
+      paymentAmount: labourSalaries.paymentAmount,
+      balance: labourSalaries.balance,
+      paymentMethod: labourSalaries.paymentMethod,
+      referenceNumber: labourSalaries.referenceNumber,
+      notes: labourSalaries.notes,
+      createdAt: labourSalaries.createdAt,
+      isDeleted: labourSalaries.isDeleted,
+      tcQuantity: labourSalaries.tcQuantity,
+      tcRate: labourSalaries.tcRate,
+      workType: labourSalaries.workType,
+      unitOfMeasurement: labourSalaries.unitOfMeasurement,
+      address: labourSalaries.address,
+      periodFrom: labourSalaries.periodFrom,
+      periodTo: labourSalaries.periodTo,
+    }).from(labourSalaries)
+      .innerJoin(locations, eq(labourSalaries.locationId, locations.id))
       .where(and(...conditions))
       .orderBy(desc(labourSalaries.date), desc(labourSalaries.id));
     res.json(records.map(transformLabourRecord));

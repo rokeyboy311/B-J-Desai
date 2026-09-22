@@ -23,6 +23,7 @@ import {
   verifyPasswordAgainstDB 
 } from "./lib/security.ts";
 import { normalizeMaterialsAndStockDB, runDatabaseMigrations } from "./lib/accounting.ts";
+import { cleanupDeletedLocationsData } from "../db/locations.ts";
 
 async function startServer() {
   const app = express();
@@ -159,7 +160,8 @@ async function startServer() {
         await runDatabaseMigrations();
         await initializeSinglePasswordInDB();
         await normalizeMaterialsAndStockDB();
-        console.log('[Bootstrap] Database initialization & accounting sanity checks completed.');
+        await cleanupDeletedLocationsData();
+        console.log('[Bootstrap] Database initialization, deleted location cleanup & accounting sanity checks completed.');
       } catch (err) {
         console.error('[Bootstrap] Background initialization warning:', err);
       }

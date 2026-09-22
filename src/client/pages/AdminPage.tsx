@@ -9,7 +9,7 @@ import { motion } from "motion/react";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerGlobalSync } from "../hooks/useLiveSync";
-import InvestorTab from "../components/categories/InvestorTab";
+import AdminInvestorsListRecord from "../components/admin/AdminInvestorsListRecord";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { Modal } from "../components/ui/Modal";
 
@@ -265,14 +265,14 @@ export default function AdminPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-800 border border-indigo-200">
-                  Tier 1 Governance
+                  Central Governance
                 </span>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight">
                   Admin & Capital Management
                 </h1>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-1">
-                Central Enterprise Capital Flow, Global Investor Directory & Location Allocations
+                B J Desai &bull; Central Enterprise Capital Pool & Admin Investors Record
               </p>
             </div>
           </div>
@@ -307,7 +307,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 3-Tier Capital Visual Architecture */}
+        {/* Admin Capital Visual Card */}
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-indigo-900/40 relative overflow-hidden">
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
           
@@ -315,13 +315,13 @@ export default function AdminPage() {
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-3">
                 <Wallet className="w-3.5 h-3.5" />
-                <span>3-Tier Enterprise Capital Architecture</span>
+                <span>Admin Central Capital Pool</span>
               </div>
               <h2 className="text-3xl font-black tracking-tight text-white">
-                Admin Capital Pool (Tier 1)
+                Admin Capital Pool
               </h2>
               <p className="text-sm text-slate-300 mt-1 max-w-xl">
-                Source of enterprise truth: Capital contributed here directly funds enterprise Material Purchases and Tier 2 Location Allocations.
+                Source of enterprise truth: Capital contributed here directly funds enterprise Material Purchases and Location Allocations.
               </p>
             </div>
 
@@ -370,23 +370,9 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Global Investor Directory & Passbooks */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-indigo-600" />
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                Global Investor Directory & Passbooks
-              </h2>
-            </div>
-            <span className="text-xs font-semibold text-slate-500">
-              {investors.length} Investors Registered
-            </span>
-          </div>
-
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-4 sm:p-6 lg:p-8">
-            <InvestorTab />
-          </div>
+        {/* Admin Investors List Record */}
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-4 sm:p-6 lg:p-8">
+          <AdminInvestorsListRecord onRefreshParent={() => loadData(true)} />
         </div>
 
         {/* MODAL: Record Admin Contribution */}

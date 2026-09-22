@@ -65,7 +65,7 @@ export default function GlobalRecordsPage() {
       const a = document.createElement('a');
       a.href = downloadUrl;
       const contentDisposition = response.headers.get('content-disposition');
-      let filename = 'Bina-Enterprise-Export.xlsx';
+      let filename = 'BJ-Desai-Export.xlsx';
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="(.+)"/);
         if (match) filename = match[1];

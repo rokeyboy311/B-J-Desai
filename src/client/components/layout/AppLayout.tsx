@@ -9,6 +9,7 @@ import {
 import { PWAInstallButton } from "../PWAInstallButton";
 import { motion, AnimatePresence } from "motion/react";
 import { triggerGlobalSync } from "../../hooks/useLiveSync";
+import AppLogo from "../icons/AppLogo";
 
 export default function AppLayout() {
   const { logout, user } = useAuth();
@@ -66,11 +67,11 @@ export default function AppLayout() {
       {/* Desktop Sidebar */}
       <aside className="w-[280px] bg-slate-900 text-slate-100 hidden md:flex flex-col h-full shadow-2xl z-20 shrink-0">
         <div className="p-6 flex items-center gap-3 border-b border-slate-800">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-2 ring-indigo-500/20">
-            <Building2 className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-lg shadow-amber-500/10 ring-2 ring-slate-700/50 shrink-0 overflow-hidden">
+            <AppLogo />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-white leading-tight">Bina Enterprise</h1>
+            <h1 className="text-lg font-bold tracking-tight text-white leading-tight">B J Desai</h1>
             <p className="text-[11px] text-indigo-400 font-medium tracking-wide uppercase mt-0.5">Central ERP System</p>
           </div>
         </div>
@@ -190,12 +191,12 @@ export default function AppLayout() {
         {/* Mobile Header */}
         <header className="md:hidden bg-white/95 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3 flex items-center justify-between z-30 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-xs">
-              <Building2 size={18} />
+            <div className="w-8 h-8 rounded-lg bg-white p-1 border border-slate-200 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+              <AppLogo />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-bold text-slate-900 tracking-tight">Bina Enterprise</h1>
+                <h1 className="text-sm font-bold text-slate-900 tracking-tight">B J Desai</h1>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live Synced" />
               </div>
               <p className="text-[10px] text-slate-500">Central ERP • Realtime</p>

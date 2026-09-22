@@ -1135,15 +1135,32 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                     rate: matched?.defaultRate ? String(matched.defaultRate) : prev.rate
                   }));
                 }}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
               >
                 <option value="">-- Select Material (મટીરીયલ પસંદ કરો) --</option>
                 {materials.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name} {m.category ? `(${m.category})` : ""} {m.defaultUnit ? `[${m.defaultUnit}]` : ""}
+                    {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || 'Nos'}) {m.category ? `• ${m.category}` : ""}
                   </option>
                 ))}
               </select>
+              {customerFormData.materialId && (
+                <div className="mt-1 flex items-center gap-1.5 text-[11px] font-bold">
+                  {(() => {
+                    const selMat = materials.find(m => m.id.toString() === customerFormData.materialId);
+                    const stock = selMat?.currentStock ?? 0;
+                    return (
+                      <span className={`px-2 py-0.5 rounded-md border ${
+                        stock > 0 
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                          : 'bg-rose-50 text-rose-700 border-rose-200'
+                      }`}>
+                        📦 Available Stock: {stock} {selMat?.defaultUnit || 'Nos'}
+                      </span>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             <div>
@@ -1382,13 +1399,23 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                           required
                           value={item.materialId}
                           onChange={e => updateSiteItem(index, 'materialId', e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-500"
                         >
-                          <option value="">- Select Material -</option>
+                          <option value="">- Select Material (મટીરીયલ) -</option>
                           {materials.map(m => (
-                            <option key={m.id} value={m.id}>{m.name}</option>
+                            <option key={m.id} value={m.id}>
+                              {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || 'Nos'})
+                            </option>
                           ))}
                         </select>
+                        {item.materialId && (
+                          <div className="mt-1 text-[10px] font-bold text-teal-700">
+                            {(() => {
+                              const selMat = materials.find(m => m.id.toString() === item.materialId);
+                              return `Available: ${selMat?.currentStock ?? 0} ${selMat?.defaultUnit || 'Nos'}`;
+                            })()}
+                          </div>
+                        )}
                       </div>
                       <div className="grid grid-cols-4 sm:col-span-7 gap-2">
                         <div>

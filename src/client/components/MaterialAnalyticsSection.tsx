@@ -6,7 +6,7 @@ import {
   Layers, ArrowDownToLine, Search, Filter, RefreshCw, 
   TrendingUp, TrendingDown, Package, DollarSign, ShoppingCart, 
   Truck, ArrowRight, Eye, X, CheckCircle2, AlertCircle, 
-  AlertTriangle, ShieldCheck, ChevronRight
+  AlertTriangle, ShieldCheck, ChevronRight, Trash2
 } from 'lucide-react';
 import { apiFetch, getStoredPinToken } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
@@ -66,7 +66,7 @@ export default function MaterialAnalyticsSection({
   selectedLocation = "ALL",
   locationName = "All Project Sites"
 }: MaterialAnalyticsSectionProps) {
-  const { showToast } = useToast();
+  const { showToast, confirmAction } = useToast();
   const [data, setData] = useState<MaterialAnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -135,6 +135,28 @@ export default function MaterialAnalyticsSection({
       currency: 'INR',
       maximumFractionDigits: 0
     }).format(val || 0);
+  };
+
+  const handleDeleteMaterial = async (matId?: number, matName?: string) => {
+    if (!matId) {
+      showToast("Cannot delete: Material ID not found", "error");
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: "Delete Material from Stock",
+      message: `Are you sure you want to delete "${matName || 'this material'}" from Central Stock?`,
+      confirmLabel: "Delete Material",
+      isDanger: true
+    });
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/materials/stock/${matId}`, { method: "DELETE" });
+      showToast(`Material "${matName}" deleted successfully`, "success");
+      fetchAnalytics(false);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete material", "error");
+    }
   };
 
   const filteredMaterials = useMemo(() => {
@@ -494,17 +516,31 @@ export default function MaterialAnalyticsSection({
                       </td>
 
                       <td className="px-3 py-3.5 text-center">
-                        <button
-                          id={`view-mat-detail-${idx}`}
-                          onClick={() => {
-                            setSelectedMaterial(m);
-                            setActiveHistoryTab('ALL');
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all border border-indigo-200/60"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Ledger</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            id={`view-mat-detail-${idx}`}
+                            onClick={() => {
+                              setSelectedMaterial(m);
+                              setActiveHistoryTab('ALL');
+                            }}
+                            title={`View ${m.materialName} Ledger`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all border border-indigo-200/60"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Ledger</span>
+                          </button>
+                          {m.materialId && (
+                            <button
+                              id={`delete-mat-${m.materialId}`}
+                              type="button"
+                              onClick={() => handleDeleteMaterial(m.materialId, m.materialName)}
+                              title={`Delete ${m.materialName}`}
+                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

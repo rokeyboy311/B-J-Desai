@@ -1,4 +1,4 @@
-// Service Worker for Bina Enterprise PWA
+// Service Worker for B J Desai PWA
 self.addEventListener('install', () => {
   self.skipWaiting();
 });

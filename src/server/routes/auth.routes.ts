@@ -229,7 +229,7 @@ const handleVerifySession = async (req: Request, res: Response) => {
       const user = await getSystemUser();
       return res.json({ 
         valid: true, 
-        app: 'Bina Enterprise',
+        app: 'B J Desai',
         user
       });
     } catch {
@@ -248,7 +248,7 @@ authRouter.post('/verify-session', handleVerifySession);
 authRouter.get('/me', requireAuth, (req: AuthRequest, res: Response) => {
   res.json({
     user: req.dbUser,
-    app: 'Bina Enterprise'
+    app: 'B J Desai'
   });
 });
 

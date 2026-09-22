@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { 
   Package, ShoppingCart, Truck, Wrench, Search, Plus, 
   ArrowDownLeft, ArrowUpRight, AlertTriangle, CheckCircle2, 
-  Layers, Filter, RefreshCw, FileSpreadsheet, Building2, Wallet
+  Layers, Filter, RefreshCw, FileSpreadsheet, Building2, Wallet, Trash2
 } from "lucide-react";
 import { motion } from "motion/react";
 import { apiFetch } from "../lib/api";
@@ -24,7 +24,7 @@ interface CentralStockItem {
 }
 
 export default function MaterialPurchasePage() {
-  const { showToast } = useToast();
+  const { showToast, confirmAction } = useToast();
   const [activeTab, setActiveTab] = useState<"stock" | "purchases" | "customer_supplies" | "site_supplies">("stock");
   const [stockItems, setStockItems] = useState<CentralStockItem[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -37,6 +37,8 @@ export default function MaterialPurchasePage() {
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [purchaseLocationFilter, setPurchaseLocationFilter] = useState<string>("ALL");
+  const [purchaseMaterialFilter, setPurchaseMaterialFilter] = useState<string>("ALL");
   const [customerLocationFilter, setCustomerLocationFilter] = useState<string>("ALL");
   const [customerMaterialFilter, setCustomerMaterialFilter] = useState<string>("ALL");
   const [siteLocationFilter, setSiteLocationFilter] = useState<string>("ALL");
@@ -126,6 +128,11 @@ export default function MaterialPurchasePage() {
       return;
     }
 
+    if (!purchaseForm.locationId) {
+      showToast("Please select a Purchase Location (ખરીદી સ્થળ)", "error");
+      return;
+    }
+
     const totalAmount = purchaseCalculations.total;
     const availableCap = adminCapital?.availableAdminCapital || 0;
 
@@ -135,7 +142,7 @@ export default function MaterialPurchasePage() {
     }
 
     try {
-      const locId = purchaseForm.locationId ? parseInt(purchaseForm.locationId, 10) : (locations[0]?.id || 1);
+      const locId = parseInt(purchaseForm.locationId, 10);
       
       await apiFetch("/materials/purchase", {
         method: "POST",
@@ -184,6 +191,82 @@ export default function MaterialPurchasePage() {
       loadData(true);
     } catch (err: any) {
       showToast(err.message || "Failed to record purchase", "error");
+    }
+  };
+
+  const handleDeleteStockMaterial = async (id: number, name: string) => {
+    const confirmed = await confirmAction({
+      title: "Delete Material from Stock",
+      message: `Are you sure you want to delete material "${name}" from the Central Stock Ledger?`,
+      confirmLabel: "Delete Material",
+      isDanger: true
+    });
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/materials/stock/${id}`, { method: "DELETE" });
+      showToast(`Material "${name}" deleted successfully`, "success");
+      triggerGlobalSync();
+      loadData(false);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete material", "error");
+    }
+  };
+
+  const handleDeletePurchase = async (id: number, partyName: string, materialName: string) => {
+    const confirmed = await confirmAction({
+      title: "Delete Material Purchase",
+      message: `Are you sure you want to delete purchase of "${materialName}" from "${partyName || 'Supplier'}"? Central stock will be updated.`,
+      confirmLabel: "Delete Purchase",
+      isDanger: true
+    });
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/materials/purchase/${id}`, { method: "DELETE" });
+      showToast(`Purchase record deleted successfully`, "success");
+      triggerGlobalSync();
+      loadData(false);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete purchase record", "error");
+    }
+  };
+
+  const handleDeleteCustomerSupply = async (id: number, customerName: string, materialName: string) => {
+    const confirmed = await confirmAction({
+      title: "Delete Customer Supply (Sales OUT)",
+      message: `Are you sure you want to delete supply record of "${materialName}" to "${customerName}"? Stock balance will be restored automatically.`,
+      confirmLabel: "Delete Supply",
+      isDanger: true
+    });
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/materials/supply/${id}`, { method: "DELETE" });
+      showToast(`Customer supply record deleted and stock restored`, "success");
+      triggerGlobalSync();
+      loadData(false);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete supply record", "error");
+    }
+  };
+
+  const handleDeleteSiteSupply = async (id: number, teamName: string, materialName: string) => {
+    const confirmed = await confirmAction({
+      title: "Delete Site Supply (Labour Team OUT)",
+      message: `Are you sure you want to delete site supply record of "${materialName}" to "${teamName || 'Site Team'}"? Stock balance will be restored automatically.`,
+      confirmLabel: "Delete Site Supply",
+      isDanger: true
+    });
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/materials/site-supply/${id}`, { method: "DELETE" });
+      showToast(`Site supply record deleted and stock restored`, "success");
+      triggerGlobalSync();
+      loadData(false);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete site supply record", "error");
     }
   };
 
@@ -237,7 +320,12 @@ export default function MaterialPurchasePage() {
 
           <button
             type="button"
-            onClick={() => setIsPurchaseModalOpen(true)}
+            onClick={() => {
+              if (!purchaseForm.locationId && locations.length > 0) {
+                setPurchaseForm(prev => ({ ...prev, locationId: locations[0].id.toString() }));
+              }
+              setIsPurchaseModalOpen(true);
+            }}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -338,12 +426,13 @@ export default function MaterialPurchasePage() {
                     <th className="py-3 px-4 text-right">Current Balance</th>
                     <th className="py-3 px-4 text-right">Default Rate</th>
                     <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredStock.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-400 text-sm">
+                      <td colSpan={8} className="text-center py-8 text-slate-400 text-sm">
                         No materials found. Record your first material purchase above.
                       </td>
                     </tr>
@@ -381,6 +470,16 @@ export default function MaterialPurchasePage() {
                             </span>
                           )}
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteStockMaterial(m.id, m.name)}
+                            title={`Delete ${m.name}`}
+                            className="inline-flex items-center justify-center p-2 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-rose-200 shadow-2xs"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -393,46 +492,99 @@ export default function MaterialPurchasePage() {
 
       {/* TAB 2: Purchase History */}
       {activeTab === "purchases" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
-                <tr>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Supplier / Party</th>
-                  <th className="py-3 px-4">Material</th>
-                  <th className="py-3 px-4 text-right">Quantity</th>
-                  <th className="py-3 px-4 text-right">Rate</th>
-                  <th className="py-3 px-4 text-right">Total Amount</th>
-                  <th className="py-3 px-4 text-center">Funding Source</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {purchases.length === 0 ? (
+        <div className="space-y-4">
+          {/* Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <select
+                value={purchaseLocationFilter}
+                onChange={(e) => setPurchaseLocationFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none"
+              >
+                <option value="ALL">All Purchase Locations</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id.toString()}>{loc.name}</option>
+                ))}
+              </select>
+
+              <select
+                value={purchaseMaterialFilter}
+                onChange={(e) => setPurchaseMaterialFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none"
+              >
+                <option value="ALL">All Materials</option>
+                {Array.from(new Set(purchases.map(p => p.materialName).filter(Boolean))).map((mat) => (
+                  <option key={mat} value={mat}>{mat}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-xs text-slate-500 font-semibold">
+              Showing {purchases.filter(p => (purchaseLocationFilter === "ALL" || String(p.locationId) === purchaseLocationFilter) && (purchaseMaterialFilter === "ALL" || p.materialName?.toUpperCase() === purchaseMaterialFilter.toUpperCase())).length} of {purchases.length} purchases
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-slate-400">
-                      No material purchases recorded yet.
-                    </td>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Supplier / Party</th>
+                    <th className="py-3 px-4">Purchase Location</th>
+                    <th className="py-3 px-4">Material</th>
+                    <th className="py-3 px-4 text-right">Quantity</th>
+                    <th className="py-3 px-4 text-right">Rate</th>
+                    <th className="py-3 px-4 text-right">Total Amount</th>
+                    <th className="py-3 px-4 text-center">Funding Source</th>
+                    <th className="py-3 px-4 text-center">Action</th>
                   </tr>
-                ) : (
-                  purchases.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/50">
-                      <td className="py-3 px-4 text-slate-600">{p.date}</td>
-                      <td className="py-3 px-4 font-bold text-slate-900">{p.partyName || "Central Supplier"}</td>
-                      <td className="py-3 px-4 font-semibold text-indigo-700">{p.materialName}</td>
-                      <td className="py-3 px-4 text-right font-medium">{p.quantity} {p.unit}</td>
-                      <td className="py-3 px-4 text-right text-slate-700">₹{parseFloat(p.rate || 0).toLocaleString("en-IN")}</td>
-                      <td className="py-3 px-4 text-right font-black text-slate-900">₹{parseFloat(p.totalAmount || 0).toLocaleString("en-IN")}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          Admin Capital
-                        </span>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {purchases.filter(p => (purchaseLocationFilter === "ALL" || String(p.locationId) === purchaseLocationFilter) && (purchaseMaterialFilter === "ALL" || p.materialName?.toUpperCase() === purchaseMaterialFilter.toUpperCase())).length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="text-center py-8 text-slate-400">
+                        No material purchases found matching selected criteria.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    purchases
+                      .filter(p => (purchaseLocationFilter === "ALL" || String(p.locationId) === purchaseLocationFilter) && (purchaseMaterialFilter === "ALL" || p.materialName?.toUpperCase() === purchaseMaterialFilter.toUpperCase()))
+                      .map((p) => (
+                        <tr key={p.id} className="hover:bg-slate-50/50">
+                          <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{p.date}</td>
+                          <td className="py-3 px-4 font-bold text-slate-900">{p.partyName || "Central Supplier"}</td>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                              <Building2 className="w-3 h-3 text-slate-500" />
+                              {p.locationName || "Central / Site"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-indigo-700">{p.materialName}</td>
+                          <td className="py-3 px-4 text-right font-medium whitespace-nowrap">{p.quantity} {p.unit}</td>
+                          <td className="py-3 px-4 text-right text-slate-700 whitespace-nowrap">₹{parseFloat(p.rate || 0).toLocaleString("en-IN")}</td>
+                          <td className="py-3 px-4 text-right font-black text-slate-900 whitespace-nowrap">₹{parseFloat(p.totalAmount || 0).toLocaleString("en-IN")}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                              Admin Capital
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePurchase(p.id, p.partyName, p.materialName)}
+                              title={`Delete Purchase of ${p.materialName}`}
+                              className="inline-flex items-center justify-center p-2 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-rose-200 shadow-2xs"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -486,12 +638,13 @@ export default function MaterialPurchasePage() {
                     <th className="py-3 px-4 text-right">Quantity</th>
                     <th className="py-3 px-4 text-right">Total (GST)</th>
                     <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {customerSupplies.filter(s => (customerLocationFilter === "ALL" || String(s.locationId) === customerLocationFilter) && (customerMaterialFilter === "ALL" || s.materialName?.toUpperCase() === customerMaterialFilter.toUpperCase())).length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-400">
+                      <td colSpan={8} className="text-center py-8 text-slate-400">
                         No customer material supplies matching the selected filter.
                       </td>
                     </tr>
@@ -512,6 +665,16 @@ export default function MaterialPurchasePage() {
                             }`}>
                               {s.paymentStatus}
                             </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomerSupply(s.id, s.customerName, s.materialName)}
+                              title={`Delete Supply to ${s.customerName}`}
+                              className="inline-flex items-center justify-center p-2 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-rose-200 shadow-2xs"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -571,12 +734,13 @@ export default function MaterialPurchasePage() {
                     <th className="py-3 px-4">Material</th>
                     <th className="py-3 px-4 text-right">Quantity</th>
                     <th className="py-3 px-4 text-right">Amount</th>
+                    <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {siteSupplies.filter(ss => (siteLocationFilter === "ALL" || String(ss.locationId) === siteLocationFilter) && (siteMaterialFilter === "ALL" || ss.materialName?.toUpperCase() === siteMaterialFilter.toUpperCase())).length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-400">
+                      <td colSpan={7} className="text-center py-8 text-slate-400">
                         No site supplies matching the selected filter.
                       </td>
                     </tr>
@@ -593,6 +757,16 @@ export default function MaterialPurchasePage() {
                           <td className="py-3 px-4 font-semibold text-teal-700">{ss.materialName}</td>
                           <td className="py-3 px-4 text-right font-medium">{ss.quantity} {ss.unit}</td>
                           <td className="py-3 px-4 text-right font-black text-slate-900">₹{parseFloat(ss.amount || 0).toLocaleString("en-IN")}</td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSiteSupply(ss.id, ss.teamName || ss.responsiblePerson, ss.materialName)}
+                              title={`Delete Site Supply of ${ss.materialName}`}
+                              className="inline-flex items-center justify-center p-2 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-rose-200 shadow-2xs"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       ))
                   )}
@@ -724,17 +898,21 @@ export default function MaterialPurchasePage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Destination Location</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                Purchase Location (ખરીદી સ્થળ) *
+              </label>
               <select
+                required
                 value={purchaseForm.locationId}
                 onChange={(e) => setPurchaseForm({ ...purchaseForm, locationId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
               >
-                <option value="">Central Enterprise Stock</option>
+                <option value="">Select Purchase Location</option>
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
+              <p className="text-[10px] text-slate-500 mt-1">Record of where the material was purchased/delivered.</p>
             </div>
           </div>
 

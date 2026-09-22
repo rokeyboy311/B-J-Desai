@@ -27,7 +27,7 @@ export const locations = pgTable('locations', {
   isDeleted: integer('is_deleted').default(0).notNull(), // Soft delete flag (0 = active, 1 = deleted)
 });
 
-// Define the 'records' table (Bina Enterprise) - Used for Income & Expenses
+// Define the 'records' table (B J Desai) - Used for Income & Expenses
 export const records = pgTable('records', {
   id: serial('id').primaryKey(),
   locationId: integer('location_id')

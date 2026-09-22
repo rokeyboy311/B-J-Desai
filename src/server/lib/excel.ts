@@ -6,7 +6,7 @@ export function generateExcelBuffer(locationName: string, data: any, tab: string
   // Summary Sheet
   if (tab === 'all') {
     const summaryData = [
-      ['BINA ENTERPRISE - ERP FINANCIAL AUDIT REPORT'],
+      ['B J DESAI - ERP FINANCIAL AUDIT REPORT'],
       ['Location / Project:', locationName],
       ['Generated On:', new Date().toLocaleString()],
       ['Status:', 'Live Database Reconciliation'],
@@ -243,7 +243,7 @@ export function generateInvestorStatementBuffer(party: any, transactions: any[],
   const availableBalance = Math.round((totalContributed - totalInvestedKarya - totalUpad) * 100) / 100;
 
   const headerData = [
-    ['BINA ENTERPRISE - INDIVIDUAL INVESTOR PERSONAL FILE / PASSBOOK'],
+    ['B J DESAI - INDIVIDUAL INVESTOR PERSONAL FILE / PASSBOOK'],
     ['Investor Name:', party.partyName],
     ['Project Location:', locationName],
     ['Statement Date:', new Date().toLocaleDateString()],
@@ -318,7 +318,7 @@ export function generateVendorPurchasesBuffer(vendorName: string, purchases: any
   });
 
   const headerData = [
-    ['BINA ENTERPRISE - VENDOR PURCHASE STATEMENT'],
+    ['B J DESAI - VENDOR PURCHASE STATEMENT'],
     ['Vendor / Supplier Name:', vendorName],
     ['Project Location:', locationName],
     ['Statement Date:', new Date().toLocaleDateString()],
@@ -374,7 +374,7 @@ export function generateCustomerSuppliesBuffer(customerName: string, supplies: a
   });
 
   const headerData = [
-    ['BINA ENTERPRISE - CUSTOMER MATERIAL SUPPLY STATEMENT / BILL'],
+    ['B J DESAI - CUSTOMER MATERIAL SUPPLY STATEMENT / BILL'],
     ['Customer / Party Name:', customerName],
     ['Project Location:', locationName],
     ['Statement Date:', new Date().toLocaleDateString()],
@@ -430,7 +430,7 @@ export function generateRefundableRecordsBuffer(recordsList: any[], locationName
   const pendingRefundable = Math.max(0, Math.round((totalDisbursed - totalRefunded) * 100) / 100);
 
   const headerData = [
-    ['BINA ENTERPRISE - REFUNDABLE RECORDS & SECURITY DEPOSITS AUDIT'],
+    ['B J DESAI - REFUNDABLE RECORDS & SECURITY DEPOSITS AUDIT'],
     ['Location / Project:', locationName],
     ['Audit Date:', new Date().toLocaleDateString()],
     [],
@@ -535,7 +535,7 @@ export function generateSiteSuppliesBuffer(siteSuppliesList: any[], locationName
   });
 
   const headerData = [
-    ['BINA ENTERPRISE - CATEGORY 5: SITE MATERIAL SUPPLY REGISTER (WITH GST)'],
+    ['B J DESAI - CATEGORY 5: SITE MATERIAL SUPPLY REGISTER (WITH GST)'],
     ['Project Location:', locationName],
     ['Export Date:', new Date().toLocaleDateString()],
     [],
@@ -562,7 +562,7 @@ export function generateMaterialAnalyticsBuffer(locationName: string, analytics:
 
   // Sheet 1: Executive Summary
   const summaryData = [
-    ['BINA ENTERPRISE - MATERIAL PURCHASE VS SUPPLY ANALYTICS AUDIT'],
+    ['B J DESAI - MATERIAL PURCHASE VS SUPPLY ANALYTICS AUDIT'],
     ['Location / Project:', locationName],
     ['Generated On:', new Date().toLocaleString()],
     ['Report Type:', 'Comprehensive Material Costing, Pricing & Inventory Stock Valuation'],
@@ -675,7 +675,7 @@ export function generateMaterialAnalyticsBuffer(locationName: string, analytics:
 export function generateContractorCostsBuffer(locationName: string, costs: any[]) {
   const wb = utils.book_new();
   const summaryHeader = [
-    ['BINA ENTERPRISE - CONTRACTOR COSTS & LABOUR EXPENSE REGISTER'],
+    ['B J DESAI - CONTRACTOR COSTS & LABOUR EXPENSE REGISTER'],
     ['Location / Project:', locationName],
     ['Generated Date:', new Date().toLocaleString()],
     ['Total Records:', costs.length],
@@ -709,7 +709,7 @@ export function generateReconciliationBuffer(locationName: string, recon: any) {
   const wb = utils.book_new();
 
   const summary = [
-    ['BINA ENTERPRISE - 5-TIER FINANCIAL RECONCILIATION AUDIT REPORT'],
+    ['B J DESAI - 5-TIER FINANCIAL RECONCILIATION AUDIT REPORT'],
     ['Location / Project:', locationName],
     ['Generated Date:', new Date().toLocaleString()],
     [],

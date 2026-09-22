@@ -1861,11 +1861,11 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       ? 'MATCHED' 
       : (contractorVariance > 0 ? 'SURPLUS' : 'DEFICIT');
 
-    // Grand Project Deductions across Categories 3, 4, 5, 6 and Refundable Outflows funded by Investment Capital
-    const totalProjectExpenditure = Math.round((cat3Total + cat4Total + cat5Total + cat6Total + pendingRefundable) * 100) / 100;
-    const totalCashPaidExpenditure = Math.round((cat3Paid + cat4Paid + cat5Total + cat6CashPaid + pendingRefundable) * 100) / 100;
+    // Grand Project Deductions across Site Supplies (Cat 5), Labour & Kharch (Cat 6) and Refundable Outflows funded by Investment Capital
+    const totalProjectExpenditure = Math.round((cat5Total + cat6Total + pendingRefundable) * 100) / 100;
+    const totalCashPaidExpenditure = Math.round((cat5Total + cat6CashPaid + pendingRefundable) * 100) / 100;
     
-    // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Cat 3 to 6 + Refundable) - Investor Upad / Return
+    // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Site Supply + Labour + Refundable) - Investor Upad / Return
     const remainingInvestmentCapital = Math.round((fullCapital - totalProjectExpenditure - returnsToInvestors) * 100) / 100;
     
     const utilizationRate = fullCapital > 0
@@ -1879,44 +1879,8 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       status = 'WARNING';
     }
 
-    // Itemized recent deductions across Categories 3, 4, 5, 6 and Refundables for live passbook
-    const [recentPurchases, recentSupplies, recentSiteSupplies, recentLabour, recentRefundables, recentLegacyTxs, recentDirectAllocs, recentBills] = await Promise.all([
-      db.select({
-        id: materialPurchases.id,
-        date: materialPurchases.date,
-        category: sql<string>`'CAT_3_PURCHASE'`,
-        categoryKey: sql<string>`'CAT3_PURCHASE'`,
-        categoryName: sql<string>`'Cat 3: Material Purchase'`,
-        partyName: materialPurchases.partyName,
-        description: sql<string>`concat(${materialPurchases.materialName}, ' (', ${materialPurchases.quantity}, ' ', ${materialPurchases.unit}, ')')`,
-        amount: materialPurchases.totalAmount,
-        paidAmount: materialPurchases.paidAmount,
-        referenceNumber: materialPurchases.invoiceNumber,
-        paymentStatus: materialPurchases.paymentStatus
-      })
-      .from(materialPurchases)
-      .where(and(eq(materialPurchases.locationId, locationId), eq(materialPurchases.isDeleted, 0)))
-      .orderBy(desc(materialPurchases.date), desc(materialPurchases.id))
-      .limit(40),
-
-      db.select({
-        id: materialSupplies.id,
-        date: materialSupplies.date,
-        category: sql<string>`'CAT_4_SUPPLY'`,
-        categoryKey: sql<string>`'CAT4_SUPPLY'`,
-        categoryName: sql<string>`'Cat 4: Material Supply'`,
-        partyName: materialSupplies.partyName,
-        description: sql<string>`concat(${materialSupplies.materialName}, ' (', ${materialSupplies.quantity}, ' ', ${materialSupplies.unit}, ')')`,
-        amount: materialSupplies.totalAmount,
-        paidAmount: materialSupplies.paidAmount,
-        referenceNumber: materialSupplies.invoiceNumber,
-        paymentStatus: materialSupplies.paymentStatus
-      })
-      .from(materialSupplies)
-      .where(and(eq(materialSupplies.locationId, locationId), eq(materialSupplies.isDeleted, 0)))
-      .orderBy(desc(materialSupplies.date), desc(materialSupplies.id))
-      .limit(40),
-
+    // Itemized recent operational deductions across Site Supplies, Labour, and Refundables
+    const [recentSiteSupplies, recentLabour, recentRefundables, recentLegacyTxs, recentDirectAllocs, recentBills] = await Promise.all([
       db.select({
         id: siteSupplies.id,
         date: siteSupplies.date,
@@ -2066,8 +2030,6 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
 
     // Merge and sort all deductions chronologically descending
     const itemizedDeductions = [
-      ...recentPurchases,
-      ...recentSupplies,
       ...recentSiteSupplies,
       ...recentLabour,
       ...recentRefundables

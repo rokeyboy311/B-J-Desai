@@ -41,9 +41,10 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
       teamName: labourTeams.name
     })
     .from(siteSupplies)
-    .leftJoin(locations, eq(siteSupplies.locationId, locations.id))
+    .innerJoin(locations, eq(siteSupplies.locationId, locations.id))
     .leftJoin(labourTeams, eq(siteSupplies.teamId, labourTeams.id))
     .where(and(
+      eq(locations.isDeleted, 0),
       locationId ? eq(siteSupplies.locationId, locationId) : undefined,
       eq(siteSupplies.isDeleted, 0)
     ))
@@ -177,7 +178,6 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
       if ((!matId || isNaN(matId)) && matName) {
         const existing = await db.select().from(materials).where(
           and(
-            eq(materials.locationId, locId),
             sql`UPPER(TRIM(${materials.name})) = ${matName}`,
             eq(materials.isDeleted, 0)
           )
@@ -218,6 +218,10 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
 
     const calculated = calculateSiteSupplyTotals(resolvedItems);
 
+    const cleanInvestorId = (investorId && !isNaN(parseInt(String(investorId), 10)))
+      ? parseInt(String(investorId), 10)
+      : null;
+
     const result = await db.transaction(async (tx) => {
       // Create metadata holding granular GST values
       const supplyMeta = {
@@ -238,23 +242,17 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
         locationId: locId,
         date,
         teamId: finalTeamId || null,
-        responsiblePerson,
-        workDescription,
-        referenceNumber,
+        responsiblePerson: responsiblePerson || rawTeamName || 'Direct Site Team',
+        workDescription: workDescription || '',
+        referenceNumber: referenceNumber || null,
         notes: JSON.stringify(supplyMeta),
-        investorId: investorId || null,
+        investorId: cleanInvestorId,
         totalAmount: calculated.totalAmount.toString()
       }).returning();
       
       const supplyId = supply[0].id;
       
       for (const itemCalc of calculated.items) {
-        // Validate Central Stock availability before deducting
-        const stockCheck = await StockManager.checkCentralStockAvailability(tx, itemCalc.materialId, itemCalc.quantity);
-        if (!stockCheck.available) {
-          throw new Error(`Insufficient Central Stock for material #${itemCalc.materialId}: Available stock is ${stockCheck.currentStock}, requested is ${itemCalc.quantity}.`);
-        }
-
         const itemRow = await tx.insert(siteSupplyItems).values({
           siteSupplyId: supplyId,
           materialId: itemCalc.materialId,

@@ -647,11 +647,16 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
               <CalendarCheck className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                6. Labour Attendance & Operational Expenses
-              </h2>
-              <p className="text-xs text-slate-500 font-medium">
-                Add Attendance (Day/TC), Team Upad advances, and Other Kharch. Deducted from Cat 2 Capital.
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wider">
+                  Category 5
+                </span>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                  Labour Attendance & Team Upad (લેબર હાજરી & ઉપાડ)
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Record worker attendance (Day-wise & TC-wise) and track Team Upad advances. (Other Kharch is recorded in Category 6).
               </p>
             </div>
           </div>
@@ -661,7 +666,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           <button
             type="button"
             onClick={() => setIsManageTeamOpen(true)}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Users className="w-3.5 h-3.5 text-slate-600" />
             Manage Teams ({teams.length})
@@ -669,107 +674,81 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         </div>
       </div>
 
-      {/* High-Level Overview Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* High-Level Overview Metrics Cards (Attendance - Upad = Balance) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* 1. Total Attendance Wages */}
         <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-800">1. Attendance Wages</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-800">1. Attendance Wages Earned</span>
             <Calendar className="w-4 h-4 text-amber-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900">₹{summaries.totalAttendanceWages.toLocaleString()}</p>
+          <p className="text-2xl font-black text-slate-900">₹{summaries.totalAttendanceWages.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
           <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            <span>Day: ₹{summaries.totalDayWiseWages.toLocaleString()} ({summaries.totalDayWiseDays}d)</span>
-            <span>TC: ₹{summaries.totalTcWiseWages.toLocaleString()}</span>
+            <span>Day: ₹{summaries.totalDayWiseWages.toLocaleString('en-IN')} ({summaries.totalDayWiseDays}d)</span>
+            <span>TC: ₹{summaries.totalTcWiseWages.toLocaleString('en-IN')}</span>
           </div>
         </div>
 
         {/* 2. Total Team Upad */}
         <div className="bg-white border border-indigo-200/80 rounded-2xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-800">2. Team Upad (Advances)</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-800">2. Team Upad (Advances Paid)</span>
             <ArrowDownRight className="w-4 h-4 text-indigo-600" />
           </div>
-          <p className="text-2xl font-black text-indigo-700">₹{summaries.totalTeamUpad.toLocaleString()}</p>
+          <p className="text-2xl font-black text-indigo-700">₹{summaries.totalTeamUpad.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
           <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
             Cash & online advances given to teams
           </p>
         </div>
 
-        {/* 3. Total Other Kharch */}
-        <div className="bg-white border border-rose-200/80 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-800">3. Other Kharch</span>
-            <Coffee className="w-4 h-4 text-rose-600" />
-          </div>
-          <p className="text-2xl font-black text-rose-700">₹{summaries.totalOtherKharch.toLocaleString()}</p>
-          <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            Tea, travel, tools, fuel & site sundry costs
-          </p>
-        </div>
-
-        {/* 4. Total Labour Deduction for Cat 2 */}
+        {/* 3. Net Outstanding Wages (Attendance Wages - Upad) */}
         <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-amber-400 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Cat 2 Capital Deduction</span>
+              <span className="text-xs font-bold uppercase tracking-wider">Net Outstanding Balance</span>
               <Calculator className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-black text-white">₹{summaries.totalLabourOutflow.toLocaleString()}</p>
+            <p className="text-2xl font-black text-white">
+              ₹{(summaries.totalAttendanceWages - summaries.totalTeamUpad).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </p>
           </div>
           <p className="text-[11px] text-slate-300 mt-2 pt-2 border-t border-slate-800">
-            Total deducted from Cat 2 Investment Capital
+            કુલ હાજરી મજૂરી - ટીમ ઉપાડ (Attendance - Upad)
           </p>
         </div>
       </div>
 
-      {/* Primary Category 6 Subtabs: 1. Add Attendance, 2. Team Upad, 3. Other Kharch */}
+      {/* Primary Category 5 Subtabs: 1. Add Attendance, 2. Team Upad */}
       <div className="bg-slate-100/80 p-1.5 rounded-2xl flex flex-col sm:flex-row gap-1 border border-slate-200">
         <button
           type="button"
           onClick={() => setActiveSubTab("add_attendance")}
-          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
             activeSubTab === "add_attendance"
               ? "bg-white text-slate-900 shadow-sm border border-slate-200"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
           <CalendarCheck className="w-4 h-4 text-amber-600" />
-          <span>1. Add Attendance</span>
+          <span>1. Add Attendance (Day & TC)</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-black">
-            ₹{summaries.totalAttendanceWages.toLocaleString()}
+            ₹{summaries.totalAttendanceWages.toLocaleString('en-IN')}
           </span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSubTab("team_upad")}
-          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
             activeSubTab === "team_upad"
               ? "bg-white text-slate-900 shadow-sm border border-slate-200"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
           <ArrowDownRight className="w-4 h-4 text-indigo-600" />
-          <span>2. Team Upad</span>
+          <span>2. Team Upad (Advances)</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-black">
-            ₹{summaries.totalTeamUpad.toLocaleString()}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSubTab("other_kharch")}
-          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-            activeSubTab === "other_kharch"
-              ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-              : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-          }`}
-        >
-          <Receipt className="w-4 h-4 text-rose-600" />
-          <span>3. Other Kharch</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-black">
-            ₹{summaries.totalOtherKharch.toLocaleString()}
+            ₹{summaries.totalTeamUpad.toLocaleString('en-IN')}
           </span>
         </button>
       </div>

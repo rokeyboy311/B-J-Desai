@@ -403,7 +403,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
     const cat2Calculation = calculateCategory2Capital({
       investmentFromInvestors: investmentFromInvestorsCapital,
       billInvestment: totalBillInvestment,
-      cat3Deduction: totalMaterialPurchase,
+      cat3Deduction: 0, // Material Purchases completely removed from Category 2 operational deductions as per user request
       cat4Deduction: 0, // Material Supply is customer sales, not project capital deduction
       cat5Deduction: totalMaterialLabourSupply,
       cat6Deduction: labourPaidOut,
@@ -422,7 +422,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       totalInvested: cat2Calculation.fullCapital,
       totalUpad: cat2Calculation.investorUpadReturn,
       netCapitalPool: cat2Calculation.fullCapital,
-      materialPurchaseExpense: cat2Calculation.cat3Deduction,
+      materialPurchaseExpense: 0,
       siteSupplyExpense: cat2Calculation.cat5Deduction,
       labourSalaryExpense: cat2Calculation.cat6Deduction,
       refundableExpense: cat2Calculation.refundableDeduction,
@@ -431,7 +431,7 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       remainingCapital: cat2Calculation.remainingCapital,
       utilizationRate,
       categoryDetails: {
-        cat3MaterialPurchases: cat2Calculation.cat3Deduction,
+        cat3MaterialPurchases: 0,
         cat4MaterialSupplies: cat2Calculation.cat4Deduction,
         cat5SiteSupplies: cat2Calculation.cat5Deduction,
         cat6Labour: cat2Calculation.cat6Deduction,
@@ -594,17 +594,17 @@ reportRouter.get('/reconciliation', async (req: AuthRequest, res: Response) => {
     const siteSupplyQuery = await db.execute(sql`
       SELECT s.location_id as "locationId", l.name as "locationName", s.team_id as "teamId", t.name as "teamName", SUM(s.total_amount) as "totalSiteSupply"
       FROM site_supplies s
-      LEFT JOIN locations l ON s.location_id = l.id
+      INNER JOIN locations l ON s.location_id = l.id
       LEFT JOIN labour_teams t ON s.team_id = t.id
-      WHERE s.is_deleted = 0
+      WHERE s.is_deleted = 0 AND l.is_deleted = 0
       GROUP BY s.location_id, l.name, s.team_id, t.name
     `);
     
     const supQuery = await db.execute(sql`
       SELECT c.location_id as "locationId", l.name as "locationName", SUM(c.amount) as "totalSupervisorCost"
       FROM supervisor_costs c
-      LEFT JOIN locations l ON c.location_id = l.id
-      WHERE c.is_deleted = 0
+      INNER JOIN locations l ON c.location_id = l.id
+      WHERE c.is_deleted = 0 AND l.is_deleted = 0
       GROUP BY c.location_id, l.name
     `);
     
@@ -664,6 +664,311 @@ reportRouter.get('/reconciliation', async (req: AuthRequest, res: Response) => {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Reconciliation report error:', error);
     res.status(500).json({ error: 'Failed to generate reconciliation report' });
+  }
+});
+
+reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
+
+    // Fetch all active, undeleted locations
+    const activeLocations = await db.select({
+      id: locations.id,
+      name: locations.name,
+      address: locations.address,
+      createdAt: locations.createdAt,
+    }).from(locations)
+      .where(eq(locations.isDeleted, 0))
+      .orderBy(locations.name);
+
+    if (activeLocations.length === 0) {
+      return res.json([]);
+    }
+
+    const locBreakdown = await Promise.all(
+      activeLocations.map(async (loc) => {
+        const locId = loc.id;
+
+        // 1. Records count & Income/Bill Investment & Master Data counts
+        const [recCountRes, ieRes, matCountRes, partyCountRes, teamCountRes] = await Promise.all([
+          db.execute(sql`SELECT COUNT(id) as count FROM records WHERE location_id = ${locId} AND is_deleted = 0`),
+          db.execute(sql`
+            SELECT 
+              SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as income,
+              SUM(CASE WHEN type = 'INCOME' AND category = 'BILL_INVESTMENT' THEN amount ELSE 0 END) as bill_investment,
+              SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as expense,
+              SUM(CASE WHEN type = 'EXPENSE' AND (category = 'REFUNDABLE_RECORD' OR category = 'REFUNDABLE') THEN amount ELSE 0 END) as refundable,
+              SUM(CASE WHEN refunded_amount > 0 THEN refunded_amount ELSE 0 END) as refunded
+            FROM records 
+            WHERE location_id = ${locId} AND is_deleted = 0
+          `),
+          db.execute(sql`SELECT COUNT(id) as count FROM materials WHERE location_id = ${locId} AND is_deleted = 0`),
+          db.execute(sql`SELECT COUNT(id) as count FROM investment_parties WHERE location_id = ${locId} AND is_deleted = 0`),
+          db.execute(sql`SELECT COUNT(id) as count FROM labour_teams WHERE location_id = ${locId} AND is_deleted = 0`)
+        ]);
+
+        const recordCount = parseInt(recCountRes.rows[0]?.count as string || '0', 10);
+        const billInvestment = parseFloat(ieRes.rows[0]?.bill_investment as string || '0');
+        const totalIncome = parseFloat(ieRes.rows[0]?.income as string || '0');
+        const totalRefundable = parseFloat(ieRes.rows[0]?.refundable as string || '0');
+        const totalRefunded = parseFloat(ieRes.rows[0]?.refunded as string || '0');
+        const pendingRefundable = Math.max(0, totalRefundable - totalRefunded);
+
+        const materialCount = parseInt(matCountRes.rows[0]?.count as string || '0', 10);
+        const partyCount = parseInt(partyCountRes.rows[0]?.count as string || '0', 10);
+        const teamCount = parseInt(teamCountRes.rows[0]?.count as string || '0', 10);
+
+        // 2. Investor Capital allocated to this location
+        const [allocRes, invPartyRes] = await Promise.all([
+          db.execute(sql`
+            SELECT SUM(amount) as total 
+            FROM investor_location_allocations 
+            WHERE location_id = ${locId} AND is_deleted = 0
+          `),
+          db.execute(sql`
+            SELECT 
+              SUM(CASE WHEN t.type = 'INVESTMENT' THEN t.amount ELSE 0 END) as total_invested,
+              SUM(CASE WHEN t.type = 'CONTRIBUTION' THEN t.amount ELSE 0 END) as total_contribution,
+              SUM(CASE WHEN t.type = 'UPAD' THEN t.amount ELSE 0 END) as total_upad,
+              SUM(CASE WHEN t.type = 'PAYMENT' THEN t.amount ELSE 0 END) as total_payment
+            FROM investment_parties p
+            LEFT JOIN investment_transactions t ON t.party_id = p.id AND t.is_deleted = 0
+            WHERE p.location_id = ${locId} AND p.is_deleted = 0
+          `)
+        ]);
+
+        const allocatedCapital = parseFloat(allocRes.rows[0]?.total as string || '0');
+        const investorKarya = parseFloat(invPartyRes.rows[0]?.total_invested as string || '0');
+        const investorContribution = parseFloat(invPartyRes.rows[0]?.total_contribution as string || '0');
+        const investorUpad = parseFloat(invPartyRes.rows[0]?.total_upad as string || '0');
+        const investorPayment = parseFloat(invPartyRes.rows[0]?.total_payment as string || '0');
+
+        const totalInvestorCapital = allocatedCapital + investorKarya;
+        const investorTotalContribution = investorContribution > 0 ? investorContribution : totalInvestorCapital;
+        const investorAvailableBalance = Math.max(0, Math.round((investorTotalContribution - totalInvestorCapital - (investorUpad + investorPayment)) * 100) / 100);
+
+        // 3. Material Purchases (Cat 3)
+        const mpRes = await db.execute(sql`
+          SELECT 
+            COALESCE(SUM(total_amount), 0) as total,
+            COALESCE(SUM(paid_amount), 0) as paid
+          FROM material_purchases
+          WHERE location_id = ${locId} AND is_deleted = 0
+        `);
+        const materialPurchases = parseFloat(mpRes.rows[0]?.total as string || '0');
+        const materialPurchasesPaid = parseFloat(mpRes.rows[0]?.paid as string || '0');
+
+        // 4. Material Supplies (Cat 2 in location - Customer Sales)
+        const msRes = await db.execute(sql`
+          SELECT 
+            COALESCE(SUM(total_amount), 0) as total,
+            COALESCE(SUM(paid_amount), 0) as paid
+          FROM material_supplies
+          WHERE location_id = ${locId} AND is_deleted = 0
+        `);
+        const materialSupplies = parseFloat(msRes.rows[0]?.total as string || '0');
+        const materialSuppliesPaid = parseFloat(msRes.rows[0]?.paid as string || '0');
+        const materialSuppliesPending = Math.max(0, Math.round((materialSupplies - materialSuppliesPaid) * 100) / 100);
+
+        // 5. Site Supplies (Cat 3 in location - Site Materials Dispatched)
+        const ssRes = await db.execute(sql`
+          SELECT COALESCE(SUM(total_amount), 0) as total
+          FROM site_supplies
+          WHERE location_id = ${locId} AND is_deleted = 0
+        `);
+        const siteSupplies = parseFloat(ssRes.rows[0]?.total as string || '0');
+
+        // 6. Labour Attendance (Cat 5: Attendance & Team Upad; Cat 6: Other Kharch)
+        const lsRes = await db.execute(sql`
+          SELECT 
+            COALESCE(SUM(CASE WHEN attendance_type IN ('DAY', 'TC') OR (attendance_type != 'OTHER_KHARCH' AND attendance_type != 'UPAD' AND (days > 0 OR tc_quantity > 0 OR gross_salary > 0)) THEN gross_salary ELSE 0 END), 0) as attendance_wages,
+            COALESCE(SUM(CASE WHEN attendance_type = 'UPAD' OR upad > 0 THEN upad ELSE 0 END), 0) as total_upad,
+            COALESCE(SUM(CASE WHEN attendance_type = 'OTHER_KHARCH' THEN payment_amount ELSE 0 END), 0) as total_other_kharch,
+            COALESCE(SUM(CASE WHEN attendance_type = 'DAY' THEN days ELSE 0 END), 0) as days,
+            COALESCE(SUM(tc_quantity), 0) as work_qty,
+            COUNT(id) as record_count
+          FROM labour_salaries
+          WHERE location_id = ${locId} AND is_deleted = 0
+        `);
+        const attendanceWages = parseFloat(lsRes.rows[0]?.attendance_wages as string || '0');
+        const labourUpad = parseFloat(lsRes.rows[0]?.total_upad as string || '0');
+        const totalOtherKharch = parseFloat(lsRes.rows[0]?.total_other_kharch as string || '0');
+        const labourNetSalary = Math.round((attendanceWages - labourUpad) * 100) / 100;
+        const labourDays = parseFloat(lsRes.rows[0]?.days as string || '0');
+        const labourWorkQty = parseFloat(lsRes.rows[0]?.work_qty as string || '0');
+        const labourRecordCount = parseInt(lsRes.rows[0]?.record_count as string || '0', 10);
+
+        // 7. Contractor Costs (Cat 7 in location - Reconciliation)
+        const ccRes = await db.execute(sql`
+          SELECT 
+            COALESCE(SUM(amount), 0) as recorded_total,
+            COALESCE(SUM(deduction_amount), 0) as deduction_total,
+            COALESCE(SUM(net_amount), 0) as net_total,
+            COUNT(id) as cost_count
+          FROM contractor_costs
+          WHERE location_id = ${locId} AND is_deleted = 0
+        `);
+        const recordedContractorCost = parseFloat(ccRes.rows[0]?.recorded_total as string || '0');
+        const expectedContractorCost = Math.round((siteSupplies + attendanceWages) * 100) / 100;
+        const contractorVariance = Math.round((recordedContractorCost - expectedContractorCost) * 100) / 100;
+
+        // Location 7 Categories Calculations:
+        // Cat 2: Investment Capital (પ્રોજેક્ટ મૂડી & કપાત - Net Project Capital)
+        const fullProjectCapital = Math.round((totalInvestorCapital + billInvestment) * 100) / 100;
+        const projectOperationalDeductions = Math.round((siteSupplies + labourUpad + totalOtherKharch + pendingRefundable) * 100) / 100;
+        const remainingProjectCapital = Math.round((fullProjectCapital - projectOperationalDeductions - investorPayment) * 100) / 100;
+
+        return {
+          id: loc.id,
+          name: loc.name,
+          address: loc.address,
+          createdAt: loc.createdAt,
+          recordCount,
+
+          // Full 7 Categories Analytics Per Location (Sequence 1 to 7):
+          // 1. Investor Capital (Investor Pool)
+          cat1InvestorCapital: {
+            totalContribution: investorTotalContribution,
+            allocatedCapital: totalInvestorCapital,
+            investorUpad: investorUpad + investorPayment,
+            availableBalance: investorAvailableBalance
+          },
+
+          // 2. Investment Capital
+          cat2InvestmentCapital: {
+            fullCapital: fullProjectCapital,
+            investorCapital: totalInvestorCapital,
+            billInvestment,
+            operationalDeductions: projectOperationalDeductions,
+            investorUpadReturn: investorPayment,
+            remainingCapital: remainingProjectCapital
+          },
+
+          // 3. Customer Supply (Customer Sales Billed)
+          cat3CustomerSupply: {
+            totalSupply: materialSupplies,
+            received: materialSuppliesPaid,
+            pending: materialSuppliesPending
+          },
+
+          // 4. Site Supply to Labour Team
+          cat4SiteSupply: {
+            totalSiteSupply: siteSupplies
+          },
+
+          // 5. Labour Attendance (Attendance total - Upad)
+          cat5LabourAttendance: {
+            attendanceWages,
+            upad: labourUpad,
+            netBalance: labourNetSalary,
+            days: labourDays,
+            workQty: labourWorkQty,
+            recordCount: labourRecordCount
+          },
+
+          // 6. Other Kharch (Site Sundry / Tea / Fuel Expenses)
+          cat6OtherKharch: {
+            totalOtherKharch
+          },
+
+          // 7. Contractor Cost
+          cat7ContractorCost: {
+            recorded: recordedContractorCost,
+            expected: expectedContractorCost,
+            variance: contractorVariance,
+            status: Math.abs(contractorVariance) <= 0.01 ? 'MATCHED' : (contractorVariance > 0 ? 'SURPLUS' : 'DEFICIT')
+          },
+
+          // Master Registry Data
+          masterData: {
+            materialsCount: materialCount,
+            partiesCount: partyCount,
+            teamsCount: teamCount
+          },
+
+          // Backwards compatibility properties
+          cat1InvestmentCapital: {
+            fullCapital: fullProjectCapital,
+            investorCapital: totalInvestorCapital,
+            billInvestment,
+            operationalDeductions: projectOperationalDeductions,
+            investorUpadReturn: investorPayment,
+            remainingCapital: remainingProjectCapital
+          },
+          cat2MaterialSupply: {
+            totalSupply: materialSupplies,
+            received: materialSuppliesPaid,
+            pending: materialSuppliesPending
+          },
+          cat3SiteSupply: {
+            totalSiteSupply: siteSupplies
+          },
+          cat4LabourAttendance: {
+            attendanceWages,
+            netSalary: labourNetSalary,
+            grossSalary: attendanceWages,
+            upad: labourUpad,
+            payment: labourUpad,
+            balance: labourNetSalary,
+            days: labourDays,
+            workQty: labourWorkQty,
+            recordCount: labourRecordCount
+          },
+          cat5ContractorCost: {
+            recorded: recordedContractorCost,
+            expected: expectedContractorCost,
+            variance: contractorVariance,
+            status: Math.abs(contractorVariance) <= 0.01 ? 'MATCHED' : (contractorVariance > 0 ? 'SURPLUS' : 'DEFICIT')
+          },
+          cat6MasterData: {
+            materialsCount: materialCount,
+            partiesCount: partyCount,
+            teamsCount: teamCount
+          },
+          cat7InvestorCapital: {
+            totalContribution: investorTotalContribution,
+            allocatedCapital: totalInvestorCapital,
+            investorUpad: investorUpad + investorPayment,
+            availableBalance: investorAvailableBalance
+          },
+          investorCapital: totalInvestorCapital,
+          investorUpad,
+          investorPayment,
+          billInvestment,
+          totalIncome,
+          materialPurchases,
+          materialPurchasesPaid,
+          materialSupplies,
+          materialSuppliesPaid,
+          siteSupplies,
+          otherKharchTotal: totalOtherKharch,
+          labourMetrics: {
+            attendanceWages,
+            netSalary: labourNetSalary,
+            grossSalary: attendanceWages,
+            upad: labourUpad,
+            payment: labourUpad,
+            balance: labourNetSalary,
+            days: labourDays,
+            workQty: labourWorkQty,
+            recordCount: labourRecordCount
+          },
+          contractorCosts: {
+            recorded: recordedContractorCost,
+            expected: expectedContractorCost,
+            variance: contractorVariance,
+            status: Math.abs(contractorVariance) <= 0.01 ? 'MATCHED' : (contractorVariance > 0 ? 'SURPLUS' : 'DEFICIT')
+          }
+        };
+      })
+    );
+
+    res.json(locBreakdown);
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Locations breakdown error:', error);
+    res.status(500).json({ error: 'Failed to generate locations breakdown' });
   }
 });
 

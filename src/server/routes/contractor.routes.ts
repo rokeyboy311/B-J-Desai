@@ -56,8 +56,29 @@ contractorRouter.get('/', async (req: AuthRequest, res: Response) => {
       await assertLocationAccess(userId, locationId);
     }
 
-    const costs = await db.select().from(contractorCosts)
+    const costs = await db.select({
+      id: contractorCosts.id,
+      locationId: contractorCosts.locationId,
+      userId: contractorCosts.userId,
+      contractorName: contractorCosts.contractorName,
+      teamId: contractorCosts.teamId,
+      teamName: contractorCosts.teamName,
+      date: contractorCosts.date,
+      amount: contractorCosts.amount,
+      deductionAmount: contractorCosts.deductionAmount,
+      netAmount: contractorCosts.netAmount,
+      paymentStatus: contractorCosts.paymentStatus,
+      workDescription: contractorCosts.workDescription,
+      paymentMethod: contractorCosts.paymentMethod,
+      referenceNumber: contractorCosts.referenceNumber,
+      notes: contractorCosts.notes,
+      createdAt: contractorCosts.createdAt,
+      updatedAt: contractorCosts.updatedAt,
+      isDeleted: contractorCosts.isDeleted,
+    }).from(contractorCosts)
+      .innerJoin(locations, eq(contractorCosts.locationId, locations.id))
       .where(and(
+        eq(locations.isDeleted, 0),
         locationId ? eq(contractorCosts.locationId, locationId) : undefined,
         eq(contractorCosts.isDeleted, 0)
       ))
@@ -100,8 +121,11 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
       teamId: siteSupplies.teamId,
       date: siteSupplies.date,
       totalAmount: siteSupplies.totalAmount,
-    }).from(siteSupplies).where(
+    }).from(siteSupplies)
+    .innerJoin(locations, eq(siteSupplies.locationId, locations.id))
+    .where(
       and(
+        eq(locations.isDeleted, 0),
         locationId ? eq(siteSupplies.locationId, locationId) : undefined,
         eq(siteSupplies.isDeleted, 0),
         startDate ? sql`${siteSupplies.date} >= ${startDate}` : sql`1=1`,
@@ -124,8 +148,11 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
       paymentAmount: labourSalaries.paymentAmount,
       upad: labourSalaries.upad,
       deduction: labourSalaries.deduction,
-    }).from(labourSalaries).where(
+    }).from(labourSalaries)
+    .innerJoin(locations, eq(labourSalaries.locationId, locations.id))
+    .where(
       and(
+        eq(locations.isDeleted, 0),
         locationId ? eq(labourSalaries.locationId, locationId) : undefined,
         eq(labourSalaries.isDeleted, 0),
         startDate ? sql`${labourSalaries.date} >= ${startDate}` : sql`1=1`,
@@ -150,8 +177,29 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
     const expectedContractorCost = round2(totalSiteSupplyAmount + totalLabourAttendance);
 
     // 3. Recorded Contractor Costs from contractor_costs table
-    const recordedCosts = await db.select().from(contractorCosts).where(
+    const recordedCosts = await db.select({
+      id: contractorCosts.id,
+      locationId: contractorCosts.locationId,
+      contractorName: contractorCosts.contractorName,
+      teamId: contractorCosts.teamId,
+      teamName: contractorCosts.teamName,
+      date: contractorCosts.date,
+      amount: contractorCosts.amount,
+      deductionAmount: contractorCosts.deductionAmount,
+      netAmount: contractorCosts.netAmount,
+      paymentStatus: contractorCosts.paymentStatus,
+      workDescription: contractorCosts.workDescription,
+      paymentMethod: contractorCosts.paymentMethod,
+      referenceNumber: contractorCosts.referenceNumber,
+      notes: contractorCosts.notes,
+      createdAt: contractorCosts.createdAt,
+      updatedAt: contractorCosts.updatedAt,
+      isDeleted: contractorCosts.isDeleted,
+    }).from(contractorCosts)
+    .innerJoin(locations, eq(contractorCosts.locationId, locations.id))
+    .where(
       and(
+        eq(locations.isDeleted, 0),
         locationId ? eq(contractorCosts.locationId, locationId) : undefined,
         eq(contractorCosts.isDeleted, 0),
         startDate ? sql`${contractorCosts.date} >= ${startDate}` : sql`1=1`,

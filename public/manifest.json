@@ -1,14 +1,20 @@
 {
   "id": "/",
-  "name": "Bina Enterprise",
-  "short_name": "Bina Ent",
-  "description": "A modern accounting application.",
+  "name": "B J Desai",
+  "short_name": "B J Desai",
+  "description": "B J Desai Central ERP System",
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
   "display": "standalone",
   "start_url": "/",
   "scope": "/",
   "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/pwa-192x192.png",
       "sizes": "192x192",

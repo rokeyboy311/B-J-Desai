@@ -1,5 +1,5 @@
 {
-  "name": "Bina Enterprise",
+  "name": "B J Desai",
   "description": "Central ERP and construction accounting system featuring 7 categories: Investment & Capital Allocation, Material Purchase, Material Supply, Site Supply, Labour Attendance, Master Registry, and Contractor Cost Reconciliation with unified PIN security.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

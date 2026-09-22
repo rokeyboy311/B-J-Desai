@@ -108,8 +108,8 @@ materialRouter.get('/customer-supplies-history', async (req: AuthRequest, res: R
       locationName: locations.name,
     })
     .from(materialSupplies)
-    .leftJoin(locations, eq(materialSupplies.locationId, locations.id))
-    .where(eq(materialSupplies.isDeleted, 0))
+    .innerJoin(locations, eq(materialSupplies.locationId, locations.id))
+    .where(and(eq(materialSupplies.isDeleted, 0), eq(locations.isDeleted, 0)))
     .orderBy(desc(materialSupplies.date), desc(materialSupplies.id));
 
     res.json(supplies);
@@ -147,10 +147,14 @@ materialRouter.get('/site-supplies-history', async (req: AuthRequest, res: Respo
     })
     .from(siteSupplyItems)
     .innerJoin(siteSupplies, eq(siteSupplyItems.siteSupplyId, siteSupplies.id))
-    .leftJoin(locations, eq(siteSupplies.locationId, locations.id))
+    .innerJoin(locations, eq(siteSupplies.locationId, locations.id))
     .leftJoin(materials, eq(siteSupplyItems.materialId, materials.id))
     .leftJoin(labourTeams, eq(siteSupplies.teamId, labourTeams.id))
-    .where(and(eq(siteSupplies.isDeleted, 0), eq(siteSupplyItems.isDeleted, 0)))
+    .where(and(
+      eq(siteSupplies.isDeleted, 0),
+      eq(siteSupplyItems.isDeleted, 0),
+      eq(locations.isDeleted, 0)
+    ))
     .orderBy(desc(siteSupplies.date), desc(siteSupplyItems.id));
 
     res.json(supplies);
@@ -181,13 +185,14 @@ async function resolveMaterialInfo(
 
   const rawName = (materialNameInput || '').trim().toUpperCase();
   if (rawName) {
+    // Search across materials table to deduplicate enterprise-wide
     const existingByName = await tx.select().from(materials).where(
       and(
-        eq(materials.locationId, locId),
         sql`UPPER(TRIM(${materials.name})) = ${rawName}`,
         eq(materials.isDeleted, 0)
       )
-    );
+    ).limit(1);
+
     if (existingByName.length > 0) {
       return { id: existingByName[0].id, name: existingByName[0].name.trim().toUpperCase(), unit: existingByName[0].defaultUnit || unitInput || 'Unit' };
     }
@@ -195,7 +200,7 @@ async function resolveMaterialInfo(
     // Automatically create master material in UPPERCASE so stock records stay consistent and deduplicated!
     const created = await tx.insert(materials).values({
       userId,
-      locationId: locId,
+      locationId: !isNaN(locId) && locId > 0 ? locId : 1,
       name: rawName,
       defaultUnit: unitInput || 'Unit',
       defaultRate: rateInput ? rateInput.toString() : '0.00',
@@ -453,55 +458,69 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
         const finalUnit = data.unit || (matInfo ? matInfo.unit : '') || 'Unit';
         
         if (type === 'purchase') {
-          // Material Purchase is funded directly by Admin Capital
-          const adminSummary = await getAdminCapitalSummary(tx, userId);
-          if (totalAmount > adminSummary.availableAdminCapital) {
-            throw new Error(`Cannot complete purchase: Total amount ₹${totalAmount.toLocaleString('en-IN')} exceeds available Admin Capital (₹${adminSummary.availableAdminCapital.toLocaleString('en-IN')}).`);
-          }
-
           const inserted = await tx.insert(materialPurchases).values({
-            userId, locationId: data.locationId,
-            date: data.date, partyName: data.partyName || '', materialName: finalMatName, materialId: finalMatId,
-            quantity: qty.toString(), unit: finalUnit, rate: rate.toString(),
-            subtotal: subtotal.toString(), transportCost: transportCost.toString(),
-            discount: discount.toString(), taxPercentage: taxPercentage.toString(),
-            tax: taxAmount.toString(), totalAmount: totalAmount.toString(),
-            paidAmount: paid.toString(), outstandingAmount: outstanding.toString(),
+            userId, 
+            locationId: locId,
+            date: data.date || new Date().toISOString().split('T')[0], 
+            partyName: data.partyName || 'Supplier', 
+            materialName: finalMatName, 
+            materialId: finalMatId,
+            quantity: qty.toString(), 
+            unit: finalUnit, 
+            rate: rate.toString(),
+            subtotal: subtotal.toString(), 
+            transportCost: transportCost.toString(),
+            discount: discount.toString(), 
+            taxPercentage: taxPercentage.toString(),
+            tax: taxAmount.toString(), 
+            totalAmount: totalAmount.toString(),
+            paidAmount: paid.toString(), 
+            outstandingAmount: outstanding.toString(),
             paymentStatus: data.paymentStatus || 'UNPAID',
-            paymentMethod: data.paymentMethod, referenceNumber: data.referenceNumber, description: data.description || data.notes
+            paymentMethod: data.paymentMethod || 'CASH', 
+            referenceNumber: data.referenceNumber || null, 
+            description: data.description || data.notes || null
           }).returning();
           insertedId = inserted[0].id;
           record = inserted[0];
           
           if (finalMatId && qty > 0) {
-            await StockManager.addStockMovement(tx, userId, data.locationId, finalMatId, 'IN', qty, insertedId, 'PURCHASE', data.description || data.notes);
+            await StockManager.addStockMovement(tx, userId, locId, finalMatId, 'IN', qty, insertedId, 'PURCHASE', data.description || data.notes);
           }
         } else {
-          // Customer Material Supply (Location wise) validates Central Stock
-          if (finalMatId && qty > 0) {
-            const stockCheck = await StockManager.checkCentralStockAvailability(tx, finalMatId, qty);
-            if (!stockCheck.available) {
-              throw new Error(`Cannot supply material: Insufficient Central Stock for ${finalMatName}. Available: ${stockCheck.currentStock} ${finalUnit}, Requested: ${qty} ${finalUnit}.`);
-            }
-          }
+          const cleanPartyId = (data.partyId && !isNaN(parseInt(String(data.partyId), 10)))
+            ? parseInt(String(data.partyId), 10)
+            : null;
 
           const inserted = await tx.insert(materialSupplies).values({
-            userId, locationId: data.locationId,
-            date: data.date, partyName: data.partyName || '', partyId: data.partyId,
-            materialName: finalMatName, materialId: finalMatId,
-            quantity: qty.toString(), unit: finalUnit, rate: rate.toString(),
-            subtotal: subtotal.toString(), transportCost: transportCost.toString(),
-            discount: discount.toString(), taxPercentage: taxPercentage.toString(),
-            tax: taxAmount.toString(), totalAmount: totalAmount.toString(),
-            paidAmount: paid.toString(), outstandingAmount: outstanding.toString(),
+            userId, 
+            locationId: locId,
+            date: data.date || new Date().toISOString().split('T')[0], 
+            partyName: data.partyName || 'Customer', 
+            partyId: cleanPartyId,
+            materialName: finalMatName, 
+            materialId: finalMatId,
+            quantity: qty.toString(), 
+            unit: finalUnit, 
+            rate: rate.toString(),
+            subtotal: subtotal.toString(), 
+            transportCost: transportCost.toString(),
+            discount: discount.toString(), 
+            taxPercentage: taxPercentage.toString(),
+            tax: taxAmount.toString(), 
+            totalAmount: totalAmount.toString(),
+            paidAmount: paid.toString(), 
+            outstandingAmount: outstanding.toString(),
             paymentStatus: data.paymentStatus || 'UNPAID',
-            paymentMethod: data.paymentMethod, referenceNumber: data.referenceNumber, notes: data.description || data.notes
+            paymentMethod: data.paymentMethod || 'CASH', 
+            referenceNumber: data.referenceNumber || null, 
+            notes: data.description || data.notes || null
           }).returning();
           insertedId = inserted[0].id;
           record = inserted[0];
           
           if (finalMatId && qty > 0) {
-            await StockManager.addStockMovement(tx, userId, data.locationId, finalMatId, 'OUT', qty, insertedId, 'CUSTOMER_SUPPLY', data.description || data.notes);
+            await StockManager.addStockMovement(tx, userId, locId, finalMatId, 'OUT', qty, insertedId, 'CUSTOMER_SUPPLY', data.description || data.notes);
           }
         }
         
@@ -742,7 +761,7 @@ materialRouter.delete('/:type/:id', async (req: AuthRequest, res: Response) => {
             }
           }
         }
-      } else if (type === 'labour-supply') {
+      } else if (type === 'labour-supply' || type === 'site-supply' || type === 'site-supplies') {
         const siteItem = await tx.select().from(siteSupplyItems).where(and(eq(siteSupplyItems.id, numId), eq(siteSupplyItems.isDeleted, 0)));
         if (siteItem.length) {
           const parentSupply = await tx.select().from(siteSupplies).where(eq(siteSupplies.id, siteItem[0].siteSupplyId));
@@ -779,6 +798,16 @@ materialRouter.delete('/:type/:id', async (req: AuthRequest, res: Response) => {
             }
           }
         }
+      } else if (type === 'material' || type === 'master' || type === 'stock' || type === 'item') {
+        table = materials;
+        const rec = await tx.select().from(table).where(and(eq(table.id, numId), eq(table.isDeleted, 0)));
+        if (!rec.length) {
+          return res.status(404).json({ error: 'Material not found' });
+        }
+        await tx.update(materials).set({ isDeleted: 1 }).where(eq(materials.id, numId));
+        await tx.update(stockLedger).set({ isDeleted: 1 }).where(eq(stockLedger.materialId, numId));
+        await tx.insert(auditLogs).values({ userId, action: 'DELETE_MATERIAL', entityType: 'MATERIAL', entityId: numId });
+        return;
       }
       
       if (!table) return res.status(400).json({ error: 'Invalid material record type' });

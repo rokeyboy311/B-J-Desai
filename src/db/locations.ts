@@ -1,6 +1,13 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { db } from './index.ts';
-import { locations, records, auditLogs } from './schema.ts';
+import { 
+  locations, records, auditLogs,
+  labourSalaries, labourTeams, labourMaster,
+  siteSupplies, siteSupplyItems,
+  materialSupplies, materialPurchases, materialLabourSupplies,
+  investmentParties, investorLocationAllocations,
+  contractorCosts, supervisorCosts, parties, stockLedger
+} from './schema.ts';
 
 export async function getLocationsWithRecordCount(_userId?: number) {
   return await db
@@ -67,10 +74,23 @@ export async function deleteLocation(userId: number, locationId: number) {
     .returning();
 
   if (result.length) {
-    // Also soft-delete all associated records to maintain data integrity
-    await db.update(records)
-      .set({ isDeleted: 1, updatedAt: new Date() })
-      .where(eq(records.locationId, locationId));
+    // Cascade soft-delete across all modules and child tables for this location
+    await Promise.all([
+      db.update(records).set({ isDeleted: 1, updatedAt: new Date() }).where(eq(records.locationId, locationId)),
+      db.update(labourSalaries).set({ isDeleted: 1 }).where(eq(labourSalaries.locationId, locationId)),
+      db.update(labourTeams).set({ isDeleted: 1 }).where(eq(labourTeams.locationId, locationId)),
+      db.update(labourMaster).set({ isDeleted: 1 }).where(eq(labourMaster.locationId, locationId)),
+      db.update(siteSupplies).set({ isDeleted: 1 }).where(eq(siteSupplies.locationId, locationId)),
+      db.update(materialSupplies).set({ isDeleted: 1 }).where(eq(materialSupplies.locationId, locationId)),
+      db.update(materialPurchases).set({ isDeleted: 1 }).where(eq(materialPurchases.locationId, locationId)),
+      db.update(materialLabourSupplies).set({ isDeleted: 1 }).where(eq(materialLabourSupplies.locationId, locationId)),
+      db.update(investmentParties).set({ isDeleted: 1, updatedAt: new Date() }).where(eq(investmentParties.locationId, locationId)),
+      db.update(investorLocationAllocations).set({ isDeleted: 1 }).where(eq(investorLocationAllocations.locationId, locationId)),
+      db.update(contractorCosts).set({ isDeleted: 1, updatedAt: new Date() }).where(eq(contractorCosts.locationId, locationId)),
+      db.update(supervisorCosts).set({ isDeleted: 1 }).where(eq(supervisorCosts.locationId, locationId)),
+      db.update(parties).set({ isDeleted: 1 }).where(eq(parties.locationId, locationId)),
+      db.update(stockLedger).set({ isDeleted: 1 }).where(eq(stockLedger.locationId, locationId))
+    ]);
 
     await db.insert(auditLogs).values({
       userId,
@@ -82,3 +102,35 @@ export async function deleteLocation(userId: number, locationId: number) {
 
   return result[0];
 }
+
+/**
+ * Cleanup any orphaned records that belong to already deleted locations
+ */
+export async function cleanupDeletedLocationsData() {
+  try {
+    const deletedLocs = await db.select({ id: locations.id }).from(locations).where(eq(locations.isDeleted, 1));
+    if (!deletedLocs.length) return;
+    const deletedIds = deletedLocs.map(l => l.id).join(',');
+    if (!deletedIds) return;
+
+    await db.execute(sql`
+      UPDATE records SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE labour_salaries SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE labour_teams SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE labour_master SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE site_supplies SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE material_supplies SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE material_purchases SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE material_labour_supplies SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE investment_parties SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE investor_location_allocations SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE contractor_costs SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE supervisor_costs SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE parties SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+      UPDATE stock_ledger SET is_deleted = 1 WHERE location_id IN (${sql.raw(deletedIds)}) AND is_deleted = 0;
+    `);
+  } catch (err) {
+    console.error('Error cleaning up deleted locations data:', err);
+  }
+}
+

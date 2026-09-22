@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { 
   LayoutDashboard, Users, Landmark, Truck, Package, Activity,
-  CalendarCheck, Wrench, ArrowRight, CheckCircle2, PieChart, Coins,
+  CalendarCheck, Wrench, ArrowRight, CheckCircle2, Coins,
   Calculator, ArrowDownRight, ArrowUpRight, ChevronDown, ChevronUp, Layers, HelpCircle,
-  Receipt, FileSpreadsheet, Eye
+  Receipt, FileSpreadsheet, Eye, MapPin, Building2, ExternalLink, PlusCircle, Coffee, HardHat
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useNavigate } from "react-router-dom";
@@ -16,24 +16,26 @@ export default function DashboardPage() {
   const [adminSummary, setAdminSummary] = useState<any>(null);
   const [centralStock, setCentralStock] = useState<any[]>([]);
   const [contractorReconciliation, setContractorReconciliation] = useState<any>(null);
+  const [locationsBreakdown, setLocationsBreakdown] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCat2Breakdown, setShowCat2Breakdown] = useState(true);
   const [showRefundablesModal, setShowRefundablesModal] = useState(false);
   const navigate = useNavigate();
 
   const loadDashboard = async (isBackground = false) => {
     try {
       if (!isBackground && !metrics) setLoading(true);
-      const [res, adminRes, stockRes, reconRes] = await Promise.all([
+      const [res, adminRes, stockRes, reconRes, locBreakdownRes] = await Promise.all([
         apiFetch(`/reports/dashboard?locationId=ALL`).catch(() => null),
         apiFetch(`/investments/admin-capital-summary`).catch(() => null),
         apiFetch(`/materials/central-stock`).catch(() => []),
-        apiFetch(`/contractor-costs/reconciliation?locationId=ALL`).catch(() => null)
+        apiFetch(`/contractor-costs/reconciliation?locationId=ALL`).catch(() => null),
+        apiFetch(`/reports/locations-breakdown`).catch(() => [])
       ]);
       setMetrics(res || null);
       if (adminRes) setAdminSummary(adminRes);
       if (Array.isArray(stockRes)) setCentralStock(stockRes);
       if (reconRes) setContractorReconciliation(reconRes);
+      if (Array.isArray(locBreakdownRes)) setLocationsBreakdown(locBreakdownRes);
     } catch (err) {
       console.error(err);
     } finally {
@@ -49,7 +51,7 @@ export default function DashboardPage() {
     loadDashboard(true);
   }, 3500);
 
-  const getMetric = (val: any) => Number(val || 0).toLocaleString();
+  const getMetric = (val: any) => Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
   if (loading) {
     return (
@@ -59,115 +61,38 @@ export default function DashboardPage() {
     );
   }
 
-  // Derived metrics for UI: Category 1 vs Category 2
-  const cat1 = metrics?.category1InvestorSummary || {
-    investorTotalCapital: (metrics?.totalInvestment || 0) - (metrics?.totalBillInvestment || 0),
-    investmentKaryaTotal: 0,
-    investorUpadTotal: metrics?.totalInvestmentUpad || 0,
-    availableInvestorsBalance: 0
-  };
-
-  const cat2 = metrics?.category2InvestmentSummary || {
-    investmentFromInvestorsCapital: metrics?.connectedExpenses?.investmentFromInvestorsCapital || 0,
-    billInvestment: metrics?.connectedExpenses?.billInvestment ?? metrics?.totalBillInvestment ?? 0,
-    fullCapital: metrics?.connectedExpenses?.fullCapital || 0,
-    totalDeductions: metrics?.connectedExpenses?.totalExpensesCut || 0,
-    investorUpadReturn: metrics?.totalInvestmentPayment || 0,
-    remainingCapital: metrics?.connectedExpenses?.remainingCapital || 0
-  };
-
-  const connected = metrics?.connectedExpenses || {};
-  const catDetails = connected?.categoryDetails || {};
-  const utilizationRate = connected?.utilizationRate || 0;
-
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
       {/* Dashboard Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-sm">
             <LayoutDashboard className="w-6 h-6" />
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Master Financial Dashboard</h1>
-            <p className="text-sm text-slate-500 font-medium">Clear Category 1 to 6 Accounting, Capital Inflow & Expense Audit</p>
+            <p className="text-xs text-slate-500 font-medium">B J Desai &bull; Live Project Locations Analytics & Reconciled Operations</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/admin')}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            Admin Capital &rarr;
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/material-purchase')}
+            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            Central Stock &rarr;
+          </button>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Live Reconciled
+            Live Synced
           </span>
-        </div>
-      </div>
-
-      {/* Visual 3-Tier Enterprise Capital Flow Architecture */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-indigo-900/40 relative overflow-hidden">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-2">
-              <Layers className="w-3.5 h-3.5" />
-              <span>3-Tier Enterprise Capital Architecture</span>
-            </div>
-            <h2 className="text-xl font-black text-white">Capital Inflow & Allocation Flow</h2>
-            <p className="text-xs text-slate-300">
-              Admin Capital (Tier 1) &rarr; Location Investor Capital (Tier 2) &rarr; Investment Capital (Tier 3)
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate("/admin")}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-            >
-              Manage Admin Capital &rarr;
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/material-purchase")}
-              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-            >
-              Central Stock &rarr;
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Tier 1 */}
-          <div className="bg-white/10 rounded-2xl p-4 border border-white/15">
-            <span className="text-[11px] uppercase font-bold text-indigo-300">Tier 1: Admin Capital</span>
-            <div className="text-2xl font-black text-emerald-400 mt-1">
-              ₹{adminSummary ? adminSummary.availableAdminCapital.toLocaleString("en-IN") : "0"}
-            </div>
-            <div className="text-[11px] text-slate-300 mt-1 space-y-0.5">
-              <div>Total Contributed: ₹{adminSummary ? adminSummary.totalContributed.toLocaleString("en-IN") : "0"}</div>
-              <div>Material Purchases Funded: ₹{adminSummary ? adminSummary.totalPurchases.toLocaleString("en-IN") : "0"}</div>
-            </div>
-          </div>
-
-          {/* Tier 2 */}
-          <div className="bg-white/10 rounded-2xl p-4 border border-white/15">
-            <span className="text-[11px] uppercase font-bold text-blue-300">Tier 2: Location Investor Capital</span>
-            <div className="text-2xl font-black text-white mt-1">
-              ₹{adminSummary ? adminSummary.totalAllocated.toLocaleString("en-IN") : "0"}
-            </div>
-            <div className="text-[11px] text-slate-300 mt-1 space-y-0.5">
-              <div>Allocated across all project locations</div>
-              <div>Transferred to project operations</div>
-            </div>
-          </div>
-
-          {/* Tier 3 */}
-          <div className="bg-white/10 rounded-2xl p-4 border border-white/15">
-            <span className="text-[11px] uppercase font-bold text-amber-300">Tier 3: Investment Capital</span>
-            <div className="text-2xl font-black text-cyan-400 mt-1">
-              ₹{getMetric(cat2.remainingCapital)}
-            </div>
-            <div className="text-[11px] text-slate-300 mt-1 space-y-0.5">
-              <div>Active project operational capital</div>
-              <div>Used for Site Supplies, Labour, Expenses</div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -234,7 +159,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => navigate("/locations")}
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
             >
               View Location Details & Reconciliation &rarr;
             </button>
@@ -289,7 +214,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => navigate("/material-purchase")}
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
             >
               Open Central Stock Ledger &rarr;
             </button>
@@ -297,460 +222,292 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Financial Overview Row: Segregated Category 1 & Category 2 Capital Pools */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Category 1: Investor Capital Pool (Alag Capital) */}
-        <div className="bg-white rounded-2xl border border-emerald-200/90 shadow-sm p-6 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 right-0 p-6 opacity-5">
-            <Users className="w-32 h-32 text-emerald-950" />
+      {/* Active Locations Operations & Financial Reconciliation (સ્થળ મુજબ વિગતવાર એનાલિટિક્સ) */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-indigo-600" />
+              Active Project Locations Analytics ({locationsBreakdown.length})
+            </h2>
+            <p className="text-xs text-slate-500 font-medium">
+              Dynamic real-time operational metrics across 7 categories for each active project site
+            </p>
           </div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <h3 className="text-emerald-800 font-bold uppercase tracking-wider text-xs">
-                  Category 1: Investors Ledger (ઇન્વેસ્ટર મૂડી પૂલ)
-                </h3>
-              </div>
-              <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Alag Investor Capital
-              </span>
-            </div>
-            
-            <div className="mb-5">
-              <span className="text-xs text-slate-500 font-medium">Available Investors Balance (ઇન્વેસ્ટર પાસે બચેલી મૂડી)</span>
-              <p className="text-3xl font-black text-slate-900 tracking-tight mt-0.5">
-                ₹{getMetric(cat1.availableInvestorsBalance)}
-              </p>
-            </div>
-
-            <div className="space-y-2.5 pt-4 border-t border-slate-100 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600 font-medium">1. Investors Total Capital (કુલ જમા કરેલ રકમ)</span>
-                <span className="font-bold text-emerald-700">+ ₹{getMetric(cat1.investorTotalCapital)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600 font-medium">2. Investment Karya Total (પ્રોજેક્ટમાં રોકેલ રકમ - Cat 2 Transfer)</span>
-                <span className="font-bold text-indigo-600">- ₹{getMetric(cat1.investmentKaryaTotal)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600 font-medium">3. Investor Upad Total (ઇન્વેસ્ટર ઉપાડ / પેમેન્ટ)</span>
-                <span className="font-bold text-amber-600">- ₹{getMetric(cat1.investorUpadTotal)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 relative z-10">
-            <span className="font-medium">Total Capital - Investment Karya - Upad</span>
-            <button
-              type="button"
-              onClick={() => navigate("/investors")}
-              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20 cursor-pointer"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Investor Pool & Accounts (ખાતા ખોલો)</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Category 2: Project Investment & Deductions Pool (Alag Capital) */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 rounded-2xl shadow-lg p-6 text-white relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 right-0 p-6 opacity-10">
-            <Coins className="w-32 h-32" />
-          </div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>
-                <h3 className="text-indigo-300 font-bold uppercase tracking-wider text-xs">
-                  Category 2: Project Investment & Deductions (પ્રોજેક્ટ મૂડી)
-                </h3>
-              </div>
-              <span className="text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-400/30">
-                Alag Project Capital
-              </span>
-            </div>
-
-            <div className="mb-4">
-              <span className="text-xs text-slate-400 font-medium">Remaining Project Capital (બાકી રહેલ મૂડી - Full Capital માંથી)</span>
-              <p className="text-3xl font-black text-white tracking-tight mt-0.5">
-                ₹{getMetric(cat2.remainingCapital)}
-              </p>
-            </div>
-
-            {/* Inflow Breakdown: Investment from Investors + Bill Investment = Full Capital */}
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-3 space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300 flex items-center gap-1.5 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  Investment from Investors (ઇન્વેસ્ટમેન્ટ કર્યા)
-                </span>
-                <span className="font-bold text-emerald-400">₹{getMetric(cat2.investmentFromInvestorsCapital)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300 flex items-center gap-1.5 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                  Bill Investment (બિલ ઇન્વેસ્ટમેન્ટ)
-                </span>
-                <span className="font-bold text-cyan-400">+ ₹{getMetric(cat2.billInvestment ?? metrics?.totalBillInvestment ?? 0)}</span>
-              </div>
-              <div className="pt-2 border-t border-white/10 flex justify-between items-center font-bold text-xs text-indigo-200">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-                  = Full Capital (કુલ પ્રોજેક્ટ મૂડી)
-                </span>
-                <span className="text-white font-black text-sm">
-                  ₹{getMetric(cat2.fullCapital || (Number(cat2.investmentFromInvestorsCapital || 0) + Number(cat2.billInvestment || metrics?.totalBillInvestment || 0)))}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2 pt-2 border-t border-slate-800 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">1. Full Capital (કુલ મૂડી)</span>
-                <span className="font-bold text-white">
-                  ₹{getMetric(cat2.fullCapital || (Number(cat2.investmentFromInvestorsCapital || 0) + Number(cat2.billInvestment || metrics?.totalBillInvestment || 0)))}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">2. Operational Deductions (Cat 3 થી 6 & રિફંડેબલ)</span>
-                <span className="font-bold text-rose-400">- ₹{getMetric(cat2.totalDeductions)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">3. Investor Upad / Return (મૂડી પરત)</span>
-                <span className="font-bold text-amber-400">- ₹{getMetric(cat2.investorUpadReturn)}</span>
-              </div>
-            </div>
-
-            {/* Utilization Rate Bar */}
-            <div className="mt-4 pt-3 border-t border-slate-800">
-              <div className="flex justify-between items-center text-xs mb-1.5">
-                <span className="text-slate-400 font-medium">પ્રોજેક્ટ મૂડી વપરાશ (Capital Burn Rate)</span>
-                <span className="font-bold text-indigo-300">{utilizationRate}%</span>
-              </div>
-              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    utilizationRate > 90 ? 'bg-rose-500' : utilizationRate > 70 ? 'bg-amber-500' : 'bg-emerald-500'
-                  }`} 
-                  style={{ width: `${Math.min(100, utilizationRate)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 relative z-10">
-            <span className="font-medium">હિસાબ સૂત્ર: Full Capital (ઇન્વેસ્ટમેન્ટ કર્યા + બિલ) - Deductions - Upad = બાકી મૂડી</span>
-            <span className="font-black text-white text-sm">₹{getMetric(cat2.remainingCapital)}</span>
-          </div>
-        </div>
-        
-      </div>
-
-      {/* Refundable Records Highlight Banner */}
-      <div className="bg-gradient-to-r from-purple-900/90 via-indigo-900 to-slate-900 rounded-2xl border border-purple-500/30 p-5 text-white shadow-md flex flex-col gap-4">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-purple-500/20 border border-purple-400/30 rounded-xl text-purple-300 shrink-0">
-              <Receipt className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base text-white">Refundable Record (રિફંડેબલ ડિપોઝિટ / એડવાન્સ રકમ)</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/30 text-purple-200 border border-purple-400/30">
-                  Cat 2 Deduction
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                સિક્યોરિટી ડિપોઝિટ, ટેન્ડર EMD, મીટર ડિપોઝિટ તથા અન્ય રિફંડેબલ રકમો જે મૂડીમાંથી બાદ થાય છે અને પરત મળવાપાત્ર છે.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-6 shrink-0 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Refundable</span>
-              <p className="text-base font-black text-purple-200">₹{getMetric(metrics?.totalRefundable || metrics?.refundableSummary?.totalRefundable || 0)}</p>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Received / Refunded</span>
-              <p className="text-base font-black text-emerald-400">₹{getMetric(metrics?.totalRefunded || metrics?.refundableSummary?.totalRefunded || 0)}</p>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div>
-              <span className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">લેવાના બાકી (Pending)</span>
-              <p className="text-lg font-black text-amber-300">₹{getMetric(metrics?.pendingRefundable || metrics?.refundableSummary?.pendingRefundable || 0)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* View all records action row */}
-        <div className="pt-3 border-t border-purple-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-xs text-purple-200 flex items-center gap-1.5">
-            <Receipt className="w-3.5 h-3.5 text-purple-300" />
-            દરેક પ્રોજેક્ટના બધા રિફંડેબલ ડિપોઝિટ અને એડવાન્સ રકમનું સ્ટેટસ તથા લેવાના બાકી હિસાબ જુઓ
-          </span>
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              onClick={() => setShowRefundablesModal(true)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 text-xs cursor-pointer border border-purple-400/40"
-              id="dashboard-view-all-refundables-btn"
-            >
-              <Eye className="w-4 h-4" />
-              View All Records (બધા રેકોર્ડ વિગતમાં જુઓ) &rarr;
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Category 2 Deductions Transparency Accordion (Cat 3 to 6 + Refundable Reconciliation) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div 
-          onClick={() => setShowCat2Breakdown(!showCat2Breakdown)}
-          className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                Category 2 to 6 Reconciliation: How Project Capital is Deducted
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Total Deductions: ₹{getMetric(cat2.totalDeductions)}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Detailed audit showing every rupee spent from Category 2 Project Capital across Categories 3, 5, 6 & Refundables
-              </p>
-            </div>
-          </div>
-          <button type="button" className="p-2 text-slate-400 hover:text-slate-600 rounded-lg">
-            {showCat2Breakdown ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          <button
+            type="button"
+            onClick={() => navigate('/locations')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors self-start sm:self-auto border border-indigo-200/60 cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Manage All Locations &rarr;
           </button>
         </div>
 
-        <AnimatePresence>
-          {showCat2Breakdown && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-t border-slate-100 p-5 bg-slate-50/40"
+        {locationsBreakdown.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+            <Building2 className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+            <h3 className="text-base font-bold text-slate-800">No Active Locations Found</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              Create a new project location to automatically generate live financial & operational analytics dashboards here.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/locations')}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm cursor-pointer"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                
-                {/* Cat 3 Material Purchase */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Cat 3. Material Purchase</span>
-                    <span className="p-1.5 bg-rose-50 text-rose-600 rounded-md"><Package className="w-3.5 h-3.5" /></span>
-                  </div>
-                  <p className="text-xl font-black text-rose-600">₹{getMetric(catDetails.cat3MaterialPurchases || metrics?.totalMaterialPurchase)}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Vendor invoices & material purchases</p>
-                </div>
-
-                {/* Cat 5 Site Supply */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Cat 5. Site Supply</span>
-                    <span className="p-1.5 bg-teal-50 text-teal-600 rounded-md"><Wrench className="w-3.5 h-3.5" /></span>
-                  </div>
-                  <p className="text-xl font-black text-teal-600">₹{getMetric(catDetails.cat5SiteSupplies || metrics?.totalMaterialLabourSupply)}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Direct internal materials dispatched to site</p>
-                </div>
-
-                {/* Cat 6 Labour Attendance, Team Upad & Other Kharch */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Cat 6. Labour & Kharch</span>
-                    <span className="p-1.5 bg-amber-50 text-amber-600 rounded-md"><CalendarCheck className="w-3.5 h-3.5" /></span>
-                  </div>
-                  <p className="text-xl font-black text-amber-600">₹{getMetric(catDetails.cat6Labour || catDetails.cat67Labour || (Number(metrics?.labourMetrics?.totalPayment || 0) + Number(metrics?.labourMetrics?.totalUpad || 0)))}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Attendance wages, Team Upad & Other Kharch</p>
-                </div>
-
-                {/* Refundable Outflows */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-purple-600 uppercase">Refundable Deposits</span>
-                    <span className="p-1.5 bg-purple-50 text-purple-600 rounded-md"><Receipt className="w-3.5 h-3.5" /></span>
-                  </div>
-                  <p className="text-xl font-black text-purple-600">₹{getMetric(metrics?.pendingRefundable || metrics?.refundableSummary?.pendingRefundable || catDetails.refundableRecords || 0)}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Pending refundable security deposits (લેવાના બાકી)</p>
-                </div>
-
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-600">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Category 2 project deductions precisely balance against Categories 3, 5, 6 & Refundables.
-                </span>
-                <span className="font-mono font-bold text-slate-800">
-                  ₹{getMetric(catDetails.cat3MaterialPurchases || metrics?.totalMaterialPurchase)} + ₹{getMetric(catDetails.cat5SiteSupplies || metrics?.totalMaterialLabourSupply)} + ₹{getMetric(catDetails.cat6Labour || catDetails.cat67Labour || (Number(metrics?.labourMetrics?.totalPayment || 0) + Number(metrics?.labourMetrics?.totalUpad || 0)))} + ₹{getMetric(metrics?.pendingRefundable || 0)} = ₹{getMetric(cat2.totalDeductions)}
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Department Wise Operations Cards */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <PieChart className="w-5 h-5 text-indigo-500" /> Department Wise Operational Status (Categories 3 to 6)
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          {/* 3. Material Purchase */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:border-rose-300 transition-colors flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-rose-100 text-rose-700 rounded-xl"><Package className="w-5 h-5" /></div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">3. Material Purchase</h3>
-                  <p className="text-[11px] text-slate-500">Vendor Purchases & Inventory</p>
-                </div>
-              </div>
-              <div className="space-y-2.5 pt-3 border-t border-slate-100">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Total Purchase</span>
-                  <span className="font-bold text-slate-800">₹{getMetric(metrics?.totalMaterialPurchase)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Paid Amount</span>
-                  <span className="font-bold text-emerald-600">₹{getMetric(metrics?.totalMaterialPurchasePaid)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Unpaid / Pending</span>
-                  <span className="font-bold text-rose-600">₹{getMetric(metrics?.totalMaterialPurchaseOutstanding)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 pt-2 border-t border-slate-100 text-right">
-              <button 
-                type="button" 
-                onClick={() => navigate('/material-purchases')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-              >
-                View Purchases &rarr;
-              </button>
-            </div>
+              <PlusCircle className="w-4 h-4" />
+              Create New Location
+            </button>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {locationsBreakdown.map((loc) => {
+              // Category 1: Investor Capital
+              const cat1Inv = loc.cat1InvestorCapital || loc.cat7InvestorCapital || {
+                totalContribution: loc.investorCapital || 0,
+                allocatedCapital: loc.investorCapital || 0,
+                investorUpad: (loc.investorUpad || 0) + (loc.investorPayment || 0),
+                availableBalance: 0
+              };
 
-          {/* 4. Material Supply */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:border-orange-300 transition-colors flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-orange-100 text-orange-700 rounded-xl"><Truck className="w-5 h-5" /></div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">4. Material Supply</h3>
-                  <p className="text-[11px] text-slate-500">Customer Sales & Billed</p>
+              // Category 2: Investment Capital
+              const cat2Cap = loc.cat2InvestmentCapital || loc.cat1InvestmentCapital || {
+                fullCapital: (loc.investorCapital || 0) + (loc.billInvestment || 0),
+                operationalDeductions: 0,
+                remainingCapital: (loc.investorCapital || 0) + (loc.billInvestment || 0)
+              };
+
+              // Category 3: Customer Supply (Renamed from Material Supply)
+              const cat3Cust = loc.cat3CustomerSupply || loc.cat2MaterialSupply || {
+                totalSupply: loc.materialSupplies || 0,
+                received: loc.materialSuppliesPaid || 0,
+                pending: (loc.materialSupplies || 0) - (loc.materialSuppliesPaid || 0)
+              };
+
+              // Category 4: Site Supply
+              const cat4Site = loc.cat4SiteSupply || loc.cat3SiteSupply || {
+                totalSiteSupply: loc.siteSupplies || 0
+              };
+
+              // Category 5: Labour Attendance (Attendance Wages - Upad, WITHOUT other kharch)
+              const cat5Lab = loc.cat5LabourAttendance || loc.cat4LabourAttendance || loc.labourMetrics || {
+                attendanceWages: 0,
+                upad: 0,
+                netBalance: 0,
+                days: 0
+              };
+              const attendanceWages = Number(cat5Lab.attendanceWages || cat5Lab.grossSalary || 0);
+              const upadPaid = Number(cat5Lab.upad || 0);
+              const netLabourBalance = cat5Lab.netBalance !== undefined ? Number(cat5Lab.netBalance) : (attendanceWages - upadPaid);
+
+              // Category 6: Other Kharch
+              const cat6Kharch = loc.cat6OtherKharch || {
+                totalOtherKharch: loc.otherKharchTotal || 0
+              };
+
+              // Category 7: Contractor Cost
+              const cat7Cont = loc.cat7ContractorCost || loc.cat5ContractorCost || loc.contractorCosts || {
+                recorded: 0,
+                expected: 0,
+                variance: 0,
+                status: 'MATCHED'
+              };
+
+              return (
+                <div 
+                  key={loc.id} 
+                  className="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden"
+                >
+                  {/* Location Header */}
+                  <div className="p-5 bg-gradient-to-r from-slate-50 via-white to-indigo-50/30 border-b border-slate-100 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl mt-0.5 shrink-0">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-black text-slate-900 text-base">{loc.name}</h3>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            {loc.recordCount} Records
+                          </span>
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            7 Categories Active
+                          </span>
+                        </div>
+                        {loc.address && (
+                          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate max-w-sm">{loc.address}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/locations/${loc.id}`)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 transition-colors shrink-0 shadow-2xs cursor-pointer"
+                    >
+                      <span>Open Location</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* 7-Category Analytics Grid in exact sequence */}
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-slate-50/50">
+                    
+                    {/* 1. Investor Capital */}
+                    <div className="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-2xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-tight">1. Investor Capital</span>
+                        <span className="p-1 bg-emerald-50 text-emerald-600 rounded"><Landmark className="w-3 h-3" /></span>
+                      </div>
+                      <div className="my-1.5">
+                        <p className="text-[11px] text-slate-500 font-medium">Allocated Capital:</p>
+                        <p className="text-lg font-black text-emerald-700">₹{getMetric(cat1Inv.allocatedCapital)}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-600 flex justify-between font-mono">
+                        <span>Upad: ₹{getMetric(cat1Inv.investorUpad)}</span>
+                        <span className="text-emerald-700 font-bold">Bal: ₹{getMetric(cat1Inv.availableBalance)}</span>
+                      </div>
+                    </div>
+
+                    {/* 2. Investment Capital */}
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-200 shadow-2xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-blue-800 uppercase tracking-tight">2. Investment Capital</span>
+                        <span className="p-1 bg-blue-50 text-blue-600 rounded"><Coins className="w-3 h-3" /></span>
+                      </div>
+                      <div className="my-1.5">
+                        <p className="text-[11px] text-slate-500 font-medium">Remaining Net Capital:</p>
+                        <p className="text-lg font-black text-blue-700">₹{getMetric(cat2Cap.remainingCapital)}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-600 flex justify-between font-mono">
+                        <span>Pool: ₹{getMetric(cat2Cap.fullCapital)}</span>
+                        <span className="text-rose-600">Ded: ₹{getMetric(cat2Cap.operationalDeductions)}</span>
+                      </div>
+                    </div>
+
+                    {/* 3. Customer Supply (Renamed from Material Supply) */}
+                    <div className="bg-white p-3.5 rounded-xl border border-orange-200 shadow-2xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-orange-800 uppercase tracking-tight">3. Customer Supply</span>
+                        <span className="p-1 bg-orange-50 text-orange-600 rounded"><Truck className="w-3 h-3" /></span>
+                      </div>
+                      <div className="my-1.5">
+                        <p className="text-[11px] text-slate-500 font-medium">Customer Billed:</p>
+                        <p className="text-lg font-black text-orange-600">₹{getMetric(cat3Cust.totalSupply)}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-600 flex justify-between font-mono">
+                        <span className="text-emerald-600 font-bold">Rec: ₹{getMetric(cat3Cust.received)}</span>
+                        <span className="text-rose-600 font-bold">Due: ₹{getMetric(cat3Cust.pending)}</span>
+                      </div>
+                    </div>
+
+                    {/* 4. Site Supply */}
+                    <div className="bg-white p-3.5 rounded-xl border border-teal-200 shadow-2xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-teal-800 uppercase tracking-tight">4. Site Supply</span>
+                        <span className="p-1 bg-teal-50 text-teal-600 rounded"><Wrench className="w-3 h-3" /></span>
+                      </div>
+                      <div className="my-1.5">
+                        <p className="text-[11px] text-slate-500 font-medium">Materials Dispatched:</p>
+                        <p className="text-lg font-black text-teal-700">₹{getMetric(cat4Site.totalSiteSupply)}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-600 font-mono">
+                        <span>Issued directly to site teams</span>
+                      </div>
+                    </div>
+
+                    {/* 5. Labour Wages (Attendance - Upad = Total, other kharch excluded) */}
+                    <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-amber-800 uppercase tracking-tight">5. Labour Wages</span>
+                        <span className="p-1 bg-amber-50 text-amber-600 rounded"><CalendarCheck className="w-3 h-3" /></span>
+                      </div>
+                      <div className="my-1.5">
+                        <p className="text-[11px] text-slate-500 font-medium">Net Wages Balance:</p>
+                        <p className="text-lg font-black text-amber-700">₹{getMetric(netLabourBalance)}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-600 flex justify-between font-mono">
+                        <span>Earned: ₹{getMetric(attendanceWages)}</span>
+                        <span className="text-indigo-700">Upad: ₹{getMetric(upadPaid)}</span>
+                      </div>
+                    </div>
+
+                    {/* 6. Other Kharch */}
+                    <div className="bg-white p-3.5 rounded-xl border border-rose-200 shadow-2xs flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-rose-800 uppercase tracking-tight">6. Other Kharch</span>
+                        <span className="p-1 bg-rose-50 text-rose-600 rounded"><Coffee className="w-3 h-3" /></span>
+                      </div>
+                      <div className="my-1.5">
+                        <p className="text-[11px] text-slate-500 font-medium">Site Sundry & Expenses:</p>
+                        <p className="text-lg font-black text-rose-700">₹{getMetric(cat6Kharch.totalOtherKharch)}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-500 font-mono">
+                        <span>Deducted from Cat 2 Capital</span>
+                      </div>
+                    </div>
+
+                    {/* 7. Contractor Cost & Reconciliation */}
+                    <div className="bg-white p-3.5 rounded-xl border border-purple-200 shadow-2xs flex flex-col justify-between sm:col-span-2 md:col-span-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-purple-900 uppercase tracking-tight">7. Contractor Cost (Reconciliation)</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            cat7Cont.status === 'MATCHED'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : cat7Cont.status === 'SURPLUS'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {cat7Cont.status}
+                          </span>
+                        </div>
+                        <span className="p-1 bg-purple-50 text-purple-700 rounded"><HardHat className="w-3 h-3" /></span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs font-mono">
+                        <div>
+                          <span className="text-[10px] text-slate-500">Recorded:</span>
+                          <p className="font-bold text-slate-900">₹{getMetric(cat7Cont.recorded)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500">Expected (Site + Labour):</span>
+                          <p className="font-bold text-indigo-700">₹{getMetric(cat7Cont.expected)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500">Variance:</span>
+                          <p className={`font-bold ${cat7Cont.variance >= 0 ? "text-blue-600" : "text-rose-600"}`}>
+                            {cat7Cont.variance >= 0 ? "+" : ""}₹{getMetric(cat7Cont.variance)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Footer Action */}
+                  <div className="px-5 py-2.5 bg-white border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Location Synced & Reconciled
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/locations/${loc.id}`)}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>View All 7 Categories Details</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
                 </div>
-              </div>
-              <div className="space-y-2.5 pt-3 border-t border-slate-100">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Total Supply</span>
-                  <span className="font-bold text-slate-800">₹{getMetric(metrics?.totalMaterialSupply)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Received Amount</span>
-                  <span className="font-bold text-emerald-600">₹{getMetric(metrics?.totalMaterialSupplyPaid)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Pending From Clients</span>
-                  <span className="font-bold text-orange-600">₹{getMetric(metrics?.totalMaterialSupplyOutstanding)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 pt-2 border-t border-slate-100 text-right">
-              <button 
-                type="button" 
-                onClick={() => navigate('/material-supplies')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-              >
-                View Sales &rarr;
-              </button>
-            </div>
+              );
+            })}
           </div>
-
-          {/* 5. Site Supply */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:border-teal-300 transition-colors flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-teal-100 text-teal-700 rounded-xl"><Wrench className="w-5 h-5" /></div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">5. Site Supply</h3>
-                  <p className="text-[11px] text-slate-500">Direct Internal Materials</p>
-                </div>
-              </div>
-              <div className="space-y-2.5 pt-3 border-t border-slate-100">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Site Supply Value</span>
-                  <span className="font-bold text-slate-800">₹{getMetric(metrics?.totalMaterialLabourSupply)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Materials Issued</span>
-                  <span className="font-bold text-teal-600">{getMetric(metrics?.stockSummary?.siteSupplyQty || 0)} Units</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Cost Absorption</span>
-                  <span className="font-bold text-slate-600">Deducted from Cat 2</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 pt-2 border-t border-slate-100 text-right">
-              <button 
-                type="button" 
-                onClick={() => navigate('/site-supplies')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-              >
-                View Site Supplies &rarr;
-              </button>
-            </div>
-          </div>
-
-          {/* 6. Labour Attendance, Upad & Other Kharch */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:border-amber-300 transition-colors flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl"><CalendarCheck className="w-5 h-5" /></div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">6. Labour Attendance</h3>
-                  <p className="text-[11px] text-slate-500">Attendance, Team Upad & Kharch</p>
-                </div>
-              </div>
-              <div className="space-y-2.5 pt-3 border-t border-slate-100">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Attendance Earned</span>
-                  <span className="font-bold text-slate-800">₹{getMetric(metrics?.labourMetrics?.totalNetSalary)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Team Upad Advances</span>
-                  <span className="font-bold text-indigo-600">₹{getMetric(metrics?.labourMetrics?.totalUpad)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500">Unpaid Wages Balance</span>
-                  <span className="font-bold text-rose-600">₹{getMetric(metrics?.labourMetrics?.totalBalance)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 pt-2 border-t border-slate-100 text-right">
-              <button 
-                type="button" 
-                onClick={() => navigate('/labour-attendance')}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-              >
-                View Labour &rarr;
-              </button>
-            </div>
-          </div>
-
-        </div>
+        )}
       </div>
       
       {/* Current Stock & Inventory Summary */}

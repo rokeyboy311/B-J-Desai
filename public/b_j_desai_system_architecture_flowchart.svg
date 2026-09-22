@@ -1,0 +1,596 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 3200" width="2400" height="3200" style="background-color:#090d16; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fcc001"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="cardBlue" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="cardIndigo" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#312e81" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="cardEmerald" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#022c22" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="cardAmber" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#78350f" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#451a03" stop-opacity="0.8"/>
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background Grid Pattern -->
+  <rect width="2400" height="3200" fill="url(#bgGrad)"/>
+  <g opacity="0.07" stroke="#94a3b8" stroke-width="1">
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none"/>
+    </pattern>
+    <rect width="2400" height="3200" fill="url(#grid)"/>
+  </g>
+
+  <!-- HEADER BAR -->
+  <g transform="translate(80, 80)">
+    <rect width="2240" height="160" rx="24" fill="#1e293b" stroke="#334155" stroke-width="2" filter="url(#dropShadow)"/>
+    <rect x="30" y="30" width="100" height="100" rx="20" fill="#ffffff"/>
+    
+    <!-- App Logo inside header -->
+    <path d="M 100 50 L 50 100 L 75 100 L 45 125 L 90 85 L 68 85 Z" fill="#fcc001" transform="translate(35, 18) scale(0.65)"/>
+    <path d="M 90 50 Q 120 50 120 70 Q 120 85 105 90 Q 125 95 125 115 Q 125 130 90 130 L 75 130 L 75 50 Z" fill="#010101" transform="translate(35, 18) scale(0.65)"/>
+
+    <text x="160" y="75" fill="#ffffff" font-size="36" font-weight="800" letter-spacing="1">B J DESAI • COMPLETE SYSTEM ARCHITECTURE &amp; DATA FLOW ENGINE</text>
+    <text x="160" y="115" fill="#94a3b8" font-size="20" font-weight="500">Real-time Multi-Location ERP • 2-Tier Capital Pool • Central Material Stock • 7-Category Tab Flow &amp; Financial Formulas</text>
+    
+    <rect x="1850" y="45" width="340" height="70" rx="14" fill="#020617" stroke="#fcc001" stroke-width="1.5"/>
+    <text x="2020" y="80" fill="#fcc001" font-size="16" font-weight="700" text-anchor="middle">DATABASE &amp; RELATIONS</text>
+    <text x="2020" y="102" fill="#38bdf8" font-size="14" font-weight="600" text-anchor="middle">16 Tables • Full Precision (12,2)</text>
+  </g>
+
+  <!-- SECTION 1: 2-TIER CAPITAL FLOW ENGINE (Y: 280) -->
+  <g transform="translate(80, 280)">
+    <rect width="2240" height="440" rx="20" fill="#111827" stroke="#374151" stroke-width="1.5" filter="url(#dropShadow)"/>
+    <rect x="30" y="20" width="380" height="40" rx="8" fill="#f59e0b" fill-opacity="0.2" stroke="#f59e0b" stroke-width="1"/>
+    <text x="45" y="46" fill="#fbbf24" font-size="18" font-weight="700">⚡ 1. TWO-TIER CAPITAL FLOW ARCHITECTURE</text>
+
+    <!-- Box 1: Global Investors -->
+    <g transform="translate(40, 80)">
+      <rect width="640" height="320" rx="16" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+      <rect width="640" height="50" rx="16" fill="#334155"/>
+      <text x="20" y="32" fill="#ffffff" font-size="18" font-weight="700">Tier 1: Global Investors (Admin Pool)</text>
+      
+      <text x="20" y="85" fill="#e2e8f0" font-size="15" font-weight="600">• Investor Contributions (INFLOW):</text>
+      <text x="35" y="110" fill="#34d399" font-size="14">investor_transactions (type = 'CONTRIBUTION')</text>
+      
+      <text x="20" y="145" fill="#e2e8f0" font-size="15" font-weight="600">• Investor Upad / Withdrawals (OUTFLOW):</text>
+      <text x="35" y="170" fill="#f87171" font-size="14">investor_transactions (type = 'UPAD')</text>
+
+      <text x="20" y="205" fill="#e2e8f0" font-size="15" font-weight="600">• Formula: Available Admin Capital</text>
+      <rect x="20" y="220" width="600" height="65" rx="10" fill="#020617" stroke="#38bdf8" stroke-width="1"/>
+      <text x="35" y="248" fill="#38bdf8" font-size="14" font-weight="700">Available Capital = Total Contributions - Total Upad</text>
+      <text x="35" y="272" fill="#94a3b8" font-size="13">- Total Location Allocations - Central Material Purchases</text>
+    </g>
+
+    <!-- Connector Arrow 1 -->
+    <path d="M 700 240 L 770 240" stroke="#fcc001" stroke-width="4" marker-end="url(#arrow)" stroke-dasharray="6 4"/>
+    <text x="735" y="225" fill="#fbbf24" font-size="13" font-weight="700" text-anchor="middle">ALLOCATION</text>
+
+    <!-- Box 2: Location Capital Distribution -->
+    <g transform="translate(790, 80)">
+      <rect width="660" height="320" rx="16" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+      <rect width="660" height="50" rx="16" fill="#334155"/>
+      <text x="20" y="32" fill="#ffffff" font-size="18" font-weight="700">Tier 2: Location Project Capital (Category 1 &amp; 2)</text>
+      
+      <text x="20" y="85" fill="#e2e8f0" font-size="15" font-weight="600">• Category 1: Investor Capital Pool (Location Level)</text>
+      <text x="35" y="110" fill="#94a3b8" font-size="14">Allocated from Admin to Specific Project (investor_location_allocations)</text>
+
+      <text x="20" y="145" fill="#e2e8f0" font-size="15" font-weight="600">• Category 2: Investment Capital (Actual Inflow)</text>
+      <text x="35" y="170" fill="#94a3b8" font-size="14">Capital drawn into active project operations (investment_transactions)</text>
+
+      <rect x="20" y="195" width="620" height="95" rx="10" fill="#020617" stroke="#10b981" stroke-width="1"/>
+      <text x="35" y="222" fill="#10b981" font-size="14" font-weight="700">Category 1 Balance = Allocated Capital - Investment Transfers</text>
+      <text x="35" y="248" fill="#38bdf8" font-size="14" font-weight="700">Category 2 Balance = Inflow - All 5 Site Cost Deductions</text>
+      <text x="35" y="274" fill="#cbd5e1" font-size="12">(Customer Supply + Site Supply + Labour Attendance + Kharch + Contractor)</text>
+    </g>
+
+    <!-- Connector Arrow 2 -->
+    <path d="M 1470 240 L 1540 240" stroke="#38bdf8" stroke-width="4" stroke-dasharray="6 4"/>
+    <text x="1505" y="225" fill="#38bdf8" font-size="13" font-weight="700" text-anchor="middle">OPERATIONS</text>
+
+    <!-- Box 3: Central Stock Funding -->
+    <g transform="translate(1560, 80)">
+      <rect width="640" height="320" rx="16" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+      <rect width="640" height="50" rx="16" fill="#334155"/>
+      <text x="20" y="32" fill="#ffffff" font-size="18" font-weight="700">Central Stock Funding (Direct Admin)</text>
+      
+      <text x="20" y="85" fill="#e2e8f0" font-size="15" font-weight="600">• Funded Exclusively by Admin Capital:</text>
+      <text x="35" y="110" fill="#94a3b8" font-size="14">Bulk Material Purchases do NOT deduct from Location balance.</text>
+      
+      <text x="20" y="145" fill="#e2e8f0" font-size="15" font-weight="600">• Purchase Location Tagging:</text>
+      <text x="35" y="170" fill="#94a3b8" font-size="14">Purchases record which site/location received or initiated goods.</text>
+
+      <rect x="20" y="205" width="600" height="85" rx="10" fill="#020617" stroke="#eab308" stroke-width="1"/>
+      <text x="35" y="232" fill="#eab308" font-size="14" font-weight="700">Stock IN = Material Purchases (funded by Admin)</text>
+      <text x="35" y="256" fill="#f87171" font-size="14" font-weight="700">Stock OUT = Customer Supplies + Site Supplies</text>
+      <text x="35" y="278" fill="#a5b4fc" font-size="13">Current Balance = Total IN - Total OUT (Stock Ledger)</text>
+    </g>
+  </g>
+
+  <!-- SECTION 2: THE 7-CATEGORY TAB WORKFLOW ENGINE (Y: 750) -->
+  <g transform="translate(80, 750)">
+    <rect width="2240" height="820" rx="20" fill="#111827" stroke="#374151" stroke-width="1.5" filter="url(#dropShadow)"/>
+    <rect x="30" y="20" width="430" height="40" rx="8" fill="#6366f1" fill-opacity="0.2" stroke="#6366f1" stroke-width="1"/>
+    <text x="45" y="46" fill="#818cf8" font-size="18" font-weight="700">📊 2. LOCATION 7-CATEGORY TAB STRUCTURE &amp; RULES</text>
+
+    <!-- Grid of 7 Tabs -->
+    <!-- Tab 1: Investor Capital -->
+    <g transform="translate(30, 80)">
+      <rect width="300" height="330" rx="12" fill="#1e293b" stroke="#6366f1" stroke-width="1.5"/>
+      <rect width="300" height="45" rx="12" fill="#312e81"/>
+      <text x="15" y="28" fill="#ffffff" font-size="15" font-weight="700">Tab 1: Investor Capital</text>
+      <text x="15" y="70" fill="#a5b4fc" font-size="13" font-weight="700">TABLE: investor_location_allocations</text>
+      <text x="15" y="95" fill="#cbd5e1" font-size="12">• Source: Admin Capital Pool</text>
+      <text x="15" y="115" fill="#cbd5e1" font-size="12">• Fields: investor_id, amount,</text>
+      <text x="15" y="132" fill="#cbd5e1" font-size="12">  date, payment_method, notes</text>
+      <rect x="10" y="150" width="280" height="165" rx="8" fill="#020617"/>
+      <text x="20" y="175" fill="#38bdf8" font-size="12" font-weight="700">[CALCULATION]</text>
+      <text x="20" y="198" fill="#e2e8f0" font-size="12">Total Allocated Capital</text>
+      <text x="20" y="218" fill="#f87171" font-size="12">- Transferred to Invest (Tab 2)</text>
+      <text x="20" y="238" fill="#94a3b8" font-size="12">- Investor Upad</text>
+      <text x="20" y="265" fill="#34d399" font-size="13" font-weight="700">= Available Investor Cap</text>
+      <text x="20" y="290" fill="#fbbf24" font-size="11">Passbook: Credit / Debit Audit</text>
+    </g>
+
+    <!-- Tab 2: Investment Capital -->
+    <g transform="translate(345, 80)">
+      <rect width="300" height="330" rx="12" fill="#1e293b" stroke="#10b981" stroke-width="1.5"/>
+      <rect width="300" height="45" rx="12" fill="#064e3b"/>
+      <text x="15" y="28" fill="#ffffff" font-size="15" font-weight="700">Tab 2: Investment Capital</text>
+      <text x="15" y="70" fill="#6ee7b7" font-size="13" font-weight="700">TABLE: investment_transactions</text>
+      <text x="15" y="95" fill="#cbd5e1" font-size="12">• Project Inflow Capital</text>
+      <text x="15" y="115" fill="#cbd5e1" font-size="12">• Fields: party_id, amount,</text>
+      <text x="15" y="132" fill="#cbd5e1" font-size="12">  date, type='INVESTMENT'</text>
+      <rect x="10" y="150" width="280" height="165" rx="8" fill="#020617"/>
+      <text x="20" y="175" fill="#34d399" font-size="12" font-weight="700">[MASTER BALANCE FORMULA]</text>
+      <text x="20" y="198" fill="#e2e8f0" font-size="12">Total Inflow Capital</text>
+      <text x="20" y="218" fill="#f87171" font-size="12">- Customer Supply (Tab 3)</text>
+      <text x="20" y="238" fill="#f87171" font-size="12">- Site Supply (Tab 4)</text>
+      <text x="20" y="258" fill="#f87171" font-size="12">- Labour Salary (Tab 5)</text>
+      <text x="20" y="278" fill="#f87171" font-size="12">- Other Kharch (Tab 6)</text>
+      <text x="20" y="298" fill="#f87171" font-size="12">- Contractor Cost (Tab 7)</text>
+    </g>
+
+    <!-- Tab 3: Customer Supply -->
+    <g transform="translate(660, 80)">
+      <rect width="300" height="330" rx="12" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+      <rect width="300" height="45" rx="12" fill="#78350f"/>
+      <text x="15" y="28" fill="#ffffff" font-size="15" font-weight="700">Tab 3: Customer Supply</text>
+      <text x="15" y="70" fill="#fde68a" font-size="13" font-weight="700">TABLE: material_supplies</text>
+      <text x="15" y="95" fill="#cbd5e1" font-size="12">• External Customer Sales</text>
+      <text x="15" y="115" fill="#cbd5e1" font-size="12">• Fields: party_name, material,</text>
+      <text x="15" y="132" fill="#cbd5e1" font-size="12">  qty, rate, discount, tax, total</text>
+      <rect x="10" y="150" width="280" height="165" rx="8" fill="#020617"/>
+      <text x="20" y="175" fill="#fbbf24" font-size="12" font-weight="700">[CALCULATION &amp; STOCK]</text>
+      <text x="20" y="198" fill="#e2e8f0" font-size="12">Subtotal = Qty * Rate</text>
+      <text x="20" y="218" fill="#e2e8f0" font-size="12">Taxable = Subtotal - Discount</text>
+      <text x="20" y="238" fill="#e2e8f0" font-size="12">Tax = Taxable * (GST% / 100)</text>
+      <text x="20" y="258" fill="#fca5a5" font-size="12">Total = Taxable + Tax + Transp</text>
+      <text x="20" y="285" fill="#f87171" font-size="13" font-weight="700">Stock Ledger: -Qty OUT</text>
+    </g>
+
+    <!-- Tab 4: Site Supply -->
+    <g transform="translate(975, 80)">
+      <rect width="300" height="330" rx="12" fill="#1e293b" stroke="#0ea5e9" stroke-width="1.5"/>
+      <rect width="300" height="45" rx="12" fill="#075985"/>
+      <text x="15" y="28" fill="#ffffff" font-size="15" font-weight="700">Tab 4: Site Supply</text>
+      <text x="15" y="70" fill="#7dd3fc" font-size="13" font-weight="700">TABLE: site_supplies + items</text>
+      <text x="15" y="95" fill="#cbd5e1" font-size="12">• Internal Team Dispatch</text>
+      <text x="15" y="115" fill="#cbd5e1" font-size="12">• Fields: team_id, supervisor,</text>
+      <text x="15" y="132" fill="#cbd5e1" font-size="12">  material_id, qty, rate, amount</text>
+      <rect x="10" y="150" width="280" height="165" rx="8" fill="#020617"/>
+      <text x="20" y="175" fill="#38bdf8" font-size="12" font-weight="700">[CALCULATION &amp; STOCK]</text>
+      <text x="20" y="198" fill="#e2e8f0" font-size="12">Item Amount = Qty * Rate</text>
+      <text x="20" y="218" fill="#e2e8f0" font-size="12">Total = SUM(Item Amounts)</text>
+      <text x="20" y="248" fill="#f87171" font-size="13" font-weight="700">Stock Ledger: -Qty OUT</text>
+      <text x="20" y="278" fill="#fbbf24" font-size="12">Expected Contractor Cost</text>
+      <text x="20" y="295" fill="#cbd5e1" font-size="11">= Site Supply + Labour</text>
+    </g>
+
+    <!-- Tab 5: Labour Attendance -->
+    <g transform="translate(1290, 80)">
+      <rect width="300" height="330" rx="12" fill="#1e293b" stroke="#ec4899" stroke-width="1.5"/>
+      <rect width="300" height="45" rx="12" fill="#831843"/>
+      <text x="15" y="28" fill="#ffffff" font-size="15" font-weight="700">Tab 5: Labour Attendance</text>
+      <text x="15" y="70" fill="#fbcfe8" font-size="13" font-weight="700">TABLE: labour_salaries</text>
+      <text x="15" y="95" fill="#cbd5e1" font-size="12">• Daily Attendance / TC Rate</text>
+      <text x="15" y="115" fill="#cbd5e1" font-size="12">• Fields: labour_name, days,</text>
+      <text x="15" y="132" fill="#cbd5e1" font-size="12">  daily_rate, upad, gross, net</text>
+      <rect x="10" y="150" width="280" height="165" rx="8" fill="#020617"/>
+      <text x="20" y="175" fill="#f472b6" font-size="12" font-weight="700">[WAGES &amp; UPAD FORMULA]</text>
+      <text x="20" y="198" fill="#e2e8f0" font-size="12">Gross = (Days * Daily Rate)</text>
+      <text x="20" y="218" fill="#e2e8f0" font-size="12">        + Other Earnings</text>
+      <text x="20" y="238" fill="#e2e8f0" font-size="12">Net Salary = Gross - Deduction</text>
+      <text x="20" y="258" fill="#fca5a5" font-size="12">Pending Balance = Net - Upad</text>
+      <text x="20" y="285" fill="#f87171" font-size="13" font-weight="700">Location Cost: Net Salary</text>
+    </g>
+
+    <!-- Tab 6: Other Kharch -->
+    <g transform="translate(1605, 80)">
+      <rect width="300" height="330" rx="12" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+      <rect width="300" height="45" rx="12" fill="#581c87"/>
+      <text x="15" y="28" fill="#ffffff" font-size="15" font-weight="700">Tab 6: Other Kharch</text>
+      <text x="15" y="70" fill="#e9d5ff" font-size="13" font-weight="700">TABLE: records (type='EXPENSE')</text>
+      <text x="15" y="95" fill="#cbd5e1" font-size="12">• Site Petty Cash &amp; Expenses</text>
+      <text x="15" y="115" fill="#cbd5e1" font-size="12">• Fields: party_name, category,</text>
+      <text x="15" y="132" fill="#cbd5e1" font-size="12">  amount, refundable_amount</text>
+      <rect x="10" y="150" width="280" height="165" rx="8" fill="#020617"/>
+      <text x="20" y="175" fill="#c084fc" font-size="12" font-weight="700">[REFUND TRACKING]</text>
+      <text x="20" y="198" fill="#e2e8f0" font-size="12">Expense = Direct Deduction</text>
+      <text x="20" y="222" fill="#fbbf24" font-size="12">Security Deposits / Advances:</text>
+      <text x="20" y="242" fill="#94a3b8" font-size="11">Refund Status: PENDING / FULL</text>
+      <text x="20" y="265" fill="#34d399" font-size="12">Refunded = Restores Balance</text>
+      <text x="20" y="290" fill="#a78bfa" font-size="12">Categories: Fuel, Food, Repairs</text>
+    </g>
+
+    <!-- Tab 7: Contractor Cost -->
+    <g transform="translate(1920, 80)">
+      <rect width="290" height="330" rx="12" fill="#1e293b" stroke="#14b8a6" stroke-width="1.5"/>
+      <rect width="290" height="45" rx="12" fill="#134e4a"/>
+      <text x="15" y="28" fill="#ffffff" font-size="15" font-weight="700">Tab 7: Contractor Cost</text>
+      <text x="15" y="70" fill="#99f6e4" font-size="13" font-weight="700">TABLE: contractor_costs</text>
+      <text x="15" y="95" fill="#cbd5e1" font-size="12">• Contractor Bills &amp; Contracts</text>
+      <text x="15" y="115" fill="#cbd5e1" font-size="12">• Fields: contractor_name,</text>
+      <text x="15" y="132" fill="#cbd5e1" font-size="12">  team_id, amount, deduction</text>
+      <rect x="10" y="150" width="270" height="165" rx="8" fill="#020617"/>
+      <text x="20" y="175" fill="#2dd4bf" font-size="12" font-weight="700">[RECONCILIATION ENGINE]</text>
+      <text x="20" y="198" fill="#e2e8f0" font-size="12">Net Amount = Amount - Deduct</text>
+      <text x="20" y="225" fill="#fbbf24" font-size="12">Reconciliation Check:</text>
+      <text x="20" y="245" fill="#94a3b8" font-size="11">Expected = SiteSupply + Labour</text>
+      <text x="20" y="265" fill="#94a3b8" font-size="11">Diff = Recorded - Expected</text>
+      <text x="20" y="290" fill="#38bdf8" font-size="12" font-weight="700">Status: MATCHED/SURPLUS</text>
+    </g>
+
+    <!-- SUMMARY RECONCILIATION BAR (BOTTOM OF SECTION 2) -->
+    <g transform="translate(30, 440)">
+      <rect width="2180" height="340" rx="16" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+      <rect x="20" y="20" width="400" height="35" rx="8" fill="#38bdf8" fill-opacity="0.2" stroke="#38bdf8" stroke-width="1"/>
+      <text x="35" y="43" fill="#38bdf8" font-size="16" font-weight="700">🎯 COMPLETE MATHEMATICAL RECONCILIATION ENGINE</text>
+
+      <g transform="translate(40, 80)">
+        <rect width="660" height="220" rx="12" fill="#020617" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="25" y="35" fill="#4ade80" font-size="16" font-weight="700">1. Location Net Financial Balance (Real-time)</text>
+        <text x="25" y="70" fill="#ffffff" font-size="14" font-family="monospace">Net Balance = Investment Capital Inflow (Tab 2)</text>
+        <text x="130" y="95" fill="#f87171" font-size="14" font-family="monospace">- Customer Supply Deductions (Tab 3)</text>
+        <text x="130" y="120" fill="#f87171" font-size="14" font-family="monospace">- Site Supply Deductions (Tab 4)</text>
+        <text x="130" y="145" fill="#f87171" font-size="14" font-family="monospace">- Labour Attendance Net Wages (Tab 5)</text>
+        <text x="130" y="170" fill="#f87171" font-size="14" font-family="monospace">- Other Kharch (Tab 6)</text>
+        <text x="130" y="195" fill="#f87171" font-size="14" font-family="monospace">- Contractor Cost Net (Tab 7)</text>
+      </g>
+
+      <g transform="translate(740, 80)">
+        <rect width="660" height="220" rx="12" fill="#020617" stroke="#eab308" stroke-width="1.5"/>
+        <text x="25" y="35" fill="#facc15" font-size="16" font-weight="700">2. Contractor Cost Dual-Track Audit</text>
+        <text x="25" y="70" fill="#ffffff" font-size="14" font-family="monospace">Expected Cost = Site Supply (Tab 4) + Labour (Tab 5)</text>
+        <text x="25" y="100" fill="#ffffff" font-size="14" font-family="monospace">Recorded Cost = Contractor Costs (Tab 7)</text>
+        <text x="25" y="130" fill="#38bdf8" font-size="14" font-family="monospace">Variance = Recorded Cost - Expected Cost</text>
+        <text x="25" y="165" fill="#4ade80" font-size="13">• If Math.abs(Variance) &lt; ₹1 =&gt; STATUS = MATCHED (ગ્રીન)</text>
+        <text x="25" y="185" fill="#f87171" font-size="13">• If Variance &gt; 0 =&gt; SURPLUS (વધુ ચુકવણી)</text>
+        <text x="25" y="205" fill="#fbbf24" font-size="13">• If Variance &lt; 0 =&gt; DEFICIT (ઓછી ચુકવણી / બાકી)</text>
+      </g>
+
+      <g transform="translate(1440, 80)">
+        <rect width="680" height="220" rx="12" fill="#020617" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="25" y="35" fill="#c084fc" font-size="16" font-weight="700">3. Admin Capital Central Safeguard</text>
+        <text x="25" y="70" fill="#ffffff" font-size="14" font-family="monospace">Available Admin Capital = Total Inflow - Total Outflow</text>
+        <text x="25" y="105" fill="#fca5a5" font-size="13">• Pre-validation Check: Before recording any Material</text>
+        <text x="35" y="125" fill="#fca5a5" font-size="13">  Purchase or Location Allocation, system checks if:</text>
+        <text x="35" y="150" fill="#fde047" font-size="13" font-weight="700">  Amount &lt;= Available Admin Capital</text>
+        <text x="25" y="175" fill="#94a3b8" font-size="13">• Prevents deficit spending across the entire enterprise.</text>
+        <text x="25" y="195" fill="#67e8f9" font-size="13">• Real-time broadcast sync across all connected screens.</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- SECTION 3: DATABASE ENTITY RELATIONSHIP (ERD) SCHEMA MAP (Y: 1610) -->
+  <g transform="translate(80, 1610)">
+    <rect width="2240" height="1480" rx="20" fill="#0d131f" stroke="#334155" stroke-width="1.5" filter="url(#dropShadow)"/>
+    <rect x="30" y="20" width="490" height="40" rx="8" fill="#0284c7" fill-opacity="0.2" stroke="#0284c7" stroke-width="1"/>
+    <text x="45" y="46" fill="#38bdf8" font-size="18" font-weight="700">🗄️ 3. COMPLETE DATABASE TABLES, FIELDS &amp; CONNECTIONS</text>
+
+    <!-- Column 1: Core & Investor Tables -->
+    <!-- Table 1: users -->
+    <g transform="translate(30, 80)">
+      <rect width="520" height="160" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="520" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: users (Primary Auth)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#e2e8f0" font-size="12" font-family="monospace">     uid: text [UNIQUE] (Firebase Auth UID)</text>
+      <text x="15" y="98" fill="#e2e8f0" font-size="12" font-family="monospace">     email: text, name: text, created_at: timestamp</text>
+      <text x="15" y="128" fill="#94a3b8" font-size="11">Parent entity for all locations, records and data ownership.</text>
+    </g>
+
+    <!-- Table 2: locations -->
+    <g transform="translate(30, 260)">
+      <rect width="520" height="200" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="520" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: locations (Project Sites)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] user_id: integer -&gt; users.id [CASCADE]</text>
+      <text x="15" y="98" fill="#e2e8f0" font-size="12" font-family="monospace">     name: text NOT NULL (Site / Project Name)</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     address: text, created_at: timestamp, updated_at</text>
+      <text x="15" y="138" fill="#f87171" font-size="12" font-family="monospace">     is_deleted: integer (0=Active, 1=Deleted)</text>
+      <text x="15" y="168" fill="#94a3b8" font-size="11">Primary operational anchor for all 7-Category transaction tabs.</text>
+    </g>
+
+    <!-- Table 3: investors -->
+    <g transform="translate(30, 480)">
+      <rect width="520" height="200" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="520" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: investors (Global Investors)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] user_id: integer -&gt; users.id [CASCADE]</text>
+      <text x="15" y="98" fill="#e2e8f0" font-size="12" font-family="monospace">     name: text NOT NULL (Investor Full Name)</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     mobile: text, email: text, address: text, notes: text</text>
+      <text x="15" y="138" fill="#f87171" font-size="12" font-family="monospace">     is_deleted: integer (0=Active, 1=Deleted)</text>
+      <text x="15" y="168" fill="#94a3b8" font-size="11">Central Investor Profiles managing equity and passes.</text>
+    </g>
+
+    <!-- Table 4: investor_transactions -->
+    <g transform="translate(30, 700)">
+      <rect width="520" height="210" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="520" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: investor_transactions (Admin Capital)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] investor_id: int -&gt; investors.id [CASCADE]</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] user_id: integer -&gt; users.id [CASCADE]</text>
+      <text x="15" y="118" fill="#fde047" font-size="12" font-family="monospace">     type: 'CONTRIBUTION' (Inflow) | 'UPAD' (Outflow)</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     amount: numeric(12,2), date: text, payment_method</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     reference_number: text, description: text</text>
+      <text x="15" y="188" fill="#94a3b8" font-size="11">Controls the Central Admin Capital Bank / Cash Pool.</text>
+    </g>
+
+    <!-- Table 5: investor_location_allocations -->
+    <g transform="translate(30, 930)">
+      <rect width="520" height="210" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="520" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: investor_location_allocations (Category 1)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] investor_id: int -&gt; investors.id [CASCADE]</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id [CASCADE]</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     amount: numeric(12,2), date: text</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     payment_method: text, reference_number, notes</text>
+      <text x="15" y="168" fill="#94a3b8" font-size="11">Connects Admin Investor Capital to Specific Project Locations.</text>
+    </g>
+
+    <!-- Table 6: investment_parties & investment_transactions -->
+    <g transform="translate(30, 1160)">
+      <rect width="520" height="260" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="520" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: investment_transactions (Category 2)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] party_id: int -&gt; investment_parties.id</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] user_id: integer -&gt; users.id</text>
+      <text x="15" y="118" fill="#4ade80" font-size="12" font-family="monospace">     type: 'INVESTMENT' (Project Inflow)</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     amount: numeric(12,2), date: text</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     description: text, payment_method, reference_number</text>
+      <text x="15" y="188" fill="#94a3b8" font-size="11">The core Positive Capital inflow against which all 5 site cost tabs deduct.</text>
+    </g>
+
+    <!-- Column 2: Materials & Inventory Tables -->
+    <!-- Table 7: materials -->
+    <g transform="translate(580, 80)">
+      <rect width="530" height="220" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: materials (Master Inventory Catalog)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id (Optional)</text>
+      <text x="15" y="98" fill="#e2e8f0" font-size="12" font-family="monospace">     name: text NOT NULL [UPPERCASE Normalized]</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     category: text, default_unit: text (Bags, Ton, Kg...)</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     default_rate: numeric(12,2), min_stock: numeric(12,2)</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     is_active: int (1=Active), is_deleted: int</text>
+      <text x="15" y="188" fill="#94a3b8" font-size="11">Enterprise-wide material deduplication &amp; unit definitions.</text>
+    </g>
+
+    <!-- Table 8: material_purchases -->
+    <g transform="translate(580, 320)">
+      <rect width="530" height="270" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: material_purchases (Stock IN Ledger)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id (Purchase Location)</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] material_id: int -&gt; materials.id</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     date: text, party_name: text, material_name: text</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     quantity: numeric(12,2), unit: text, rate: numeric(12,2)</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     subtotal, transport_cost, discount, tax_percentage, tax</text>
+      <text x="15" y="178" fill="#fde047" font-size="12" font-family="monospace">     total_amount, paid_amount, outstanding_amount, status</text>
+      <text x="15" y="198" fill="#e2e8f0" font-size="12" font-family="monospace">     payment_method, reference_number, notes, is_deleted</text>
+      <text x="15" y="230" fill="#94a3b8" font-size="11">Funded by Admin Capital. Increases Central Stock balance (+IN).</text>
+    </g>
+
+    <!-- Table 9: stock_ledger -->
+    <g transform="translate(580, 610)">
+      <rect width="530" height="230" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: stock_ledger (Real-time Inventory Audit)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] material_id: int -&gt; materials.id</text>
+      <text x="15" y="118" fill="#fde047" font-size="12" font-family="monospace">     transaction_type: 'IN' | 'OUT' | 'ADJUST'</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     quantity: numeric(12,2) NOT NULL</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     reference_id: int, reference_type: 'PURCHASE'|'SUPPLY'</text>
+      <text x="15" y="178" fill="#e2e8f0" font-size="12" font-family="monospace">     notes: text, created_at: timestamp, is_deleted: int</text>
+      <text x="15" y="205" fill="#94a3b8" font-size="11">Single source of truth for stock valuation and physical inventory.</text>
+    </g>
+
+    <!-- Table 10: material_supplies -->
+    <g transform="translate(580, 860)">
+      <rect width="530" height="270" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: material_supplies (Tab 3: Customer Supply)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] material_id: int -&gt; materials.id</text>
+      <text x="15" y="118" fill="#60a5fa" font-size="12" font-family="monospace">[FK] party_id: int -&gt; parties.id</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     date: text, party_name: text, material_name: text</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     quantity: numeric(12,2), unit, rate, subtotal, tax</text>
+      <text x="15" y="178" fill="#f87171" font-size="12" font-family="monospace">     total_amount (Location Deduction), paid_amount</text>
+      <text x="15" y="198" fill="#e2e8f0" font-size="12" font-family="monospace">     payment_status, reference_number, notes, is_deleted</text>
+      <text x="15" y="230" fill="#94a3b8" font-size="11">Deducts stock (-OUT) and reduces Location Investment Balance.</text>
+    </g>
+
+    <!-- Table 11 & 12: site_supplies & items -->
+    <g transform="translate(580, 1150)">
+      <rect width="530" height="270" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLES: site_supplies &amp; site_supply_items (Tab 4)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] site_supplies.id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] team_id: int -&gt; labour_teams.id</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     responsible_person: text, total_amount: numeric(12,2)</text>
+      <text x="15" y="148" fill="#38bdf8" font-size="12" font-family="monospace">CHILD: site_supply_items</text>
+      <text x="15" y="168" fill="#60a5fa" font-size="12" font-family="monospace">     [FK] site_supply_id -&gt; site_supplies.id [CASCADE]</text>
+      <text x="15" y="188" fill="#60a5fa" font-size="12" font-family="monospace">     [FK] material_id -&gt; materials.id</text>
+      <text x="15" y="208" fill="#e2e8f0" font-size="12" font-family="monospace">     quantity, rate, amount (Deducts -OUT for each item)</text>
+      <text x="15" y="238" fill="#94a3b8" font-size="11">Supports multi-item material dispatches to site teams.</text>
+    </g>
+
+    <!-- Column 3: Labour, Kharch & Contractor Tables -->
+    <!-- Table 13: labour_master & labour_teams -->
+    <g transform="translate(1130, 80)">
+      <rect width="530" height="250" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLES: labour_master &amp; labour_teams</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] labour_teams.id: serial, name: text</text>
+      <text x="15" y="88" fill="#facc15" font-size="12" font-family="monospace">[PK] labour_master.id: serial</text>
+      <text x="15" y="108" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id</text>
+      <text x="15" y="128" fill="#60a5fa" font-size="12" font-family="monospace">[FK] team_id: int -&gt; labour_teams.id</text>
+      <text x="15" y="148" fill="#e2e8f0" font-size="12" font-family="monospace">     name: text NOT NULL, mobile, address, work_type</text>
+      <text x="15" y="168" fill="#e2e8f0" font-size="12" font-family="monospace">     daily_rate: numeric(12,2), tc_rate: numeric(12,2)</text>
+      <text x="15" y="188" fill="#e2e8f0" font-size="12" font-family="monospace">     is_active: int, is_deleted: int</text>
+      <text x="15" y="218" fill="#94a3b8" font-size="11">Pre-configured worker master for 1-click attendance entry.</text>
+    </g>
+
+    <!-- Table 14: labour_salaries -->
+    <g transform="translate(1130, 350)">
+      <rect width="530" height="280" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: labour_salaries (Tab 5: Wages &amp; Upad)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] labour_master_id: int -&gt; labour_master.id</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     date, labour_name, labour_team, attendance_type</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     days: numeric(5,2), daily_rate: numeric(12,2)</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     other_earnings: numeric(12,2), deduction: numeric</text>
+      <text x="15" y="178" fill="#f87171" font-size="12" font-family="monospace">     gross_salary, net_salary (Location Cost Deduction)</text>
+      <text x="15" y="198" fill="#fde047" font-size="12" font-family="monospace">     upad (Cash Advance), payment_amount, balance</text>
+      <text x="15" y="218" fill="#e2e8f0" font-size="12" font-family="monospace">     payment_method, reference_number, notes, is_deleted</text>
+      <text x="15" y="248" fill="#94a3b8" font-size="11">Accurately tracks worker ledger balance and project wages.</text>
+    </g>
+
+    <!-- Table 15: records (Other Kharch) -->
+    <g transform="translate(1130, 650)">
+      <rect width="530" height="280" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: records (Tab 6: Other Kharch &amp; Incomes)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] user_id: int -&gt; users.id</text>
+      <text x="15" y="118" fill="#fde047" font-size="12" font-family="monospace">     type: 'EXPENSE' (Kharch) | 'INCOME'</text>
+      <text x="15" y="138" fill="#f87171" font-size="12" font-family="monospace">     amount: numeric(12,2) (Location Cost Deduction)</text>
+      <text x="15" y="158" fill="#e2e8f0" font-size="12" font-family="monospace">     date: text, time: text, party_name: text, team_name</text>
+      <text x="15" y="178" fill="#e2e8f0" font-size="12" font-family="monospace">     category: text, description: text, payment_method</text>
+      <text x="15" y="198" fill="#38bdf8" font-size="12" font-family="monospace">     refundable_amount, refunded_amount, refund_status</text>
+      <text x="15" y="218" fill="#e2e8f0" font-size="12" font-family="monospace">     reference_number, notes, is_deleted</text>
+      <text x="15" y="248" fill="#94a3b8" font-size="11">Tracks daily operational expenses and refundable deposits.</text>
+    </g>
+
+    <!-- Table 16: contractor_costs & supervisor_costs -->
+    <g transform="translate(1130, 950)">
+      <rect width="530" height="270" rx="10" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="35" rx="10" fill="#334155"/>
+      <text x="15" y="24" fill="#ffffff" font-size="14" font-weight="700">TABLE: contractor_costs (Tab 7: Contractor Bill)</text>
+      <text x="15" y="58" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+      <text x="15" y="78" fill="#60a5fa" font-size="12" font-family="monospace">[FK] location_id: int -&gt; locations.id</text>
+      <text x="15" y="98" fill="#60a5fa" font-size="12" font-family="monospace">[FK] team_id: int -&gt; labour_teams.id</text>
+      <text x="15" y="118" fill="#e2e8f0" font-size="12" font-family="monospace">     contractor_name: text, team_name: text, date: text</text>
+      <text x="15" y="138" fill="#e2e8f0" font-size="12" font-family="monospace">     amount: numeric(12,2), deduction_amount: numeric</text>
+      <text x="15" y="158" fill="#f87171" font-size="12" font-family="monospace">     net_amount: numeric(12,2) (Location Cost Deduction)</text>
+      <text x="15" y="178" fill="#e2e8f0" font-size="12" font-family="monospace">     payment_status: 'PAID'|'PENDING', work_description</text>
+      <text x="15" y="198" fill="#e2e8f0" font-size="12" font-family="monospace">     payment_method, reference_number, notes, is_deleted</text>
+      <text x="15" y="230" fill="#94a3b8" font-size="11">Primary contract cost record paired with audit reconciliation.</text>
+    </g>
+
+    <!-- Column 4: System Audit, Realtime Sync & Reports -->
+    <g transform="translate(1680, 80)">
+      <rect width="530" height="1340" rx="16" fill="#1e293b" stroke="#475569"/>
+      <rect width="530" height="45" rx="16" fill="#334155"/>
+      <text x="20" y="30" fill="#ffffff" font-size="16" font-weight="700">⚡ AUDIT, EXPORT &amp; REAL-TIME ENGINE</text>
+
+      <g transform="translate(20, 65)">
+        <rect width="490" height="180" rx="10" fill="#020617" stroke="#f59e0b" stroke-width="1"/>
+        <text x="20" y="30" fill="#fbbf24" font-size="14" font-weight="700">TABLE: audit_logs (Activity Security)</text>
+        <text x="20" y="60" fill="#facc15" font-size="12" font-family="monospace">[PK] id: serial (int)</text>
+        <text x="20" y="80" fill="#60a5fa" font-size="12" font-family="monospace">[FK] user_id: int -&gt; users.id</text>
+        <text x="20" y="100" fill="#e2e8f0" font-size="12" font-family="monospace">     action: 'CREATE_RECORD'|'DELETE_LOCATION'</text>
+        <text x="20" y="120" fill="#e2e8f0" font-size="12" font-family="monospace">     entity_type: 'LOCATION'|'RECORD'|'PURCHASE'</text>
+        <text x="20" y="140" fill="#e2e8f0" font-size="12" font-family="monospace">     entity_id: int, metadata: json, created_at</text>
+      </g>
+
+      <g transform="translate(20, 265)">
+        <rect width="490" height="240" rx="10" fill="#020617" stroke="#38bdf8" stroke-width="1"/>
+        <text x="20" y="30" fill="#38bdf8" font-size="14" font-weight="700">LIVE SYNC &amp; BROADCAST ARCHITECTURE</text>
+        <text x="20" y="60" fill="#e2e8f0" font-size="13">• useLiveSync() Hook with Polling + Broadcast</text>
+        <text x="20" y="85" fill="#cbd5e1" font-size="12">• window.postMessage &amp; BroadcastChannel sync</text>
+        <text x="20" y="110" fill="#cbd5e1" font-size="12">• Changes in one tab immediately reflect across</text>
+        <text x="30" y="130" fill="#cbd5e1" font-size="12">  mobile, desktop, and all active user sessions.</text>
+        <text x="20" y="160" fill="#4ade80" font-size="13" font-weight="700">Offline PWA Compliance:</text>
+        <text x="20" y="185" fill="#94a3b8" font-size="12">• Service Worker caching for instant offline boot</text>
+        <text x="20" y="205" fill="#94a3b8" font-size="12">• Manifest v2 with full standalone app display</text>
+      </g>
+
+      <g transform="translate(20, 525)">
+        <rect width="490" height="280" rx="10" fill="#020617" stroke="#10b981" stroke-width="1"/>
+        <text x="20" y="30" fill="#34d399" font-size="14" font-weight="700">EXCEL &amp; REPORT GENERATION ENGINE</text>
+        <text x="20" y="60" fill="#e2e8f0" font-size="13">Built with ExcelJS (Streamed Binary Buffers):</text>
+        <text x="20" y="90" fill="#a7f3d0" font-size="12">1. Location Master Statement (All 7 Tabs)</text>
+        <text x="20" y="115" fill="#a7f3d0" font-size="12">2. Global Investor Individual Passbooks</text>
+        <text x="20" y="140" fill="#a7f3d0" font-size="12">3. Vendor Material Purchase Detailed Ledger</text>
+        <text x="20" y="165" fill="#a7f3d0" font-size="12">4. Customer Material Sales Inward/Outward</text>
+        <text x="20" y="190" fill="#a7f3d0" font-size="12">5. Site Supply Internal Team Dispatch Log</text>
+        <text x="20" y="215" fill="#a7f3d0" font-size="12">6. Labour Salary &amp; Upad Weekly Sheets</text>
+        <text x="20" y="240" fill="#a7f3d0" font-size="12">7. Contractor Cost &amp; Variance Audit Report</text>
+      </g>
+
+      <g transform="translate(20, 825)">
+        <rect width="490" height="240" rx="10" fill="#020617" stroke="#f43f5e" stroke-width="1"/>
+        <text x="20" y="30" fill="#fb7185" font-size="14" font-weight="700">SECURITY &amp; SYSTEM ROLES</text>
+        <text x="20" y="60" fill="#e2e8f0" font-size="13">• Master PIN Screen Lock &amp; Session Store</text>
+        <text x="20" y="85" fill="#cbd5e1" font-size="12">• Firebase Auth Token Bearer Verification</text>
+        <text x="20" y="110" fill="#cbd5e1" font-size="12">• Multi-tenant user_id SQL Partitioning</text>
+        <text x="20" y="135" fill="#cbd5e1" font-size="12">• Soft-delete (is_deleted=1) Data Protection</text>
+        <text x="20" y="160" fill="#cbd5e1" font-size="12">• Automatic Material UPPERCASE normalization</text>
+        <text x="20" y="185" fill="#cbd5e1" font-size="12">• Stock auto-reconciliation on every delete</text>
+      </g>
+
+      <g transform="translate(20, 1085)">
+        <rect width="490" height="230" rx="10" fill="#0f172a" stroke="#fcc001" stroke-width="1.5"/>
+        <text x="20" y="35" fill="#fcc001" font-size="15" font-weight="700">⭐ B J DESAI CENTRAL ERP IDENTITY</text>
+        <text x="20" y="65" fill="#ffffff" font-size="13">• High Speed SPA with React 19 &amp; Vite</text>
+        <text x="20" y="90" fill="#cbd5e1" font-size="12">• Server: Express + TypeScript + Drizzle ORM</text>
+        <text x="20" y="115" fill="#cbd5e1" font-size="12">• Database: PostgreSQL (Cloud SQL)</text>
+        <text x="20" y="140" fill="#cbd5e1" font-size="12">• Icons: Lucide React + Crisp Transparent SVG</text>
+        <text x="20" y="165" fill="#38bdf8" font-size="12">• Color Scheme: Slate-900 / Amber Gold / Emerald</text>
+        <text x="20" y="195" fill="#fde047" font-size="13" font-weight="700">Enterprise-Ready Real-time Performance</text>
+      </g>
+    </g>
+  </g>
+</svg>

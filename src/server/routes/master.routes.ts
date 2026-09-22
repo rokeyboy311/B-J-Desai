@@ -230,14 +230,51 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
 
     if (locationId) {
       await assertLocationAccess(userId, locationId);
-      const records = await db.select().from(materials).where(and(eq(materials.locationId, locationId), eq(materials.isDeleted, 0)));
-      return res.json(records);
     }
 
-    const records = await db.select().from(materials).where(eq(materials.isDeleted, 0));
-    res.json(records);
+    const records = await db.select().from(materials).where(eq(materials.isDeleted, 0)).orderBy(materials.name);
+
+    // Calculate live stock from stock_ledger for all materials
+    const enriched = await Promise.all(
+      records.map(async (m) => {
+        const inRes = await db.execute(sql`
+          SELECT COALESCE(SUM(CAST(quantity AS numeric)), 0) as total
+          FROM stock_ledger
+          WHERE material_id = ${m.id} AND transaction_type = 'IN' AND is_deleted = 0
+        `);
+
+        const outRes = await db.execute(sql`
+          SELECT COALESCE(SUM(ABS(CAST(quantity AS numeric))), 0) as total
+          FROM stock_ledger
+          WHERE material_id = ${m.id} AND transaction_type = 'OUT' AND is_deleted = 0
+        `);
+
+        const totalInward = parseFloat(inRes.rows[0]?.total as string || '0');
+        const totalOutward = parseFloat(outRes.rows[0]?.total as string || '0');
+        const currentStock = Math.round((totalInward - totalOutward) * 100) / 100;
+        const minStock = parseFloat(m.minStock || '0');
+
+        let status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK';
+        if (currentStock <= 0) {
+          status = 'OUT_OF_STOCK';
+        } else if (currentStock <= minStock) {
+          status = 'LOW_STOCK';
+        }
+
+        return {
+          ...m,
+          totalInward,
+          totalOutward,
+          currentStock,
+          status
+        };
+      })
+    );
+
+    res.json(enriched);
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
+    console.error('Failed to fetch materials:', err);
     res.status(500).json({ error: "Failed to fetch materials" });
   }
 });
