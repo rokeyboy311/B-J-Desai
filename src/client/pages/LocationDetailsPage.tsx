@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import {
   ArrowLeft, CalendarCheck, Download, Landmark, TrendingDown,
-  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock, Trash2, AlertTriangle, ArrowRight
+  ChevronDown, Truck, Wrench, HardHat, Wallet, TrendingUp, User, Users, ShoppingCart, Lock, Trash2, AlertTriangle, ArrowRight, Building2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -96,13 +96,23 @@ export default function LocationDetailsPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(`/investors?locationId=${locationId}`)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            title="Open Investor Pool & Accounts"
+            onClick={() => navigate(`/locations/${locationId}/central-investors`)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+            title="Open Central Investor Pool Page for this Location"
           >
-            <Users className="w-4 h-4 text-emerald-600" />
-            <span>Investor Pool (ઇન્વેસ્ટર પૂલ)</span>
-            <ArrowRight className="w-3.5 h-3.5 text-emerald-600" />
+            <Building2 className="w-4 h-4 text-emerald-100" />
+            <span>Central Investor Pool (સેન્ટ્રલ પૂલ)</span>
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-200" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/investors")}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            title="Open Main Investor Pool & Accounts"
+          >
+            <Users className="w-4 h-4 text-slate-600" />
+            <span>Main Investors Pool (મુખ્ય)</span>
           </button>
 
           <button
@@ -184,16 +194,16 @@ export default function LocationDetailsPage() {
           <div className="pt-2 border-t border-slate-200">
             <button 
               type="button" 
-              onClick={() => navigate(`/investors?locationId=${locationId}`)} 
-              className="w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left bg-emerald-50/70 border border-emerald-200/80 hover:bg-emerald-100/80 text-emerald-900 cursor-pointer"
+              onClick={() => navigate(`/locations/${locationId}/central-investors`)} 
+              className="w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left bg-emerald-50/70 border border-emerald-200/80 hover:bg-emerald-100/80 text-emerald-900 cursor-pointer shadow-xs"
             >
-              <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700"><Users className="w-4 h-4" /></div>
+              <div className="p-2 rounded-lg bg-emerald-600 text-white"><Building2 className="w-4 h-4" /></div>
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-xs flex items-center justify-between gap-1">
                   <span>Central Investor Pool</span>
                   <ArrowRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 </div>
-                <div className="text-[11px] text-emerald-700 font-medium">Global Capital & Accounts</div>
+                <div className="text-[11px] text-emerald-700 font-medium">Location Capital & Allocations</div>
               </div>
             </button>
           </div>

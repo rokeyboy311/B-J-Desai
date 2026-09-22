@@ -33,11 +33,14 @@ export async function getAllRecords(_userId?: number, filters?: { startDate?: st
   .orderBy(desc(records.date), desc(records.id));
 }
 
-export async function getRecords(_userId: number, locationId: number, filters?: { startDate?: string, endDate?: string, type?: 'INCOME' | 'EXPENSE' }) {
+export async function getRecords(_userId: number, locationId?: number, filters?: { startDate?: string, endDate?: string, type?: 'INCOME' | 'EXPENSE' }) {
   const conditions = [
-    eq(records.locationId, locationId),
     eq(records.isDeleted, 0)
   ];
+
+  if (locationId) {
+    conditions.push(eq(records.locationId, locationId));
+  }
 
   if (filters?.startDate) {
     conditions.push(gte(records.date, filters.startDate));
@@ -55,7 +58,15 @@ export async function getRecords(_userId: number, locationId: number, filters?: 
     .orderBy(desc(records.date), desc(records.id));
 }
 
-export async function getRecordMetrics(_userId: number, locationId: number) {
+export async function getRecordMetrics(_userId: number, locationId?: number) {
+  const conditions = [
+    eq(records.isDeleted, 0)
+  ];
+
+  if (locationId) {
+    conditions.push(eq(records.locationId, locationId));
+  }
+
   const result = await db.select({
     type: records.type,
     total: sql<string>`sum(${records.amount})`,
@@ -63,10 +74,7 @@ export async function getRecordMetrics(_userId: number, locationId: number) {
     totalRefunded: sql<string>`sum(${records.refundedAmount})`,
   })
   .from(records)
-  .where(and(
-    eq(records.locationId, locationId),
-    eq(records.isDeleted, 0)
-  ))
+  .where(and(...conditions))
   .groupBy(records.type);
 
   let totalIncome = 0;

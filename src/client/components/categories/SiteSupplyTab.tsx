@@ -323,7 +323,98 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
           <span className="text-xs text-slate-500 font-semibold">{records.length} records</span>
         </div>
         
-        <div className="overflow-x-auto">
+        {/* Mobile Cards View */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {records.map(r => {
+            const subtotalVal = parseFloat(r.subtotal || r.totalAmount || 0);
+            const taxVal = parseFloat(r.taxAmount || 0);
+            const totalVal = parseFloat(r.totalAmount || 0);
+            const locName = locations.find(l => l.id === r.locationId)?.name || `Location ${r.locationId}`;
+            const teamName = teams.find(t => t.id === r.teamId)?.name;
+
+            return (
+              <div key={`ss-mob-${r.id}`} className="p-4 space-y-3 bg-white hover:bg-slate-50/60 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="px-2 py-0.5 bg-teal-50 border border-teal-100 text-teal-900 rounded text-[11px] font-bold flex items-center gap-1">
+                    {locName}
+                  </span>
+                  <span className="text-slate-500 text-xs font-medium">{r.date}</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                  <HardHat className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>{teamName || "Direct Site"}</span>
+                </div>
+
+                {r.items && r.items.length > 0 && (
+                  <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    {r.items.map((item: any, i: number) => {
+                      const matName = materials.find(m => m.id === item.materialId)?.name || 'Material #' + item.materialId;
+                      const itemQty = parseFloat(item.quantity) || 0;
+                      const itemRate = parseFloat(item.rate) || 0;
+                      const itemGstPct = parseFloat(item.taxPercentage) || 0;
+                      const itemGstAmt = parseFloat(item.taxAmount) || 0;
+                      const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemQty * itemRate);
+
+                      return (
+                        <div key={i} className="text-xs flex flex-wrap items-center justify-between gap-1 py-1 border-b border-slate-200/60 last:border-none">
+                          <div>
+                            <span className="font-bold text-teal-900">{matName}</span>
+                            <span className="text-slate-600 text-[11px] ml-1.5 font-semibold">({itemQty} {item.unit || 'Nos'})</span>
+                          </div>
+                          <div className="font-extrabold text-slate-800">
+                            ₹{itemTotalAmt.toLocaleString()}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {r.displayNotes && (
+                  <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    {r.displayNotes}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-100 text-xs">
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-teal-800">Taxable + GST</div>
+                    <div className="font-semibold text-slate-700">₹{subtotalVal.toLocaleString()} + ₹{taxVal.toLocaleString()}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase font-bold text-teal-800">Grand Total</div>
+                    <div className="font-black text-teal-950 text-sm">₹{totalVal.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleEdit(r)}
+                    className="flex-1 min-h-[42px] px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-slate-600" /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(r.id)}
+                    className="flex-1 min-h-[42px] px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-rose-200 transition-colors cursor-pointer active:scale-95"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-600" /> Delete (ડિલીટ)
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {records.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-xs">
+              No site supply records found. Click &quot;+ Add Site Supply&quot; above to record a dispatch.
+            </div>
+          )}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
               <tr>

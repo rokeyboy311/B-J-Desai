@@ -13,20 +13,22 @@ supervisorRouter.get('/', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const { locationId } = req.query;
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(Number(locParam)))
+      ? Number(locParam)
+      : undefined;
+
     if (locationId) {
-      const locId = Number(locationId);
-      await assertLocationAccess(userId, locId);
+      await assertLocationAccess(userId, locationId);
     }
     
-    let query = db.select().from(supervisorCosts)
+    const records = await db.select().from(supervisorCosts)
       .where(and(
         eq(supervisorCosts.isDeleted, 0),
-        locationId ? eq(supervisorCosts.locationId, Number(locationId)) : undefined
+        locationId ? eq(supervisorCosts.locationId, locationId) : undefined
       ))
       .orderBy(desc(supervisorCosts.createdAt));
       
-    const records = await query;
     res.json(records);
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
@@ -46,7 +48,9 @@ supervisorRouter.post('/', async (req: AuthRequest, res: Response) => {
     } = req.body;
     
     const locId = Number(locationId);
-    if (!locId || isNaN(locId)) return res.status(400).json({ error: 'locationId is required' });
+    if (!locId || isNaN(locId)) {
+      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+    }
     await assertLocationAccess(userId, locId);
 
     const [newRecord] = await db.insert(supervisorCosts).values({

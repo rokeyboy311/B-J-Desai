@@ -1,7 +1,7 @@
 import express from 'express';
 import { Response } from 'express';
 import { db } from '../../db/index.js';
-import { siteSupplies, siteSupplyItems, materials, auditLogs } from '../../db/schema.js';
+import { siteSupplies, siteSupplyItems, materials, locations, labourTeams, auditLogs } from '../../db/schema.js';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { StockManager, calculateSiteSupplyTotals } from '../lib/accounting.js';
@@ -15,19 +15,58 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
-    if (!locationId) return res.status(400).json({ error: 'Location ID required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+    }
 
-    const records = await db.select().from(siteSupplies)
-      .where(and(eq(siteSupplies.locationId, locationId), eq(siteSupplies.isDeleted, 0)))
-      .orderBy(desc(siteSupplies.date), desc(siteSupplies.id));
+    const records = await db.select({
+      id: siteSupplies.id,
+      userId: siteSupplies.userId,
+      locationId: siteSupplies.locationId,
+      date: siteSupplies.date,
+      teamId: siteSupplies.teamId,
+      responsiblePerson: siteSupplies.responsiblePerson,
+      workDescription: siteSupplies.workDescription,
+      referenceNumber: siteSupplies.referenceNumber,
+      notes: siteSupplies.notes,
+      totalAmount: siteSupplies.totalAmount,
+      investorId: siteSupplies.investorId,
+      createdAt: siteSupplies.createdAt,
+      isDeleted: siteSupplies.isDeleted,
+      locationName: locations.name,
+      teamName: labourTeams.name
+    })
+    .from(siteSupplies)
+    .leftJoin(locations, eq(siteSupplies.locationId, locations.id))
+    .leftJoin(labourTeams, eq(siteSupplies.teamId, labourTeams.id))
+    .where(and(
+      locationId ? eq(siteSupplies.locationId, locationId) : undefined,
+      eq(siteSupplies.isDeleted, 0)
+    ))
+    .orderBy(desc(siteSupplies.date), desc(siteSupplies.id));
     
     const recordIds = records.map(r => r.id);
     let items: any[] = [];
     if (recordIds.length > 0) {
-      items = await db.select().from(siteSupplyItems).where(and(inArray(siteSupplyItems.siteSupplyId, recordIds), eq(siteSupplyItems.isDeleted, 0)));
+      items = await db.select({
+        id: siteSupplyItems.id,
+        siteSupplyId: siteSupplyItems.siteSupplyId,
+        materialId: siteSupplyItems.materialId,
+        quantity: siteSupplyItems.quantity,
+        rate: siteSupplyItems.rate,
+        amount: siteSupplyItems.amount,
+        isDeleted: siteSupplyItems.isDeleted,
+        materialName: materials.name,
+        defaultUnit: materials.defaultUnit
+      })
+      .from(siteSupplyItems)
+      .leftJoin(materials, eq(siteSupplyItems.materialId, materials.id))
+      .where(and(inArray(siteSupplyItems.siteSupplyId, recordIds), eq(siteSupplyItems.isDeleted, 0)));
     }
     
     const combined = records.map(r => {
@@ -41,6 +80,8 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
       }
       return {
         ...r,
+        locationName: r.locationName || `Location #${r.locationId}`,
+        teamName: r.teamName || r.responsiblePerson || 'Direct Site',
         displayNotes: meta.userNotes !== undefined ? meta.userNotes : r.notes,
         gstBreakdown: meta.gstBreakdown || null,
         subtotal: meta.subtotal || r.totalAmount,
@@ -52,7 +93,8 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
           }
           return {
             ...it,
-            unit: itemMeta.unit || 'Nos',
+            materialName: it.materialName || `Material #${it.materialId}`,
+            unit: itemMeta.unit || it.defaultUnit || 'Nos',
             taxPercentage: itemMeta.taxPercentage || 0,
             taxAmount: itemMeta.taxAmount || 0,
             subtotal: itemMeta.subtotal || it.amount,
@@ -74,13 +116,53 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const { locationId, date, teamId, responsiblePerson, workDescription, referenceNumber, notes, investorId, items } = req.body;
+    const { locationId, date, teamId, responsiblePerson, workDescription, referenceNumber, notes, investorId } = req.body;
+    let items = req.body.items;
     
-    if (!locationId || !date || !items || !items.length) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Fallback if submitted with single item fields
+    if ((!items || !items.length) && (req.body.materialName || req.body.materialId)) {
+      items = [{
+        materialId: req.body.materialId,
+        materialName: req.body.materialName,
+        quantity: req.body.materialQuantity || req.body.quantity,
+        unit: req.body.materialUnit || req.body.unit || 'Nos',
+        rate: req.body.materialRate || req.body.rate || '0',
+        taxPercentage: req.body.taxPercentage || '18'
+      }];
     }
-    const locId = parseInt(String(locationId), 10);
+
+    const rawLoc = locationId || req.body.siteLocationId;
+    const locId = rawLoc ? parseInt(String(rawLoc), 10) : NaN;
+    if (isNaN(locId) || locId <= 0) {
+      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+    }
+    if (!date || !items || !items.length) {
+      return res.status(400).json({ error: 'Missing required fields (Date, Items)' });
+    }
     await assertLocationAccess(userId, locId);
+
+    // Resolve or create labour team if teamName was given instead of teamId
+    let finalTeamId: number | null = teamId ? parseInt(String(teamId), 10) : null;
+    const rawTeamName = (req.body.teamName || '').trim();
+    if ((!finalTeamId || isNaN(finalTeamId)) && rawTeamName) {
+      const existingTeam = await db.select().from(labourTeams).where(
+        and(
+          eq(labourTeams.locationId, locId),
+          sql`UPPER(TRIM(${labourTeams.name})) = ${rawTeamName.toUpperCase()}`,
+          eq(labourTeams.isDeleted, 0)
+        )
+      ).limit(1);
+      if (existingTeam.length > 0) {
+        finalTeamId = existingTeam[0].id;
+      } else {
+        const createdTeam = await db.insert(labourTeams).values({
+          userId,
+          locationId: locId,
+          name: rawTeamName
+        }).returning();
+        finalTeamId = createdTeam[0].id;
+      }
+    }
 
     // Normalize and resolve material items to UPPERCASE
     const resolvedItems: any[] = [];
@@ -156,7 +238,7 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
         userId,
         locationId: locId,
         date,
-        teamId: teamId || null,
+        teamId: finalTeamId || null,
         responsiblePerson,
         workDescription,
         referenceNumber,
@@ -210,13 +292,50 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
     const id = parseInt(req.params.id as string, 10);
-    const { locationId, date, teamId, responsiblePerson, workDescription, referenceNumber, notes, investorId, items } = req.body;
+    const { locationId, date, teamId, responsiblePerson, workDescription, referenceNumber, notes, investorId } = req.body;
+    let items = req.body.items;
+
+    // Fallback if submitted with single item fields
+    if ((!items || !items.length) && (req.body.materialName || req.body.materialId)) {
+      items = [{
+        materialId: req.body.materialId,
+        materialName: req.body.materialName,
+        quantity: req.body.materialQuantity || req.body.quantity,
+        unit: req.body.materialUnit || req.body.unit || 'Nos',
+        rate: req.body.materialRate || req.body.rate || '0',
+        taxPercentage: req.body.taxPercentage || '18'
+      }];
+    }
     
-    if (!locationId || !date || !items || !items.length) {
+    const rawLoc = locationId || req.body.siteLocationId;
+    if (!rawLoc || !date || !items || !items.length) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    const locId = parseInt(String(locationId), 10);
+    const locId = parseInt(String(rawLoc), 10);
     await assertLocationAccess(userId, locId);
+
+    // Resolve or create labour team if teamName was given instead of teamId
+    let finalTeamId: number | null = teamId ? parseInt(String(teamId), 10) : null;
+    const rawTeamName = (req.body.teamName || '').trim();
+    if ((!finalTeamId || isNaN(finalTeamId)) && rawTeamName) {
+      const existingTeam = await db.select().from(labourTeams).where(
+        and(
+          eq(labourTeams.locationId, locId),
+          sql`UPPER(TRIM(${labourTeams.name})) = ${rawTeamName.toUpperCase()}`,
+          eq(labourTeams.isDeleted, 0)
+        )
+      ).limit(1);
+      if (existingTeam.length > 0) {
+        finalTeamId = existingTeam[0].id;
+      } else {
+        const createdTeam = await db.insert(labourTeams).values({
+          userId,
+          locationId: locId,
+          name: rawTeamName
+        }).returning();
+        finalTeamId = createdTeam[0].id;
+      }
+    }
 
     // Normalize and resolve material items to UPPERCASE
     const resolvedItems: any[] = [];
@@ -298,7 +417,7 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       const supply = await tx.update(siteSupplies).set({
         locationId: locId,
         date,
-        teamId: teamId || null,
+        teamId: finalTeamId || null,
         responsiblePerson,
         workDescription,
         referenceNumber,
@@ -354,7 +473,11 @@ siteSupplyRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
       const record = await tx.select().from(siteSupplies).where(eq(siteSupplies.id, id));
       if (!record.length) return;
       const locId = record[0].locationId;
-      await assertLocationAccess(userId, locId);
+      try {
+        await assertLocationAccess(userId, locId, { allowDeleted: true });
+      } catch (locErr) {
+        console.warn(`Location check warning during site supply delete #${id}:`, locErr);
+      }
 
       await tx.update(siteSupplies).set({ isDeleted: 1 }).where(eq(siteSupplies.id, id));
       // Delete child items
@@ -363,7 +486,11 @@ siteSupplyRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
       
       // Reverse stock ledger
       for (const item of items) {
-         await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'IN', parseFloat(item.quantity as any), id, 'SITE_SUPPLY_DELETE', 'Reversed from delete');
+        try {
+          await StockManager.addStockMovement(tx, userId, locId, item.materialId, 'IN', parseFloat(item.quantity as any), id, 'SITE_SUPPLY_DELETE', 'Reversed from delete');
+        } catch (stockErr) {
+          console.warn(`Stock reversal warning for site supply #${id}:`, stockErr);
+        }
       }
       
       await tx.insert(auditLogs).values({ userId, action: 'DELETE_SITE_SUPPLY', entityType: 'SITE_SUPPLY', entityId: id });

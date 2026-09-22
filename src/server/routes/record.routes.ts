@@ -26,11 +26,14 @@ recordRouter.get('/all', async (req: AuthRequest, res: Response) => {
 
 recordRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) {
-      return res.status(400).json({ error: 'locationId query parameter is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
+
+    if (locationId) {
+      await assertLocationAccess(req.dbUser!.id, locationId);
     }
-    await assertLocationAccess(req.dbUser!.id, locationId);
 
     const filters = {
       startDate: req.query.startDate as string,
@@ -49,11 +52,14 @@ recordRouter.get('/', async (req: AuthRequest, res: Response) => {
 
 recordRouter.get('/metrics', async (req: AuthRequest, res: Response) => {
   try {
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) {
-      return res.status(400).json({ error: 'locationId query parameter is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
+
+    if (locationId) {
+      await assertLocationAccess(req.dbUser!.id, locationId);
     }
-    await assertLocationAccess(req.dbUser!.id, locationId);
 
     const metrics = await getRecordMetrics(req.dbUser!.id, locationId);
     res.json(metrics);
@@ -66,6 +72,10 @@ recordRouter.get('/metrics', async (req: AuthRequest, res: Response) => {
 
 recordRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
+    const locId = req.body.locationId ? parseInt(String(req.body.locationId), 10) : NaN;
+    if (isNaN(locId) || locId <= 0) {
+      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+    }
     const data = createRecordSchema.parse(req.body);
     await assertLocationAccess(req.dbUser!.id, data.locationId);
     const record = await createRecord(req.dbUser!.id, data);

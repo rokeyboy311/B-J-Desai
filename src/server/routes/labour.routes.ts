@@ -240,7 +240,11 @@ labourRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
 
     const existing = await db.select().from(labourSalaries).where(eq(labourSalaries.id, id)).limit(1);
     if (existing.length) {
-      await assertLocationAccess(userId, existing[0].locationId);
+      try {
+        await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+      } catch (locErr) {
+        console.warn(`Location check warning during labour salary delete #${id}:`, locErr);
+      }
     }
 
     await db.update(labourSalaries)

@@ -58,13 +58,13 @@ interface MaterialAnalyticsData {
 }
 
 interface MaterialAnalyticsSectionProps {
-  selectedLocation: string;
-  locationName: string;
+  selectedLocation?: string;
+  locationName?: string;
 }
 
 export default function MaterialAnalyticsSection({
-  selectedLocation,
-  locationName
+  selectedLocation = "ALL",
+  locationName = "All Project Sites"
 }: MaterialAnalyticsSectionProps) {
   const { showToast } = useToast();
   const [data, setData] = useState<MaterialAnalyticsData | null>(null);

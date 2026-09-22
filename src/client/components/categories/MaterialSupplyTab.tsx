@@ -206,7 +206,64 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
           <span className="text-xs text-slate-500 font-semibold">{records.length} records</span>
         </div>
         
-        <div className="overflow-x-auto">
+        {/* Mobile Cards View */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {records.map(r => (
+            <div key={`ms-mob-${r.id}`} className="p-4 space-y-3 bg-white hover:bg-slate-50/60 transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 text-xs font-medium">{r.date}</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-orange-50 text-orange-800 border border-orange-200">
+                  GST {r.taxPercentage || 0}%
+                </span>
+              </div>
+
+              <div>
+                <div className="text-sm font-extrabold text-slate-900">{r.partyName}</div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs font-bold text-orange-700">{r.materialName}</span>
+                  <span className="text-xs font-extrabold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
+                    {r.quantity} {r.unit}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 text-xs">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Rate</div>
+                  <div className="font-semibold text-slate-700">₹{r.rate}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Total</div>
+                  <div className="font-black text-slate-900 text-sm">₹{Number(r.totalAmount).toLocaleString()}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleEdit(r)}
+                  className="flex-1 min-h-[42px] px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-slate-600" /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(r.id)}
+                  className="flex-1 min-h-[42px] px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-rose-200 transition-colors cursor-pointer active:scale-95"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-600" /> Delete (ડિલીટ)
+                </button>
+              </div>
+            </div>
+          ))}
+          {records.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-xs">
+              No external supply records.
+            </div>
+          )}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
               <tr>
@@ -233,8 +290,10 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
                   <td className="p-3 text-right text-slate-600">{r.taxPercentage || 0}%</td>
                   <td className="p-3 text-right font-black text-slate-900">₹{Number(r.totalAmount).toLocaleString()}</td>
                   <td className="p-3 text-center">
-                    <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-amber-600 p-1"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-amber-600 p-2 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer" title="Edit"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-2 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                    </div>
                   </td>
                 </tr>
               ))}

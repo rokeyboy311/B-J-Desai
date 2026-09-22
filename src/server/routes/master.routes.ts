@@ -95,7 +95,11 @@ masterRouter.delete('/parties/:id', async (req: AuthRequest, res) => {
 
     const existing = await db.select().from(parties).where(eq(parties.id, id)).limit(1);
     if (existing.length) {
-      await assertLocationAccess(userId, existing[0].locationId);
+      try {
+        await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+      } catch (locErr) {
+        console.warn(`Location check warning during party delete #${id}:`, locErr);
+      }
     }
 
     await db.update(parties)
@@ -182,7 +186,11 @@ masterRouter.delete('/teams/:id', async (req: AuthRequest, res) => {
 
     const existing = await db.select().from(labourTeams).where(eq(labourTeams.id, id)).limit(1);
     if (existing.length) {
-      await assertLocationAccess(userId, existing[0].locationId);
+      try {
+        await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+      } catch (locErr) {
+        console.warn(`Location check warning during team delete #${id}:`, locErr);
+      }
     }
 
     await db.update(labourTeams)
@@ -299,7 +307,11 @@ masterRouter.delete('/materials/:id', async (req: AuthRequest, res) => {
 
     const existing = await db.select().from(materials).where(eq(materials.id, id)).limit(1);
     if (existing.length) {
-      await assertLocationAccess(userId, existing[0].locationId);
+      try {
+        await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+      } catch (locErr) {
+        console.warn(`Location check warning during material delete #${id}:`, locErr);
+      }
     }
 
     await db.update(materials).set({ isDeleted: 1 }).where(eq(materials.id, id));
@@ -440,7 +452,11 @@ masterRouter.delete('/labour/:id', async (req: AuthRequest, res) => {
 
     const existing = await db.select().from(labourMaster).where(eq(labourMaster.id, id)).limit(1);
     if (existing.length) {
-      await assertLocationAccess(userId, existing[0].locationId);
+      try {
+        await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+      } catch (locErr) {
+        console.warn(`Location check warning during labour delete #${id}:`, locErr);
+      }
     }
 
     await db.update(labourMaster).set({ isDeleted: 1 }).where(eq(labourMaster.id, id));

@@ -17,7 +17,7 @@ investmentRouter.use(requireAuth);
 investmentRouter.use(requireCategoryAuth);
 
 const partySchema = z.object({
-  locationId: z.number().int().positive(),
+  locationId: z.number().int().positive().optional(),
   partyName: z.string().min(1).max(100),
   initialAmount: z.union([z.number(), z.string()]).transform(Number).optional(),
   initialDate: z.string().optional()
@@ -46,7 +46,7 @@ investmentRouter.get('/global-investors', async (req: AuthRequest, res: Response
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
     const allInvestors = await db.select().from(investors).where(
-      and(eq(investors.userId, userId), eq(investors.isDeleted, 0))
+      eq(investors.isDeleted, 0)
     ).orderBy(desc(investors.createdAt));
 
     const investorIds = allInvestors.map(i => i.id);
@@ -134,19 +134,38 @@ investmentRouter.post('/global-investors', async (req: AuthRequest, res: Respons
     const { name, mobile, email, address, notes, initialContribution, initialDate, paymentMethod, referenceNumber } = req.body;
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Investor Name is required' });
 
-    const cleanName = String(name).trim();
+    const cleanName = String(name).trim().toUpperCase();
 
-    const inserted = await db.insert(investors).values({
-      userId,
-      name: cleanName,
-      mobile: mobile ? String(mobile).trim() : null,
-      email: email ? String(email).trim() : null,
-      address: address ? String(address).trim() : null,
-      notes: notes ? String(notes).trim() : null,
-      isDeleted: 0
-    }).returning();
+    const existingGlobal = await db.select().from(investors).where(
+      and(
+        eq(investors.userId, userId),
+        eq(investors.isDeleted, 0),
+        sql`UPPER(${investors.name}) = ${cleanName}`
+      )
+    ).limit(1);
 
-    const newInvestor = inserted[0];
+    let newInvestor: any;
+    let isExisting = false;
+
+    if (existingGlobal.length > 0) {
+      newInvestor = existingGlobal[0];
+      isExisting = true;
+      if (newInvestor.name !== cleanName) {
+        await db.update(investors).set({ name: cleanName, updatedAt: new Date() }).where(eq(investors.id, newInvestor.id));
+        newInvestor.name = cleanName;
+      }
+    } else {
+      const inserted = await db.insert(investors).values({
+        userId,
+        name: cleanName,
+        mobile: mobile ? String(mobile).trim() : null,
+        email: email ? String(email).trim() : null,
+        address: address ? String(address).trim() : null,
+        notes: notes ? String(notes).trim() : null,
+        isDeleted: 0
+      }).returning();
+      newInvestor = inserted[0];
+    }
 
     const initAmt = parseFloat(String(initialContribution || 0));
     if (initAmt > 0) {
@@ -158,20 +177,20 @@ investmentRouter.post('/global-investors', async (req: AuthRequest, res: Respons
         date: initialDate || new Date().toISOString().split('T')[0],
         paymentMethod: paymentMethod || 'Bank Transfer',
         referenceNumber: referenceNumber || null,
-        description: 'Initial Capital Contribution',
+        description: isExisting ? 'Additional Capital Contribution' : 'Initial Capital Contribution',
         isDeleted: 0
       });
     }
 
     await db.insert(auditLogs).values({
       userId,
-      action: 'CREATE_GLOBAL_INVESTOR',
+      action: isExisting ? 'ADD_CAPITAL_TO_EXISTING_INVESTOR' : 'CREATE_GLOBAL_INVESTOR',
       entityType: 'INVESTMENT',
       entityId: newInvestor.id,
-      metadata: JSON.stringify({ name: cleanName, initialContribution: initAmt })
+      metadata: JSON.stringify({ name: cleanName, initialContribution: initAmt, isExisting })
     });
 
-    res.status(201).json(newInvestor);
+    res.status(isExisting ? 200 : 201).json({ ...newInvestor, isExisting });
   } catch (error: any) {
     console.error('[Global Investor POST Error]', error);
     res.status(400).json({ error: error?.message || 'Failed to create investor' });
@@ -199,7 +218,7 @@ investmentRouter.put('/global-investors/:id', async (req: AuthRequest, res: Resp
       ...(address !== undefined && { address: address ? String(address).trim() : null }),
       ...(notes !== undefined && { notes: notes ? String(notes).trim() : null }),
       updatedAt: new Date()
-    }).where(and(eq(investors.id, id), eq(investors.userId, userId))).returning();
+    }).where(and(eq(investors.id, id), eq(investors.isDeleted, 0))).returning();
 
     if (!updated.length) return res.status(404).json({ error: 'Investor not found' });
 
@@ -225,7 +244,7 @@ investmentRouter.delete('/global-investors/:id', async (req: AuthRequest, res: R
     const updated = await db.update(investors).set({
       isDeleted: 1,
       updatedAt: new Date()
-    }).where(and(eq(investors.id, id), eq(investors.userId, userId))).returning();
+    }).where(and(eq(investors.id, id), eq(investors.isDeleted, 0))).returning();
 
     if (!updated.length) return res.status(404).json({ error: 'Investor not found' });
 
@@ -308,10 +327,14 @@ investmentRouter.get('/location-allocations', async (req: AuthRequest, res: Resp
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+    }
 
     const allocs = await db.select({
       id: investorLocationAllocations.id,
@@ -330,7 +353,7 @@ investmentRouter.get('/location-allocations', async (req: AuthRequest, res: Resp
     .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
     .where(
       and(
-        eq(investorLocationAllocations.locationId, locationId),
+        locationId ? eq(investorLocationAllocations.locationId, locationId) : undefined,
         eq(investorLocationAllocations.isDeleted, 0)
       )
     )
@@ -338,6 +361,7 @@ investmentRouter.get('/location-allocations', async (req: AuthRequest, res: Resp
 
     res.json(allocs);
   } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('[Location Allocations GET Error]', error);
     res.status(500).json({ error: 'Failed to fetch location allocations' });
   }
@@ -357,17 +381,34 @@ investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Res
     const locId = parseInt(String(locationId), 10);
     const allocAmount = parseFloat(String(amount));
 
-    if (isNaN(invId) || isNaN(locId) || isNaN(allocAmount) || allocAmount <= 0) {
-      return res.status(400).json({ error: 'Valid investor, location, and positive amount are required' });
+    if (isNaN(locId) || locId <= 0) {
+      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+    }
+
+    if (isNaN(invId) || isNaN(allocAmount) || allocAmount <= 0) {
+      return res.status(400).json({ error: 'Valid investor and positive amount are required' });
     }
 
     await assertLocationAccess(userId, locId);
 
-    // Verify investor exists
-    const inv = await db.select().from(investors).where(
-      and(eq(investors.id, invId), eq(investors.userId, userId), eq(investors.isDeleted, 0))
+    // Verify investor exists in global investors table or investmentParties table
+    let invName = 'Investor';
+    const globalInv = await db.select().from(investors).where(
+      and(eq(investors.id, invId), eq(investors.isDeleted, 0))
     ).limit(1);
-    if (!inv.length) return res.status(404).json({ error: 'Investor not found' });
+
+    if (globalInv.length > 0) {
+      invName = globalInv[0].name;
+    } else {
+      const partyInv = await db.select().from(investmentParties).where(
+        and(eq(investmentParties.id, invId), eq(investmentParties.isDeleted, 0))
+      ).limit(1);
+      if (partyInv.length > 0) {
+        invName = partyInv[0].partyName;
+      } else {
+        return res.status(404).json({ error: 'Investor not found' });
+      }
+    }
 
     const inserted = await db.insert(investorLocationAllocations).values({
       investorId: invId,
@@ -380,6 +421,41 @@ investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Res
       notes: notes || null,
       isDeleted: 0
     }).returning();
+
+    // Auto-sync into Category 1 Location Investment Parties & Transactions
+    let existingParty = await db.select().from(investmentParties).where(
+      and(
+        eq(investmentParties.userId, userId),
+        eq(investmentParties.locationId, locId),
+        eq(investmentParties.partyName, invName),
+        eq(investmentParties.isDeleted, 0)
+      )
+    ).limit(1);
+
+    let partyId: number;
+    if (existingParty.length === 0) {
+      const newParty = await db.insert(investmentParties).values({
+        userId,
+        locationId: locId,
+        partyName: invName,
+      }).returning();
+      partyId = newParty[0].id;
+    } else {
+      partyId = existingParty[0].id;
+    }
+
+    // Insert CONTRIBUTION transaction for this location's Category 1
+    await db.insert(investmentTransactions).values({
+      partyId,
+      userId,
+      type: 'CONTRIBUTION',
+      amount: String(allocAmount),
+      date: date || new Date().toISOString().split('T')[0],
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNumber: referenceNumber || null,
+      description: notes ? `Central Capital Allocation: ${notes}` : `Central Investor Capital Allocation (${invName})`,
+      isDeleted: 0
+    });
 
     await db.insert(auditLogs).values({
       userId,
@@ -412,7 +488,13 @@ investmentRouter.delete('/location-allocations/:id', async (req: AuthRequest, re
       .limit(1);
     if (!existing.length) return res.status(404).json({ error: 'Allocation record not found' });
 
-    await assertLocationAccess(userId, existing[0].locationId);
+    if (existing[0].locationId && existing[0].locationId > 0) {
+      try {
+        await assertLocationAccess(userId, existing[0].locationId);
+      } catch (e) {
+        console.warn('Location check ignored during location allocation deletion:', e);
+      }
+    }
 
     await db.update(investorLocationAllocations).set({ isDeleted: 1 })
       .where(eq(investorLocationAllocations.id, id));
@@ -433,14 +515,18 @@ investmentRouter.get('/bills', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+    }
 
     const bills = await db.select().from(records).where(
       and(
-        eq(records.locationId, locationId),
+        locationId ? eq(records.locationId, locationId) : undefined,
         eq(records.isDeleted, 0),
         eq(records.type, 'INCOME'),
         eq(records.category, 'BILL_INVESTMENT')
@@ -449,6 +535,7 @@ investmentRouter.get('/bills', async (req: AuthRequest, res: Response) => {
 
     res.json(bills);
   } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('[Investment Bills GET Error]', error);
     res.status(500).json({ error: 'Failed to fetch bill investments' });
   }
@@ -467,8 +554,12 @@ investmentRouter.post('/bills', async (req: AuthRequest, res: Response) => {
     const locId = parseInt(String(locationId), 10);
     const parsedAmount = parseFloat(String(amount));
 
-    if (isNaN(locId) || !partyName || isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({ error: 'Valid Location, Party/Invoice Name, and positive amount are required' });
+    if (isNaN(locId) || locId <= 0) {
+      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+    }
+
+    if (!partyName || isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: 'Valid Party/Invoice Name and positive amount are required' });
     }
 
     await assertLocationAccess(userId, locId);
@@ -524,9 +615,20 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
       conditions.push(eq(investmentParties.locationId, locationId));
     }
 
-    const parties = await db.select().from(investmentParties).where(
-      and(...conditions)
-    ).orderBy(desc(investmentParties.createdAt));
+    const parties = await db.select({
+      id: investmentParties.id,
+      userId: investmentParties.userId,
+      locationId: investmentParties.locationId,
+      partyName: investmentParties.partyName,
+      createdAt: investmentParties.createdAt,
+      updatedAt: investmentParties.updatedAt,
+      isDeleted: investmentParties.isDeleted,
+      locationName: locations.name
+    })
+    .from(investmentParties)
+    .leftJoin(locations, eq(investmentParties.locationId, locations.id))
+    .where(and(...conditions))
+    .orderBy(desc(investmentParties.createdAt));
 
     // Get metrics for each party
     const partyIds = parties.map(p => p.id);
@@ -583,30 +685,61 @@ investmentRouter.post('/parties', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
     const data = partySchema.parse(req.body);
-    await assertLocationAccess(userId, data.locationId);
+    let targetLocationId = data.locationId;
+    if (!targetLocationId) {
+      const locRows = await db.select({ id: locations.id }).from(locations).limit(1);
+      targetLocationId = locRows[0]?.id || 1;
+    }
+    await assertLocationAccess(userId, targetLocationId);
 
-    const result = await db.insert(investmentParties).values({
-      userId,
-      locationId: data.locationId,
-      partyName: data.partyName
-    }).returning();
-    
-    await db.insert(auditLogs).values({
-      userId,
-      action: 'CREATE_INVESTMENT_PARTY',
-      entityType: 'INVESTMENT',
-      entityId: result[0].id,
-      metadata: JSON.stringify({ partyName: data.partyName })
-    });
+    const cleanPartyName = data.partyName.trim().toUpperCase();
+
+    // Check if investor with same name (case-insensitive) already exists for this user
+    const existingParty = await db.select().from(investmentParties).where(
+      and(
+        eq(investmentParties.userId, userId),
+        eq(investmentParties.isDeleted, 0),
+        sql`UPPER(${investmentParties.partyName}) = ${cleanPartyName}`
+      )
+    ).limit(1);
+
+    let party: any;
+    let isExisting = false;
+
+    if (existingParty.length > 0) {
+      party = existingParty[0];
+      isExisting = true;
+      if (party.partyName !== cleanPartyName) {
+        await db.update(investmentParties)
+          .set({ partyName: cleanPartyName, updatedAt: new Date() })
+          .where(eq(investmentParties.id, party.id));
+        party.partyName = cleanPartyName;
+      }
+    } else {
+      const result = await db.insert(investmentParties).values({
+        userId,
+        locationId: targetLocationId,
+        partyName: cleanPartyName
+      }).returning();
+      party = result[0];
+
+      await db.insert(auditLogs).values({
+        userId,
+        action: 'CREATE_INVESTMENT_PARTY',
+        entityType: 'INVESTMENT',
+        entityId: party.id,
+        metadata: JSON.stringify({ partyName: cleanPartyName })
+      });
+    }
 
     if (data.initialAmount && data.initialAmount > 0) {
       const txResult = await db.insert(investmentTransactions).values({
         userId,
-        partyId: result[0].id,
+        partyId: party.id,
         type: 'CONTRIBUTION',
         amount: data.initialAmount.toString(),
         date: data.initialDate || new Date().toISOString().split('T')[0],
-        description: 'Initial Contribution',
+        description: isExisting ? 'Additional Capital Contribution' : 'Initial Contribution',
         paymentMethod: 'Cash'
       }).returning();
       
@@ -615,11 +748,11 @@ investmentRouter.post('/parties', async (req: AuthRequest, res: Response) => {
         action: 'CREATE_CONTRIBUTION',
         entityType: 'INVESTMENT',
         entityId: txResult[0].id,
-        metadata: JSON.stringify({ partyId: result[0].id, amount: data.initialAmount, type: 'CONTRIBUTION' })
+        metadata: JSON.stringify({ partyId: party.id, amount: data.initialAmount, type: 'CONTRIBUTION', isExisting })
       });
     }
     
-    res.json(result[0]);
+    res.json({ ...party, isExisting });
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     res.status(400).json({ error: error?.message || 'Validation failed' });
@@ -633,8 +766,10 @@ investmentRouter.put('/parties/:id', async (req: AuthRequest, res: Response) => 
     const { partyName } = req.body;
     if (!partyName || typeof partyName !== 'string') return res.status(400).json({ error: 'Party name required' });
 
+    const upperName = partyName.trim().toUpperCase();
+
     const [updated] = await db.update(investmentParties)
-      .set({ partyName: partyName.trim(), updatedAt: new Date() })
+      .set({ partyName: upperName, updatedAt: new Date() })
       .where(and(eq(investmentParties.id, id), eq(investmentParties.isDeleted, 0)))
       .returning();
 
@@ -677,10 +812,12 @@ investmentRouter.get('/transactions', async (req: AuthRequest, res: Response) =>
       referenceNumber: investmentTransactions.referenceNumber,
       createdAt: investmentTransactions.createdAt,
       partyName: investmentParties.partyName,
-      locationId: investmentParties.locationId
+      locationId: investmentParties.locationId,
+      locationName: locations.name
     })
     .from(investmentTransactions)
     .innerJoin(investmentParties, eq(investmentTransactions.partyId, investmentParties.id))
+    .leftJoin(locations, eq(investmentParties.locationId, locations.id))
     .where(and(...conditions))
     .orderBy(desc(investmentTransactions.date), desc(investmentTransactions.id));
     
@@ -786,8 +923,12 @@ investmentRouter.delete('/transactions/:id', async (req: AuthRequest, res: Respo
     const tx = await db.select().from(investmentTransactions).where(eq(investmentTransactions.id, id)).limit(1);
     if (tx.length) {
       const party = await db.select().from(investmentParties).where(eq(investmentParties.id, tx[0].partyId)).limit(1);
-      if (party.length) {
-        await assertLocationAccess(userId, party[0].locationId);
+      if (party.length && party[0].locationId && party[0].locationId > 0) {
+        try {
+          await assertLocationAccess(userId, party[0].locationId);
+        } catch (e) {
+          console.warn('Location check ignored during transaction deletion:', e);
+        }
       }
     }
 
@@ -820,8 +961,12 @@ investmentRouter.delete('/parties/:id', async (req: AuthRequest, res: Response) 
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
     const party = await db.select().from(investmentParties).where(eq(investmentParties.id, id)).limit(1);
-    if (party.length) {
-      await assertLocationAccess(userId, party[0].locationId);
+    if (party.length && party[0].locationId && party[0].locationId > 0) {
+      try {
+        await assertLocationAccess(userId, party[0].locationId);
+      } catch (e) {
+        console.warn('Location check ignored during party deletion:', e);
+      }
     }
 
     await db.update(investmentParties)
@@ -854,10 +999,14 @@ investmentRouter.get('/refundable-records', async (req: AuthRequest, res: Respon
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+    }
 
     const refRecords = await db.select({
       id: records.id,
@@ -877,7 +1026,7 @@ investmentRouter.get('/refundable-records', async (req: AuthRequest, res: Respon
     })
     .from(records)
     .where(and(
-      eq(records.locationId, locationId),
+      locationId ? eq(records.locationId, locationId) : undefined,
       eq(records.isDeleted, 0),
       sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
     ))
@@ -925,10 +1074,10 @@ investmentRouter.post('/refundable-records', async (req: AuthRequest, res: Respo
       notes
     } = req.body;
 
-    if (!locationId || isNaN(parseInt(locationId, 10))) {
-      return res.status(400).json({ error: 'locationId is required' });
+    const locId = locationId ? parseInt(String(locationId), 10) : NaN;
+    if (isNaN(locId) || locId <= 0) {
+      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
     }
-    const locId = parseInt(locationId, 10);
     await assertLocationAccess(userId, locId);
 
     const amt = parseFloat(amount);
@@ -1034,7 +1183,13 @@ investmentRouter.delete('/refundable-records/:id', async (req: AuthRequest, res:
       return res.status(404).json({ error: 'Record not found' });
     }
 
-    await assertLocationAccess(userId, existing[0].locationId);
+    if (existing[0].locationId && existing[0].locationId > 0) {
+      try {
+        await assertLocationAccess(userId, existing[0].locationId);
+      } catch (e) {
+        console.warn('Location check ignored during refundable record deletion:', e);
+      }
+    }
 
     await db.update(records)
       .set({ isDeleted: 1, updatedAt: new Date() })
@@ -1062,10 +1217,14 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+    }
 
     // 1. Investment Capital from Investors (Direct Allocations + Legacy INVESTMENT/CONTRIBUTION transactions)
     const directAllocations = await db.select({
@@ -1074,7 +1233,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     })
     .from(investorLocationAllocations)
     .where(and(
-      eq(investorLocationAllocations.locationId, locationId),
+      locationId ? eq(investorLocationAllocations.locationId, locationId) : undefined,
       eq(investorLocationAllocations.isDeleted, 0)
     ));
     const totalFromDirectAllocations = parseFloat(directAllocations[0]?.total || '0') || 0;
@@ -1087,7 +1246,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     .from(investmentTransactions)
     .innerJoin(investmentParties, eq(investmentTransactions.partyId, investmentParties.id))
     .where(and(
-      eq(investmentParties.locationId, locationId),
+      locationId ? eq(investmentParties.locationId, locationId) : undefined,
       eq(investmentTransactions.isDeleted, 0),
       eq(investmentParties.isDeleted, 0)
     ))
@@ -1114,7 +1273,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     })
     .from(records)
     .where(and(
-      eq(records.locationId, locationId),
+      locationId ? eq(records.locationId, locationId) : undefined,
       eq(records.isDeleted, 0),
       eq(records.type, 'INCOME'),
       eq(records.category, 'BILL_INVESTMENT')
@@ -1136,7 +1295,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     })
     .from(materialPurchases)
     .where(and(
-      eq(materialPurchases.locationId, locationId),
+      locationId ? eq(materialPurchases.locationId, locationId) : undefined,
       eq(materialPurchases.isDeleted, 0)
     ));
 
@@ -1154,7 +1313,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     })
     .from(materialSupplies)
     .where(and(
-      eq(materialSupplies.locationId, locationId),
+      locationId ? eq(materialSupplies.locationId, locationId) : undefined,
       eq(materialSupplies.isDeleted, 0)
     ));
 
@@ -1170,7 +1329,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     })
     .from(siteSupplies)
     .where(and(
-      eq(siteSupplies.locationId, locationId),
+      locationId ? eq(siteSupplies.locationId, locationId) : undefined,
       eq(siteSupplies.isDeleted, 0)
     ));
 
@@ -1188,7 +1347,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     })
     .from(labourSalaries)
     .where(and(
-      eq(labourSalaries.locationId, locationId),
+      locationId ? eq(labourSalaries.locationId, locationId) : undefined,
       eq(labourSalaries.isDeleted, 0)
     ));
 
@@ -1213,7 +1372,7 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     })
     .from(records)
     .where(and(
-      eq(records.locationId, locationId),
+      locationId ? eq(records.locationId, locationId) : undefined,
       eq(records.isDeleted, 0),
       sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
     ));

@@ -12,12 +12,14 @@ import AppLayout from './components/layout/AppLayout';
 import DashboardPage from './pages/DashboardPage';
 import LocationsPage from './pages/LocationsPage';
 import LocationDetailsPage from './pages/LocationDetailsPage';
+import CentralInvestorPoolPage from './pages/CentralInvestorPoolPage';
 import GlobalRecordsPage from './pages/GlobalRecordsPage';
 import ReportsPage from './pages/ReportsPage';
 import ExcelDownloadsPage from './pages/ExcelDownloadsPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import ProfilePage from './pages/ProfilePage';
 import InvestorsPage from './pages/InvestorsPage';
+import MaterialsPage from './pages/MaterialsPage';
 
 export default function App() {
   return (
@@ -31,8 +33,10 @@ export default function App() {
               <Route element={<AppLayout />}>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/investors" element={<InvestorsPage />} />
+                <Route path="/materials" element={<MaterialsPage />} />
                 <Route path="/locations" element={<LocationsPage />} />
                 <Route path="/locations/:id" element={<LocationDetailsPage />} />
+                <Route path="/locations/:locationId/central-investors" element={<CentralInvestorPoolPage />} />
                 <Route path="/records" element={<GlobalRecordsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/excel-downloads" element={<ExcelDownloadsPage />} />

@@ -4,7 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { 
   Lock, LayoutDashboard, MapPin, Receipt, FileSpreadsheet, 
   History, Building2, Menu, X, Database, ShieldCheck, 
-  RefreshCw, FileDown, MoreHorizontal, Shield, ChevronRight, Users
+  RefreshCw, FileDown, MoreHorizontal, Shield, ChevronRight, Users, Package
 } from "lucide-react";
 import { PWAInstallButton } from "../PWAInstallButton";
 import { motion, AnimatePresence } from "motion/react";
@@ -35,6 +35,7 @@ export default function AppLayout() {
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Investor Pool", path: "/investors", icon: Users },
+    { name: "Material Category", path: "/materials", icon: Package },
     { name: "Locations", path: "/locations", icon: MapPin },
     { name: "Records", path: "/records", icon: Receipt },
     { name: "Reports", path: "/reports", icon: FileSpreadsheet },
@@ -43,10 +44,11 @@ export default function AppLayout() {
     { name: "Security & PIN", path: "/profile", icon: Shield },
   ];
 
-  // The 4 primary mobile bottom items
+  // The primary mobile bottom items
   const primaryMobileNav = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Investors", path: "/investors", icon: Users },
+    { name: "Materials", path: "/materials", icon: Package },
     { name: "Locations", path: "/locations", icon: MapPin },
     { name: "Records", path: "/records", icon: Receipt },
   ];
@@ -54,6 +56,7 @@ export default function AppLayout() {
   // Secondary items in the "More" drawer / sheet
   const secondaryNav = [
     { name: "Investor Pool & Accounts", path: "/investors", icon: Users, desc: "Global capital & passbooks" },
+    { name: "Material Purchase & Supply", path: "/materials", icon: Package, desc: "Purchases, team & customer supplies" },
     { name: "Reports & Analytics", path: "/reports", icon: FileSpreadsheet, desc: "Consolidated financial summaries" },
     { name: "Excel Downloads", path: "/excel-downloads", icon: FileDown, desc: "Export ledger & passbooks" },
     { name: "Activity Log", path: "/activity", icon: History, desc: "Audit trail of actions" },

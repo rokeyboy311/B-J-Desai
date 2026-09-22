@@ -41,14 +41,18 @@ contractorRouter.get('/', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+    }
 
     const costs = await db.select().from(contractorCosts)
       .where(and(
-        eq(contractorCosts.locationId, locationId),
+        locationId ? eq(contractorCosts.locationId, locationId) : undefined,
         eq(contractorCosts.isDeleted, 0)
       ))
       .orderBy(desc(contractorCosts.date), desc(contractorCosts.id));
@@ -71,10 +75,14 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const locationId = parseInt(req.query.locationId as string, 10);
-    if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    await assertLocationAccess(userId, locationId);
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+    }
 
     const teamIdQuery = req.query.teamId ? parseInt(req.query.teamId as string, 10) : null;
     const startDate = req.query.startDate as string;
@@ -88,7 +96,7 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
       totalAmount: siteSupplies.totalAmount,
     }).from(siteSupplies).where(
       and(
-        eq(siteSupplies.locationId, locationId),
+        locationId ? eq(siteSupplies.locationId, locationId) : undefined,
         eq(siteSupplies.isDeleted, 0),
         startDate ? sql`${siteSupplies.date} >= ${startDate}` : sql`1=1`,
         endDate ? sql`${siteSupplies.date} <= ${endDate}` : sql`1=1`,
@@ -112,7 +120,7 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
       deduction: labourSalaries.deduction,
     }).from(labourSalaries).where(
       and(
-        eq(labourSalaries.locationId, locationId),
+        locationId ? eq(labourSalaries.locationId, locationId) : undefined,
         eq(labourSalaries.isDeleted, 0),
         startDate ? sql`${labourSalaries.date} >= ${startDate}` : sql`1=1`,
         endDate ? sql`${labourSalaries.date} <= ${endDate}` : sql`1=1`
@@ -132,7 +140,7 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
     // 3. Recorded Contractor Costs from contractor_costs table
     const recordedCosts = await db.select().from(contractorCosts).where(
       and(
-        eq(contractorCosts.locationId, locationId),
+        locationId ? eq(contractorCosts.locationId, locationId) : undefined,
         eq(contractorCosts.isDeleted, 0),
         startDate ? sql`${contractorCosts.date} >= ${startDate}` : sql`1=1`,
         endDate ? sql`${contractorCosts.date} <= ${endDate}` : sql`1=1`,
@@ -316,7 +324,11 @@ contractorRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
       .limit(1);
 
     if (!existing.length) return res.status(404).json({ error: 'Contractor cost record not found' });
-    await assertLocationAccess(userId, existing[0].locationId);
+    try {
+      await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+    } catch (locErr) {
+      console.warn(`Location check warning during contractor cost delete #${costId}:`, locErr);
+    }
 
     await db.update(contractorCosts).set({
       isDeleted: 1,

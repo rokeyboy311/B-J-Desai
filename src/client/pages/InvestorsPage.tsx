@@ -60,43 +60,23 @@ export default function InvestorsPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Global Category 1
+                  Main Investor Pool
                 </span>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <Users className="w-6 h-6 text-emerald-600" />
-                  Investor Pool & Accounts (ઇન્વેસ્ટર મૂડી પૂલ)
+                  Main Investor Capital Pool (મુખ્ય ઇન્વેસ્ટર ખાતા)
                 </h1>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-1">
-                Centralized Investor Capital Management, Upad Withdrawals, Project Allocations & Live Passbooks
+                Company Total Investor Capital Pool, Capital IN, Upad & Central Location Transfer Deductions Log
               </p>
             </div>
-          </div>
-
-          {/* Location Filter Dropdown */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 hidden sm:inline flex items-center gap-1">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" />
-              Filter Location:
-            </span>
-            <select
-              value={selectedLocationId}
-              onChange={(e) => handleLocationChange(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            >
-              <option value="ALL">All Project Locations (Global Pool)</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.name}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
         {/* Embedded Global Investor Tab */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4 sm:p-6 lg:p-8 min-h-[600px]">
-          <InvestorTab locationId={activeLocationId} />
+          <InvestorTab />
         </div>
       </motion.div>
     </CategoryPinGate>

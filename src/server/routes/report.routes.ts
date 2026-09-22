@@ -147,6 +147,15 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       if (r.type === 'UPAD') totalInvestmentUpad += a;
     }
 
+    // Include global investor pool direct allocations to locations (investor_location_allocations)
+    const allocQuery = await db.execute(sql`
+      SELECT SUM(amount) as amt
+      FROM investor_location_allocations
+      WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
+    `);
+    const totalAllocations = parseFloat(allocQuery.rows[0]?.amt as string || '0') || 0;
+    totalInvestmentKarya += totalAllocations;
+
     // Category 1: Investor Capital Summary
     // Investor Total Capital = Contributions (or contributions + initial capital)
     const investorTotalCapital = totalContribution > 0 ? totalContribution : totalInvestmentKarya;

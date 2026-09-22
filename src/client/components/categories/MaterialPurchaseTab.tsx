@@ -424,7 +424,98 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
           </div>
           
-          <div className="overflow-x-auto">
+          {/* Mobile Cards View */}
+          <div className="block md:hidden divide-y divide-slate-100">
+            {records.map(r => {
+              const stockInfo = stockByMaterial.get(r.materialId ? String(r.materialId) : r.materialName?.toLowerCase()?.trim());
+              const currentStockVal = stockInfo ? stockInfo.currentStock : null;
+
+              const qty = parseFloat(r.quantity) || 0;
+              const rate = parseFloat(r.rate) || 0;
+              const subtotal = parseFloat(r.subtotal) || Math.round(qty * rate * 100) / 100;
+              const discount = parseFloat(r.discount) || 0;
+              const transport = parseFloat(r.transportCost) || 0;
+              const taxRate = parseFloat(r.taxPercentage) || 0;
+              const taxable = Math.max(0, subtotal - discount);
+              const tax = parseFloat(r.tax) || Math.round(taxable * (taxRate / 100) * 100) / 100;
+              const calculatedTotal = Math.round((taxable + tax + transport) * 100) / 100;
+              const rowTotal = (parseFloat(r.totalAmount) > 0 && Math.abs(parseFloat(r.totalAmount) - (taxable + tax + transport)) < 1)
+                ? parseFloat(r.totalAmount)
+                : calculatedTotal;
+
+              return (
+                <div key={`mp-mob-${r.id}`} className="p-4 space-y-3 bg-white hover:bg-slate-50/60 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-500 text-xs font-medium">{r.date}</span>
+                    <div className="flex items-center gap-2">
+                      {currentStockVal !== null && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${currentStockVal > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                          {currentStockVal} {r.unit} stock
+                        </span>
+                      )}
+                      <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${r.paymentStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {r.paymentStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-extrabold text-slate-900">{r.partyName}</div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs font-bold text-rose-700">{r.materialName}</span>
+                      <span className="text-xs font-extrabold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {r.quantity} {r.unit}
+                      </span>
+                    </div>
+                    {r.description && <div className="text-[11px] text-slate-500 mt-1">{r.description}</div>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 text-xs">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Rate</div>
+                      <div className="font-semibold text-slate-700">₹{Number(r.rate).toLocaleString()}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Subtotal</div>
+                      <div className="font-semibold text-slate-700">₹{subtotal.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">GST / Tax</div>
+                      <div className="font-semibold text-blue-700">{taxRate > 0 ? `${taxRate}% (+₹${tax.toLocaleString()})` : "0%"}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase font-bold text-rose-600">Total Bill</div>
+                      <div className="font-black text-rose-700 text-sm">₹{rowTotal.toLocaleString()}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(r)}
+                      className="flex-1 min-h-[42px] px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-slate-600" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(r.id)}
+                      className="flex-1 min-h-[42px] px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-rose-200 transition-colors cursor-pointer active:scale-95"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-600" /> Delete (ડિલીટ)
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {records.length === 0 && (
+              <div className="p-8 text-center text-slate-500 text-xs">
+                No purchases found. Click &quot;Add Purchase&quot; above to record material purchases and update inventory.
+              </div>
+            )}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <tr>
@@ -512,8 +603,10 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                         </span>
                       </td>
                       <td className="p-3 text-center">
-                        <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-amber-600 p-1 transition-colors" title="Edit Purchase"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-1 transition-colors" title="Delete Purchase (Reverts Stock)"><Trash2 className="w-4 h-4" /></button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-amber-600 p-2 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer" title="Edit Purchase"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-rose-600 p-2 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Delete Purchase (Reverts Stock)"><Trash2 className="w-4 h-4" /></button>
+                        </div>
                       </td>
                     </tr>
                   );

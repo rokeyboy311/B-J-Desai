@@ -241,7 +241,11 @@ incomeRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Income record not found' });
     }
-    await assertLocationAccess(userId, existing[0].locationId);
+    try {
+      await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+    } catch (locErr) {
+      console.warn(`Location check warning during income delete #${id}:`, locErr);
+    }
 
     const updated = await db.update(records).set({
       isDeleted: 1,

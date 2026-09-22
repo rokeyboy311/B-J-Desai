@@ -35,6 +35,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
   // Data
   const [parties, setParties] = useState<any[]>([]);
+  const [mainInvestors, setMainInvestors] = useState<any[]>([]);
   const [masterParties, setMasterParties] = useState<any[]>([]);
   const [masterMaterials, setMasterMaterials] = useState<any[]>([]);
   const [investorTxs, setInvestorTxs] = useState<any[]>([]);
@@ -121,8 +122,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   const loadData = async (isBackground = false) => {
     if (!isBackground && investorTxs.length === 0 && billIncomes.length === 0 && !projectUtilization) setLoading(true);
     try {
-      const [partiesRes, masterPartiesRes, masterMaterialsRes, txsRes, billsRes, utilRes, refundablesRes] = await Promise.all([
+      const [partiesRes, mainPartiesRes, masterPartiesRes, masterMaterialsRes, txsRes, billsRes, utilRes, refundablesRes] = await Promise.all([
         apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/investments/parties`).catch(() => []),
         apiFetch(`/master/parties?locationId=${locationId}`).catch(() => []),
         apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
         apiFetch(`/investments/transactions?locationId=${locationId}`).catch(() => []),
@@ -131,6 +133,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         apiFetch(`/investments/refundable-records?locationId=${locationId}`).catch(() => []),
       ]);
       setParties(Array.isArray(partiesRes) ? partiesRes : (partiesRes?.parties || []));
+      setMainInvestors(Array.isArray(mainPartiesRes) ? mainPartiesRes : (mainPartiesRes?.parties || []));
       setMasterParties(Array.isArray(masterPartiesRes) ? masterPartiesRes : (masterPartiesRes?.parties || []));
       setMasterMaterials(Array.isArray(masterMaterialsRes) ? masterMaterialsRes : (masterMaterialsRes?.materials || []));
       setInvestorTxs(Array.isArray(txsRes) ? txsRes : (txsRes?.transactions || []));
@@ -168,30 +171,54 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     return list.filter(t => t.type === "UPAD" || t.type === "PAYMENT");
   }, [investorTxs]);
 
-  // Aggregate Capital Totals: Category 2 Capital - Investment from Investors Capital is strictly Investment Karya total
+  // Aggregate Capital Totals: Category 2 Capital - Investment from Investors Capital is strictly Investment Karya total + Direct Allocations
   const investmentFromInvestorsCapital = useMemo(() => {
+    if (projectUtilization?.budgetBalance?.investmentFromInvestorsCapital !== undefined) {
+      return Number(projectUtilization.budgetBalance.investmentFromInvestorsCapital || 0);
+    }
+    if (projectUtilization?.investmentCapital?.investmentFromInvestorsCapital !== undefined) {
+      return Number(projectUtilization.investmentCapital.investmentFromInvestorsCapital || 0);
+    }
     return capitalInflowTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  }, [capitalInflowTxs]);
+  }, [projectUtilization, capitalInflowTxs]);
 
   // Backward compatibility alias
   const totalInvestorCapital = investmentFromInvestorsCapital;
 
   const totalInvestorPayments = useMemo(() => {
+    if (projectUtilization?.budgetBalance?.returnsToInvestors !== undefined) {
+      return Number(projectUtilization.budgetBalance.returnsToInvestors || 0);
+    }
     return investorPaymentTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  }, [investorPaymentTxs]);
+  }, [projectUtilization, investorPaymentTxs]);
 
   const totalBillInvestments = useMemo(() => {
+    if (projectUtilization?.budgetBalance?.billInvestment !== undefined) {
+      return Number(projectUtilization.budgetBalance.billInvestment || 0);
+    }
+    if (projectUtilization?.investmentCapital?.billInvestment !== undefined) {
+      return Number(projectUtilization.investmentCapital.billInvestment || 0);
+    }
     const list = Array.isArray(billIncomes) ? billIncomes : [];
     return list.reduce((sum, b) => sum + Number(b.totalAmount || b.amount || 0), 0);
+  }, [projectUtilization, billIncomes]);
+
+  const totalBillGst = useMemo(() => {
+    const list = Array.isArray(billIncomes) ? billIncomes : [];
+    return list.reduce((sum, b) => {
+      const tax = Number(b.taxAmount);
+      if (!isNaN(tax) && tax > 0) return sum + tax;
+      const sub = Number(b.subtotal || (Number(b.quantity || 0) * Number(b.rate || 0)));
+      const pct = Number(b.taxPercentage || 0);
+      return sum + (sub * pct / 100);
+    }, 0);
   }, [billIncomes]);
 
-  // Full Capital = Investment from Investors (Investment Karya) + Bill Investment
+  // Full Capital = Investment from Investors (Investment Karya + Allocations) + Bill Investment
   const fullCapital = useMemo(() => {
-    if (projectUtilization?.budgetBalance?.fullCapital !== undefined) {
-      return Number(projectUtilization.budgetBalance.fullCapital || 0);
-    }
+    // Mathematically guaranteed: Full Capital = Investment from Investors + Bill Investments
     return investmentFromInvestorsCapital + totalBillInvestments;
-  }, [projectUtilization, investmentFromInvestorsCapital, totalBillInvestments]);
+  }, [investmentFromInvestorsCapital, totalBillInvestments]);
 
   // Category 2 Capital Pool
   const totalGrossInvestment = fullCapital;
@@ -714,6 +741,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <p className="text-[11px] text-cyan-700 mt-0.5 font-medium">
               બિલ ઇન્વેસ્ટમેન્ટ ({billIncomes.length} bills recorded)
             </p>
+            <div className="mt-2 pt-2 border-t border-cyan-200/80 flex items-center justify-between text-xs">
+              <span className="text-cyan-800 font-bold">કુલ GST (Total GST):</span>
+              <span className="font-black text-cyan-950">₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+            </div>
           </div>
         </div>
 
@@ -1405,9 +1436,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-blue-800">
-                <span>Total Bill Investments:</span>
-                <span>₹{totalBillInvestments.toLocaleString()}</span>
+              <div className="pt-3 border-t border-slate-100 flex flex-col gap-1 text-xs font-bold text-blue-800">
+                <div className="flex justify-between items-center">
+                  <span>Total Bill Investments:</span>
+                  <span>₹{totalBillInvestments.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-blue-600 font-semibold">
+                  <span>Total GST (કુલ GST):</span>
+                  <span>₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1455,6 +1492,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   <tr>
                     <th className="p-3.5">Date</th>
                     <th className="p-3.5">Investor Name</th>
+                    <th className="p-3.5">Project / Location</th>
                     <th className="p-3.5">Flow Type / Origin</th>
                     <th className="p-3.5">Payment Method</th>
                     <th className="p-3.5">Reference No.</th>
@@ -1468,6 +1506,12 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     <tr key={tx.id} className="hover:bg-slate-50">
                       <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
                       <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
+                      <td className="p-3.5">
+                        <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded text-[10px] font-bold flex items-center gap-1 w-fit">
+                          <Building2 className="w-2.5 h-2.5 text-emerald-600" />
+                          {tx.locationName || "Project Site"}
+                        </span>
+                      </td>
                       <td className="p-3.5">
                         {tx.type === "INVESTMENT" ? (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1 w-fit">
@@ -1616,9 +1660,14 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </table>
             </div>
             {billIncomes.length > 0 && (
-              <div className="p-4 bg-blue-50/50 border-t border-blue-100 flex justify-between items-center text-xs">
+              <div className="p-4 bg-blue-50/50 border-t border-blue-100 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
                 <span className="font-bold text-blue-900">Total Bill Investments ({billIncomes.length} records):</span>
-                <span className="text-base font-black text-blue-800">₹{totalBillInvestments.toLocaleString()}</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-slate-700 font-bold bg-blue-100/80 px-2.5 py-1 rounded-md border border-blue-200">
+                    કુલ GST (Total GST): <strong className="text-blue-900 font-black">₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</strong>
+                  </span>
+                  <span className="text-base font-black text-blue-800">Total Amount: ₹{totalBillInvestments.toLocaleString()}</span>
+                </div>
               </div>
             )}
           </div>
