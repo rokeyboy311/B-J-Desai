@@ -1,16 +1,17 @@
-import { Router, Response } from 'express';
-import { requireAuth, requireCategoryAuth, AuthRequest } from '../middleware/auth.ts';
+import { Router, type Response } from 'express';
+import { requireAuth, requireCategoryAuth, type AuthRequest } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { 
   investmentParties, investmentTransactions, auditLogs,
   materialPurchases, materialSupplies, siteSupplies,
   labourSalaries, supervisorCosts, records,
   investors, investorTransactions as globalInvTx, investorLocationAllocations,
-  locations
+  locations, contractorCosts
 } from '../../db/schema.ts';
-import { eq, and, or, desc, sql } from 'drizzle-orm';
+import { eq, and, or, desc, sql, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { assertLocationAccess } from '../lib/locationAuth.ts';
+import { getAdminCapitalSummary } from '../lib/accounting.ts';
 
 const investmentRouter = Router();
 investmentRouter.use(requireAuth);
@@ -31,6 +32,24 @@ const txSchema = z.object({
   description: z.string().optional().nullable(),
   paymentMethod: z.string().optional().nullable(),
   referenceNumber: z.string().optional().nullable(),
+});
+
+/**
+ * GET /api/investments/admin-capital-summary
+ * Returns central Admin Capital pool metrics:
+ * Total Contributed, Withdrawn, Allocated to Locations, Material Purchases, Available Balance, and Investor-level metrics
+ */
+investmentRouter.get('/admin-capital-summary', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const summary = await getAdminCapitalSummary(db, userId);
+    res.json(summary);
+  } catch (error: any) {
+    console.error('[Admin Capital Summary GET Error]', error);
+    res.status(500).json({ error: 'Failed to calculate admin capital summary' });
+  }
 });
 
 // --- GLOBAL INVESTORS ENDPOINTS ---
@@ -138,7 +157,6 @@ investmentRouter.post('/global-investors', async (req: AuthRequest, res: Respons
 
     const existingGlobal = await db.select().from(investors).where(
       and(
-        eq(investors.userId, userId),
         eq(investors.isDeleted, 0),
         sql`UPPER(${investors.name}) = ${cleanName}`
       )
@@ -256,6 +274,161 @@ investmentRouter.delete('/global-investors/:id', async (req: AuthRequest, res: R
 });
 
 /**
+ * POST /api/investments/global-transactions
+ * Add Contribution (Admin Capital Inflow) or Upad (Admin Capital Withdrawal)
+ * Called by AdminPage Inflow / Outflow modals
+ */
+investmentRouter.post('/global-transactions', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const rawInvId = req.body.investorId || req.body.partyId;
+    const investorId = parseInt(String(rawInvId), 10);
+    if (isNaN(investorId)) return res.status(400).json({ error: 'Valid investor ID required' });
+
+    const { type, amount, date, paymentMethod, referenceNumber, description, notes } = req.body;
+    const parsedAmount = parseFloat(String(amount));
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: 'Valid positive amount required' });
+    }
+
+    const txType = String(type || 'CONTRIBUTION').toUpperCase();
+    if (!['CONTRIBUTION', 'UPAD', 'CAPITAL', 'WITHDRAWAL', 'INVESTMENT', 'PAYMENT'].includes(txType)) {
+      return res.status(400).json({ error: 'Invalid transaction type' });
+    }
+
+    const normalizedType = (txType === 'CAPITAL' || txType === 'INVESTMENT') ? 'CONTRIBUTION' : ((txType === 'WITHDRAWAL' || txType === 'PAYMENT') ? 'UPAD' : txType);
+
+    const inserted = await db.insert(globalInvTx).values({
+      investorId,
+      userId,
+      type: normalizedType,
+      amount: String(parsedAmount),
+      date: date || new Date().toISOString().split('T')[0],
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNumber: referenceNumber || null,
+      description: description || notes || null,
+      isDeleted: 0
+    }).returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: normalizedType === 'CONTRIBUTION' ? 'ADMIN_CAPITAL_CONTRIBUTION' : 'ADMIN_CAPITAL_WITHDRAWAL',
+      entityType: 'INVESTMENT',
+      entityId: inserted[0].id,
+      metadata: JSON.stringify({ investorId, amount: parsedAmount, type: normalizedType })
+    });
+
+    res.status(201).json(inserted[0]);
+  } catch (error: any) {
+    console.error('[Global Transaction POST Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to record transaction' });
+  }
+});
+
+/**
+ * GET /api/investments/global-transactions
+ * List global investor transactions
+ */
+investmentRouter.get('/global-transactions', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const investorIdParam = req.query.investorId as string | undefined;
+    const invId = investorIdParam ? parseInt(investorIdParam, 10) : undefined;
+
+    const records = await db.select({
+      id: globalInvTx.id,
+      investorId: globalInvTx.investorId,
+      investorName: investors.name,
+      userId: globalInvTx.userId,
+      type: globalInvTx.type,
+      amount: globalInvTx.amount,
+      date: globalInvTx.date,
+      paymentMethod: globalInvTx.paymentMethod,
+      referenceNumber: globalInvTx.referenceNumber,
+      description: globalInvTx.description,
+      createdAt: globalInvTx.createdAt,
+    }).from(globalInvTx)
+      .innerJoin(investors, eq(globalInvTx.investorId, investors.id))
+      .where(
+        and(
+          eq(globalInvTx.isDeleted, 0),
+          invId ? eq(globalInvTx.investorId, invId) : sql`1=1`
+        )
+      )
+      .orderBy(desc(globalInvTx.date), desc(globalInvTx.id));
+
+    res.json(records);
+  } catch (error: any) {
+    console.error('[Global Transactions GET Error]', error);
+    res.status(500).json({ error: 'Failed to fetch global transactions' });
+  }
+});
+
+/**
+ * PUT /api/investments/global-transactions/:txId
+ */
+investmentRouter.put('/global-transactions/:txId', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const txId = parseInt(String(req.params.txId), 10);
+    if (isNaN(txId)) return res.status(400).json({ error: 'Valid transaction ID required' });
+
+    const { type, amount, date, paymentMethod, referenceNumber, description, notes } = req.body;
+    const updateData: any = {};
+    if (amount !== undefined) {
+      const parsedAmount = parseFloat(String(amount));
+      if (isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Valid positive amount required' });
+      updateData.amount = String(parsedAmount);
+    }
+    if (type) {
+      const txType = String(type).toUpperCase();
+      updateData.type = (txType === 'CAPITAL' || txType === 'INVESTMENT') ? 'CONTRIBUTION' : ((txType === 'WITHDRAWAL' || txType === 'PAYMENT') ? 'UPAD' : txType);
+    }
+    if (date) updateData.date = date;
+    if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
+    if (referenceNumber !== undefined) updateData.referenceNumber = referenceNumber;
+    if (description !== undefined || notes !== undefined) updateData.description = description || notes || null;
+
+    const updated = await db.update(globalInvTx).set(updateData)
+      .where(and(eq(globalInvTx.id, txId), eq(globalInvTx.isDeleted, 0)))
+      .returning();
+
+    if (updated.length === 0) return res.status(404).json({ error: 'Transaction not found' });
+    res.json(updated[0]);
+  } catch (error: any) {
+    console.error('[Global Tx PUT Error]', error);
+    res.status(500).json({ error: 'Failed to update transaction' });
+  }
+});
+
+/**
+ * DELETE /api/investments/global-transactions/:txId
+ */
+investmentRouter.delete('/global-transactions/:txId', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const txId = parseInt(String(req.params.txId), 10);
+    if (isNaN(txId)) return res.status(400).json({ error: 'Valid transaction ID required' });
+
+    await db.update(globalInvTx).set({ isDeleted: 1 })
+      .where(eq(globalInvTx.id, txId));
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[Global Tx DELETE Error]', error);
+    res.status(500).json({ error: 'Failed to delete transaction' });
+  }
+});
+
+/**
  * POST /api/investments/global-investors/:id/transactions
  * Add Contribution (Capital) or Upad (Withdrawal)
  */
@@ -267,28 +440,38 @@ investmentRouter.post('/global-investors/:id/transactions', async (req: AuthRequ
     const investorId = parseInt(String(req.params.id), 10);
     if (isNaN(investorId)) return res.status(400).json({ error: 'Valid investor ID required' });
 
-    const { type, amount, date, paymentMethod, referenceNumber, description } = req.body;
+    const { type, amount, date, paymentMethod, referenceNumber, description, notes } = req.body;
     const parsedAmount = parseFloat(String(amount));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ error: 'Valid positive amount required' });
     }
 
     const txType = String(type || 'CONTRIBUTION').toUpperCase();
-    if (!['CONTRIBUTION', 'UPAD', 'CAPITAL', 'WITHDRAWAL'].includes(txType)) {
+    if (!['CONTRIBUTION', 'UPAD', 'CAPITAL', 'WITHDRAWAL', 'INVESTMENT', 'PAYMENT'].includes(txType)) {
       return res.status(400).json({ error: 'Invalid transaction type' });
     }
+
+    const normalizedType = (txType === 'CAPITAL' || txType === 'INVESTMENT') ? 'CONTRIBUTION' : ((txType === 'WITHDRAWAL' || txType === 'PAYMENT') ? 'UPAD' : txType);
 
     const inserted = await db.insert(globalInvTx).values({
       investorId,
       userId,
-      type: txType === 'CAPITAL' ? 'CONTRIBUTION' : (txType === 'WITHDRAWAL' ? 'UPAD' : txType),
+      type: normalizedType,
       amount: String(parsedAmount),
       date: date || new Date().toISOString().split('T')[0],
       paymentMethod: paymentMethod || 'Bank Transfer',
       referenceNumber: referenceNumber || null,
-      description: description || null,
+      description: description || notes || null,
       isDeleted: 0
     }).returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: normalizedType === 'CONTRIBUTION' ? 'ADMIN_CAPITAL_CONTRIBUTION' : 'ADMIN_CAPITAL_WITHDRAWAL',
+      entityType: 'INVESTMENT',
+      entityId: inserted[0].id,
+      metadata: JSON.stringify({ investorId, amount: parsedAmount, type: normalizedType })
+    });
 
     res.status(201).json(inserted[0]);
   } catch (error: any) {
@@ -309,7 +492,7 @@ investmentRouter.delete('/global-investors/transactions/:txId', async (req: Auth
     if (isNaN(txId)) return res.status(400).json({ error: 'Valid transaction ID required' });
 
     await db.update(globalInvTx).set({ isDeleted: 1 })
-      .where(and(eq(globalInvTx.id, txId), eq(globalInvTx.userId, userId)));
+      .where(eq(globalInvTx.id, txId));
 
     res.json({ success: true });
   } catch (error: any) {
@@ -410,6 +593,22 @@ investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Res
       }
     }
 
+    // 3-Tier Capital Validation: Check available Admin Capital & Investor's unallocated capital
+    const adminSummary = await getAdminCapitalSummary(db, userId);
+    if (allocAmount > adminSummary.availableAdminCapital) {
+      return res.status(400).json({ 
+        error: `Cannot transfer ₹${allocAmount.toLocaleString('en-IN')}: Exceeds available Admin Capital (₹${adminSummary.availableAdminCapital.toLocaleString('en-IN')}).` 
+      });
+    }
+
+    const invSummary = adminSummary.investors.find(i => i.id === invId);
+    if (!invSummary || allocAmount > invSummary.availableCapital) {
+      const avail = invSummary ? invSummary.availableCapital : 0;
+      return res.status(400).json({ 
+        error: `Cannot transfer ₹${allocAmount.toLocaleString('en-IN')}: Selected investor ${invName} has only ₹${avail.toLocaleString('en-IN')} unallocated Admin Capital available.` 
+      });
+    }
+
     const inserted = await db.insert(investorLocationAllocations).values({
       investorId: invId,
       locationId: locId,
@@ -422,40 +621,23 @@ investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Res
       isDeleted: 0
     }).returning();
 
-    // Auto-sync into Category 1 Location Investment Parties & Transactions
+    // Auto-sync into Category 1 Location Investment Parties (for selection in Add Investment Capital)
     let existingParty = await db.select().from(investmentParties).where(
       and(
         eq(investmentParties.userId, userId),
         eq(investmentParties.locationId, locId),
-        eq(investmentParties.partyName, invName),
+        sql`UPPER(${investmentParties.partyName}) = ${invName.toUpperCase()}`,
         eq(investmentParties.isDeleted, 0)
       )
     ).limit(1);
 
-    let partyId: number;
     if (existingParty.length === 0) {
-      const newParty = await db.insert(investmentParties).values({
+      await db.insert(investmentParties).values({
         userId,
         locationId: locId,
-        partyName: invName,
-      }).returning();
-      partyId = newParty[0].id;
-    } else {
-      partyId = existingParty[0].id;
+        partyName: invName.toUpperCase(),
+      });
     }
-
-    // Insert CONTRIBUTION transaction for this location's Category 1
-    await db.insert(investmentTransactions).values({
-      partyId,
-      userId,
-      type: 'CONTRIBUTION',
-      amount: String(allocAmount),
-      date: date || new Date().toISOString().split('T')[0],
-      paymentMethod: paymentMethod || 'Bank Transfer',
-      referenceNumber: referenceNumber || null,
-      description: notes ? `Central Capital Allocation: ${notes}` : `Central Investor Capital Allocation (${invName})`,
-      isDeleted: 0
-    });
 
     await db.insert(auditLogs).values({
       userId,
@@ -503,6 +685,148 @@ investmentRouter.delete('/location-allocations/:id', async (req: AuthRequest, re
   } catch (error: any) {
     console.error('[Location Allocation DELETE Error]', error);
     res.status(500).json({ error: 'Failed to delete allocation' });
+  }
+});
+
+/**
+ * POST /api/investments/transfer-to-investment-capital
+ * Transfers capital from Location Investor Capital to Location Investment Capital (Tier 2 -> Tier 3)
+ * Workflow:
+ * Location -> Investment Capital -> Add Investment Capital From Investors
+ * -> Select Investor -> Enter Amount
+ * -> Check selected investor's available Investor Capital at this location
+ * -> Investor Capital decreases
+ * -> Location Investment Capital increases
+ * -> Save atomic transaction
+ * -> Realtime sync
+ */
+investmentRouter.post('/transfer-to-investment-capital', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { locationId, partyId, investorId, amount, date, paymentMethod, referenceNumber, notes } = req.body;
+    const locId = parseInt(String(locationId), 10);
+    const transferAmount = parseFloat(String(amount));
+
+    if (isNaN(locId) || locId <= 0) {
+      return res.status(400).json({ error: 'Valid Location ID is required' });
+    }
+    if (isNaN(transferAmount) || transferAmount <= 0) {
+      return res.status(400).json({ error: 'Valid positive transfer amount is required' });
+    }
+
+    await assertLocationAccess(userId, locId);
+
+    // Resolve partyId from partyId or investorId
+    let pId = partyId ? parseInt(String(partyId), 10) : null;
+    let resolvedParty: any;
+
+    if (pId && !isNaN(pId)) {
+      const parties = await db.select().from(investmentParties).where(
+        and(eq(investmentParties.id, pId), eq(investmentParties.isDeleted, 0))
+      ).limit(1);
+      if (parties.length > 0) resolvedParty = parties[0];
+    } else if (investorId) {
+      const invId = parseInt(String(investorId), 10);
+      const inv = await db.select().from(investors).where(
+        and(eq(investors.id, invId), eq(investors.isDeleted, 0))
+      ).limit(1);
+      if (inv.length > 0) {
+        // Find or create matching party at this location
+        const existingParty = await db.select().from(investmentParties).where(
+          and(
+            eq(investmentParties.locationId, locId),
+            sql`UPPER(${investmentParties.partyName}) = ${inv[0].name.trim().toUpperCase()}`,
+            eq(investmentParties.isDeleted, 0)
+          )
+        ).limit(1);
+        if (existingParty.length > 0) {
+          resolvedParty = existingParty[0];
+          pId = existingParty[0].id;
+        } else {
+          const created = await db.insert(investmentParties).values({
+            userId,
+            locationId: locId,
+            partyName: inv[0].name.trim().toUpperCase()
+          }).returning();
+          resolvedParty = created[0];
+          pId = created[0].id;
+        }
+      }
+    }
+
+    if (!resolvedParty || !pId) {
+      return res.status(404).json({ error: 'Investor / Party not found for this location' });
+    }
+
+    // Check investor's uninvested Category 7 balance at this location
+    const cleanName = resolvedParty.partyName.trim().toUpperCase();
+    const allocRows = await db.select({
+      total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
+    })
+    .from(investorLocationAllocations)
+    .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+    .where(and(
+      eq(investorLocationAllocations.locationId, locId),
+      eq(investorLocationAllocations.isDeleted, 0),
+      sql`UPPER(${investors.name}) = ${cleanName}`
+    ));
+    const cat7Allocated = parseFloat(allocRows[0]?.total || '0') || 0;
+
+    const txRows = await db.select({
+      total: sql<string>`COALESCE(SUM(CAST(${investmentTransactions.amount} AS numeric)), 0)`
+    })
+    .from(investmentTransactions)
+    .where(and(
+      eq(investmentTransactions.partyId, pId),
+      eq(investmentTransactions.type, 'INVESTMENT'),
+      eq(investmentTransactions.isDeleted, 0)
+    ));
+    const alreadyInvested = parseFloat(txRows[0]?.total || '0') || 0;
+
+    const availableInvestorCapital = Math.max(0, Math.round((cat7Allocated - alreadyInvested) * 100) / 100);
+
+    if (transferAmount > availableInvestorCapital) {
+      return res.status(400).json({
+        error: `Cannot transfer ₹${transferAmount.toLocaleString('en-IN')}: Selected investor ${resolvedParty.partyName} has only ₹${availableInvestorCapital.toLocaleString('en-IN')} available Category 7 Investor Capital at this location.`
+      });
+    }
+
+    // Execute transfer atomically
+    const insertedTx = await db.insert(investmentTransactions).values({
+      partyId: pId,
+      userId,
+      type: 'INVESTMENT',
+      amount: String(transferAmount),
+      date: date || new Date().toISOString().split('T')[0],
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNumber: referenceNumber || null,
+      description: notes ? `Investment into Project: ${notes}` : `Investment into Project (from ${resolvedParty.partyName})`,
+      isDeleted: 0
+    }).returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'INVESTOR_TO_INVESTMENT_TRANSFER',
+      entityType: 'INVESTMENT',
+      entityId: insertedTx[0].id,
+      metadata: JSON.stringify({
+        partyId: pId,
+        locationId: locId,
+        amount: transferAmount,
+        investorName: resolvedParty.partyName
+      })
+    });
+
+    res.status(201).json({
+      success: true,
+      transaction: insertedTx[0],
+      remainingInvestorCapital: Math.round((availableInvestorCapital - transferAmount) * 100) / 100
+    });
+  } catch (error: any) {
+    console.error('[Transfer to Investment Capital POST Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to transfer to investment capital' });
   }
 });
 
@@ -607,6 +931,38 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
       await assertLocationAccess(userId, locationId);
     }
 
+    // Auto-sync: if any investors were allocated to this location in Category 7 (investorLocationAllocations)
+    // but don't yet exist in investmentParties, auto-create them so they are always visible in dropdowns
+    if (locationId && !isNaN(locationId)) {
+      const existingAllocs = await db.select({
+        investorName: investors.name,
+      })
+      .from(investorLocationAllocations)
+      .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+      .where(and(
+        eq(investorLocationAllocations.locationId, locationId),
+        eq(investorLocationAllocations.isDeleted, 0)
+      ));
+
+      for (const a of existingAllocs) {
+        const clean = a.investorName.trim().toUpperCase();
+        const exists = await db.select({ id: investmentParties.id }).from(investmentParties).where(
+          and(
+            eq(investmentParties.locationId, locationId),
+            sql`UPPER(${investmentParties.partyName}) = ${clean}`,
+            eq(investmentParties.isDeleted, 0)
+          )
+        ).limit(1);
+        if (exists.length === 0) {
+          await db.insert(investmentParties).values({
+            userId,
+            locationId,
+            partyName: clean,
+          });
+        }
+      }
+    }
+
     const conditions = [
       eq(investmentParties.isDeleted, 0)
     ];
@@ -629,6 +985,20 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
     .leftJoin(locations, eq(investmentParties.locationId, locations.id))
     .where(and(...conditions))
     .orderBy(desc(investmentParties.createdAt));
+
+    // Get Category 7 allocations grouped by investor name and location
+    const cat7Allocs = await db.select({
+      locationId: investorLocationAllocations.locationId,
+      investorName: sql<string>`UPPER(${investors.name})`,
+      total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
+    })
+    .from(investorLocationAllocations)
+    .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+    .where(and(
+      locationId && !isNaN(locationId) ? eq(investorLocationAllocations.locationId, locationId) : undefined,
+      eq(investorLocationAllocations.isDeleted, 0)
+    ))
+    .groupBy(investorLocationAllocations.locationId, sql`UPPER(${investors.name})`);
 
     // Get metrics for each party
     const partyIds = parties.map(p => p.id);
@@ -660,14 +1030,25 @@ investmentRouter.get('/parties', async (req: AuthRequest, res: Response) => {
         if (m.type === 'UPAD') totalUpad += parseFloat(m.total || '0');
       });
 
+      const cleanName = p.partyName.trim().toUpperCase();
+      const allocMatch = cat7Allocs.find(a => 
+        a.investorName === cleanName && (!locationId || a.locationId === p.locationId)
+      );
+      const cat7Allocated = parseFloat(allocMatch?.total || '0') || 0;
+      const cat7Deployed = totalInvestment;
+      const cat7Available = Math.max(0, Math.round((cat7Allocated - cat7Deployed) * 100) / 100);
+
       return {
         ...p,
+        cat7Allocated,
+        cat7Deployed,
+        cat7Available,
         totalInvestment,
         totalPayment,
         totalUpad,
         totalContribution,
-        // Category 1 rule: An investor's balance cuts when money is invested into projects ("investment karya") or taken as upad
-        balance: Math.round((totalContribution - totalInvestment - totalPayment - totalUpad) * 100) / 100
+        // Category 7 Available Investor Capital is the true available balance for the modal and calculations
+        balance: cat7Available
       };
     });
 
@@ -840,6 +1221,41 @@ investmentRouter.post('/transactions', async (req: AuthRequest, res: Response) =
     if (!party.length) return res.status(404).json({ error: 'Investor party not found' });
     await assertLocationAccess(userId, party[0].locationId);
 
+    // If adding Investment Capital from Investor Capital, verify and cut from available Category 7 Investor Capital
+    if (data.type === 'INVESTMENT') {
+      const cleanName = party[0].partyName.trim().toUpperCase();
+      const allocRows = await db.select({
+        total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
+      })
+      .from(investorLocationAllocations)
+      .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+      .where(and(
+        eq(investorLocationAllocations.locationId, party[0].locationId),
+        eq(investorLocationAllocations.isDeleted, 0),
+        sql`UPPER(${investors.name}) = ${cleanName}`
+      ));
+      const cat7Allocated = parseFloat(allocRows[0]?.total || '0') || 0;
+
+      const txRows = await db.select({
+        total: sql<string>`COALESCE(SUM(CAST(${investmentTransactions.amount} AS numeric)), 0)`
+      })
+      .from(investmentTransactions)
+      .where(and(
+        eq(investmentTransactions.partyId, data.partyId),
+        eq(investmentTransactions.type, 'INVESTMENT'),
+        eq(investmentTransactions.isDeleted, 0)
+      ));
+      const alreadyInvested = parseFloat(txRows[0]?.total || '0') || 0;
+
+      const availableCat7Capital = Math.max(0, Math.round((cat7Allocated - alreadyInvested) * 100) / 100);
+
+      if (data.amount > availableCat7Capital) {
+        return res.status(400).json({
+          error: `ઇન્વેસ્ટર કેપિટલ (Category 7) માં પૂરતું બેલેન્સ નથી / Insufficient Category 7 Investor Capital. ${party[0].partyName} પાસે આ સાઇટ પર માત્ર ₹${availableCat7Capital.toLocaleString('en-IN')} ઉપલબ્ધ છે, તેથી ₹${data.amount.toLocaleString('en-IN')} કપાશે નહીં. કૃપા કરીને પ્રથમ Category 7 (Investor Capital) માંથી વધુ રકમ ફાળવો.`
+        });
+      }
+    }
+
     const result = await db.insert(investmentTransactions).values({
       userId,
       partyId: data.partyId,
@@ -878,6 +1294,42 @@ investmentRouter.put('/transactions/:id', async (req: AuthRequest, res: Response
     const party = await db.select().from(investmentParties).where(and(eq(investmentParties.id, data.partyId), eq(investmentParties.isDeleted, 0))).limit(1);
     if (!party.length) return res.status(404).json({ error: 'Investor party not found' });
     await assertLocationAccess(userId, party[0].locationId);
+
+    // If updating Investment Capital from Investor Capital, verify and cut from available Category 7 Investor Capital
+    if (data.type === 'INVESTMENT') {
+      const cleanName = party[0].partyName.trim().toUpperCase();
+      const allocRows = await db.select({
+        total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
+      })
+      .from(investorLocationAllocations)
+      .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+      .where(and(
+        eq(investorLocationAllocations.locationId, party[0].locationId),
+        eq(investorLocationAllocations.isDeleted, 0),
+        sql`UPPER(${investors.name}) = ${cleanName}`
+      ));
+      const cat7Allocated = parseFloat(allocRows[0]?.total || '0') || 0;
+
+      const txRows = await db.select({
+        total: sql<string>`COALESCE(SUM(CAST(${investmentTransactions.amount} AS numeric)), 0)`
+      })
+      .from(investmentTransactions)
+      .where(and(
+        eq(investmentTransactions.partyId, data.partyId),
+        ne(investmentTransactions.id, id),
+        eq(investmentTransactions.type, 'INVESTMENT'),
+        eq(investmentTransactions.isDeleted, 0)
+      ));
+      const alreadyInvested = parseFloat(txRows[0]?.total || '0') || 0;
+
+      const availableCat7Capital = Math.max(0, Math.round((cat7Allocated - alreadyInvested) * 100) / 100);
+
+      if (data.amount > availableCat7Capital) {
+        return res.status(400).json({
+          error: `ઇન્વેસ્ટર કેપિટલ (Category 7) માં પૂરતું બેલેન્સ નથી / Insufficient Category 7 Investor Capital. ${party[0].partyName} પાસે આ સાઇટ પર માત્ર ₹${availableCat7Capital.toLocaleString('en-IN')} ઉપલબ્ધ છે, તેથી ₹${data.amount.toLocaleString('en-IN')} કપાશે નહીં.`
+        });
+      }
+    }
 
     const [updated] = await db.update(investmentTransactions)
       .set({
@@ -1262,8 +1714,8 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       else if (t.type === 'UPAD' || t.type === 'PAYMENT') returnsToInvestors += amt;
     });
     
-    // Capital allocated to this location from investors (Direct Allocations + Investment Karya)
-    const investmentFromInvestorsCapital = Math.round((fromInvestmentKarya + totalFromDirectAllocations) * 100) / 100;
+    // Capital deployed to this project from investors via 'Add Investment Capital from Investor Capital'
+    const investmentFromInvestorsCapital = Math.round(fromInvestmentKarya * 100) / 100;
     const fromInvestors = investmentFromInvestorsCapital;
 
     // 2. Bill Investments (Material/Asset invoices recorded as Investment Inflows)
@@ -1381,6 +1833,33 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const totalRefunded = parseFloat(refData[0]?.totalRefunded || '0') || 0;
     const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
     const refCount = Number(refData[0]?.count || 0);
+
+    // Contractor Costs (Category 5) for matching with (Site Supply + Labour Attendance)
+    const contrCosts = await db.select({
+      total: sql<string>`sum(${contractorCosts.amount})`,
+      count: sql<number>`count(*)`
+    })
+    .from(contractorCosts)
+    .where(and(
+      locationId ? eq(contractorCosts.locationId, locationId) : undefined,
+      eq(contractorCosts.isDeleted, 0)
+    ));
+    const recordedContractorCost = parseFloat(contrCosts[0]?.total || '0') || 0;
+    const contractorCostCount = Number(contrCosts[0]?.count || 0);
+
+    // Explicit Rule 1: Investment Capital vs (Material Supply + Site Supply + Labour Attendance)
+    const totalThreeExpenses = Math.round((cat4Total + cat5Total + cat6Total) * 100) / 100;
+    const investmentVariance = Math.round((investmentFromInvestorsCapital - totalThreeExpenses) * 100) / 100;
+    const investmentStatus: 'MATCHED' | 'SURPLUS' | 'DEFICIT' = Math.abs(investmentVariance) < 0.01 
+      ? 'MATCHED' 
+      : (investmentVariance > 0 ? 'SURPLUS' : 'DEFICIT');
+
+    // Explicit Rule 2: (Site Supply + Labour Attendance) vs Contractor Cost
+    const expectedContractorCost = Math.round((cat5Total + cat6Total) * 100) / 100;
+    const contractorVariance = Math.round((recordedContractorCost - expectedContractorCost) * 100) / 100;
+    const contractorStatus: 'MATCHED' | 'SURPLUS' | 'DEFICIT' = Math.abs(contractorVariance) < 0.01 
+      ? 'MATCHED' 
+      : (contractorVariance > 0 ? 'SURPLUS' : 'DEFICIT');
 
     // Grand Project Deductions across Categories 3, 4, 5, 6 and Refundable Outflows funded by Investment Capital
     const totalProjectExpenditure = Math.round((cat3Total + cat4Total + cat5Total + cat6Total + pendingRefundable) * 100) / 100;
@@ -1579,10 +2058,9 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       .limit(50)
     ]);
 
-    // Merge all capital inflows (legacy + allocations + bills)
+    // Merge all capital inflows (investment transactions + bill investments)
     const recentCapitalInflows = [
       ...recentLegacyTxs,
-      ...recentDirectAllocs,
       ...recentBills
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -1666,6 +2144,25 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
         remainingInvestmentCapital,
         utilizationRate,
         status
+      },
+      siteOperationsExpenditure: {
+        totalMaterialSupply: cat4Total,
+        totalSiteSupply: cat5Total,
+        totalLabourAttendance: cat6Total,
+        totalThreeExpenses,
+        investmentCapital: investmentFromInvestorsCapital,
+        fullCapital,
+        variance: investmentVariance,
+        reconciliationStatus: investmentStatus,
+      },
+      contractorCostReconciliation: {
+        totalSiteSupply: cat5Total,
+        totalLabourAttendance: cat6Total,
+        expectedContractorCost,
+        recordedContractorCost,
+        variance: contractorVariance,
+        reconciliationStatus: contractorStatus,
+        contractorCostCount
       },
       itemizedDeductions,
       recentCapitalInflows

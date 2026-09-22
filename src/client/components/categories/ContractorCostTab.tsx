@@ -5,7 +5,7 @@ import {
   HardHat, Plus, Trash2, Pencil, Search, Calendar, FileText,
   Banknote, ArrowDownLeft, ArrowUpRight, Scale, CheckCircle2,
   AlertTriangle, DollarSign, Download, FileSpreadsheet, RefreshCw,
-  Clock, ShieldCheck, ChevronRight, Layers, Tag
+  Clock, ShieldCheck, ChevronRight, Layers, Tag, Landmark
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
@@ -36,8 +36,13 @@ interface ReconciliationData {
     variance: number;
     reconciliationStatus: "MATCHED" | "SURPLUS" | "DEFICIT";
     contractorCostCount: number;
+    contractorCount?: number;
     siteSupplyCount: number;
     labourCount: number;
+    investmentStatus?: "MATCHED" | "SURPLUS" | "DEFICIT";
+    totalInvestmentCapital?: number;
+    totalCustomerMaterialSupply?: number;
+    totalThreeSiteExpenses?: number;
   };
   contractorCosts: ContractorCost[];
   siteSupplies: any[];
@@ -204,21 +209,16 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
   const totalNet = useMemo(() => costs.reduce((sum, c) => sum + parseFloat(c.netAmount || "0"), 0), [costs]);
   const totalPaid = useMemo(() => costs.filter(c => c.paymentStatus === "PAID").reduce((sum, c) => sum + parseFloat(c.netAmount || "0"), 0), [costs]);
 
-  const handleExportExcel = () => {
-    const exportData = filteredCosts.map(c => ({
-      "Date": c.date,
-      "Contractor Name": c.contractorName,
-      "Work Description": c.workDescription || "-",
-      "Gross Amount (₹)": parseFloat(c.amount || "0"),
-      "Deductions (₹)": parseFloat(c.deductionAmount || "0"),
-      "Net Amount (₹)": parseFloat(c.netAmount || "0"),
-      "Payment Status": c.paymentStatus,
-      "Payment Mode": c.paymentMethod || "-",
-      "Reference No": c.referenceNumber || "-",
-      "Notes": c.notes || "-"
-    }));
-    downloadExcelReport(`Contractor_Costs_Location_${locationId}`, exportData);
-    showToast("Contractor costs Excel downloaded", "success");
+  const handleExportExcel = async () => {
+    try {
+      await downloadExcelReport(
+        `/contractor-costs/export?locationId=${locationId}`,
+        `Contractor_Costs_Location_${locationId}.xlsx`
+      );
+      showToast("Contractor costs Excel downloaded", "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to download contractor costs", "error");
+    }
   };
 
   return (
@@ -228,12 +228,12 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-100 text-purple-800 border border-purple-200">
-              Category 7
+              Category 5
             </span>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Cost & Reconciliation</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Cost & Reconciliation Matrix</h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Contractor billing vs actual operational expenditures (Site Supplies + Labour Salaries)
+            સાઇટ સપ્લાય (Cat 3) + લેબર હાજરી / પગાર (Cat 4) નો કુલ સરવાળો = કોન્ટ્રાક્ટર કોસ્ટ (Cat 5) સાથે મેળવવો.
           </p>
         </div>
 
@@ -254,6 +254,70 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <Plus className="w-4 h-4" />
             <span>Add Contractor Cost</span>
           </button>
+        </div>
+      </div>
+
+      {/* Prominent Operational Reconciliation Equation Banner */}
+      <div className={`p-4 rounded-2xl border transition-all ${
+        reconciliation?.summary.reconciliationStatus === "MATCHED"
+          ? "bg-emerald-50/80 border-emerald-200"
+          : reconciliation?.summary.reconciliationStatus === "SURPLUS"
+          ? "bg-blue-50/80 border-blue-200"
+          : "bg-amber-50/80 border-amber-200"
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Scale className="w-4 h-4 text-purple-700" />
+              <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                રિકોન્સિલેશન સૂત્ર (Reconciliation Equation)
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                reconciliation?.summary.reconciliationStatus === "MATCHED"
+                  ? "bg-emerald-200 text-emerald-900"
+                  : reconciliation?.summary.reconciliationStatus === "SURPLUS"
+                  ? "bg-blue-200 text-blue-900"
+                  : "bg-amber-200 text-amber-900"
+              }`}>
+                {reconciliation?.summary.reconciliationStatus === "MATCHED"
+                  ? "✓ 100% PERFECT MATCH"
+                  : reconciliation?.summary.reconciliationStatus === "SURPLUS"
+                  ? "+ SURPLUS RECORDED"
+                  : "⚠ DEFICIT (ENTRY PENDING)"}
+              </span>
+            </div>
+            <div className="text-xs font-bold text-slate-700 flex flex-wrap items-center gap-2 pt-1">
+              <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs">
+                Cat 3 Site Supply: <strong className="text-teal-700">₹{(reconciliation?.summary.totalSiteSupplies || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+              </span>
+              <span>+</span>
+              <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs">
+                Cat 4 Labour Attendance: <strong className="text-rose-700">₹{(reconciliation?.summary.totalLabourCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+              </span>
+              <span>=</span>
+              <span className="px-2.5 py-1 bg-amber-100/80 rounded-lg border border-amber-300 text-amber-950 font-black shadow-xs">
+                Expected: ₹{(reconciliation?.summary.expectedCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+              <span>&harr;</span>
+              <span className="px-2.5 py-1 bg-purple-100/80 rounded-lg border border-purple-300 text-purple-950 font-black shadow-xs">
+                Recorded: ₹{(reconciliation?.summary.recordedCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-right shrink-0">
+            <span className="text-[11px] text-slate-500 block font-medium">Difference / તફાવત:</span>
+            <span className={`text-base font-black ${
+              reconciliation?.summary.reconciliationStatus === "MATCHED"
+                ? "text-emerald-700"
+                : reconciliation?.summary.reconciliationStatus === "SURPLUS"
+                ? "text-blue-700"
+                : "text-amber-700"
+            }`}>
+              {(reconciliation?.summary.variance || 0) >= 0 ? "+" : ""}
+              ₹{(reconciliation?.summary.variance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -463,56 +527,146 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
 
       {activeSubTab === "reconciliation" && reconciliation && (
         <div className="space-y-6">
-          {/* Summary Breakdown Card */}
-          <div className="p-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl text-white shadow-md">
-            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <Scale className="w-4 h-4 text-purple-400" />
-              Contractor Cost vs Operational Spend Breakdown
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-4 border-t border-slate-700">
+          {/* Complete 5-Tier Financial Flow Context */}
+          <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 rounded-3xl text-white shadow-lg space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
               <div>
-                <p className="text-xs text-slate-400">1. Total Site Supplies (Cat 4)</p>
-                <p className="text-2xl font-black text-teal-400 mt-1">
-                  ₹{reconciliation.summary.totalSiteSupplies.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">{reconciliation.summary.siteSupplyCount} supply entries</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 bg-purple-900/50 px-2.5 py-1 rounded-md border border-purple-500/30">
+                  સંપૂર્ણ સાંકળ રિકોન્સિલેશન (Full Chain Reconciliation)
+                </span>
+                <h3 className="text-lg font-black text-white mt-1.5 flex items-center gap-2">
+                  <Scale className="w-5 h-5 text-purple-400" />
+                  Admin &rarr; Investor &rarr; Investment &rarr; (Material+Site+Labour) &rarr; Contractor Cost
+                </h3>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-black self-start sm:self-auto ${
+                reconciliation.summary.reconciliationStatus === "MATCHED" && reconciliation.summary.investmentStatus === "MATCHED"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                  : "bg-purple-500/20 text-purple-200 border border-purple-500/30"
+              }`}>
+                {reconciliation.summary.reconciliationStatus === "MATCHED" && reconciliation.summary.investmentStatus === "MATCHED"
+                  ? "✓ Both Equations 100% Balanced"
+                  : "Chain In Progress"}
+              </span>
+            </div>
+
+            {/* Upstream Rule 1: Investment Capital vs 3 Site Expenses */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                  <Landmark className="w-4 h-4 text-indigo-400" />
+                  Upstream Rule 1: Investment Capital vs 3 Site Expenses
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  reconciliation.summary.investmentStatus === "MATCHED"
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : reconciliation.summary.investmentStatus === "SURPLUS"
+                    ? "bg-blue-500/20 text-blue-300"
+                    : "bg-rose-500/20 text-rose-300"
+                }`}>
+                  {reconciliation.summary.investmentStatus === "MATCHED"
+                    ? "✓ MATCHED"
+                    : reconciliation.summary.investmentStatus === "SURPLUS"
+                    ? "+ SURPLUS UNSPENT"
+                    : "⚠ CAPITAL SHORTFALL"}
+                </span>
               </div>
 
-              <div>
-                <p className="text-xs text-slate-400">2. Total Labour Net Salary (Cat 5)</p>
-                <p className="text-2xl font-black text-amber-400 mt-1">
-                  ₹{reconciliation.summary.totalLabourCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">{reconciliation.summary.labourCount} wage entries</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-slate-400">3. Combined Expected Operational Cost</p>
-                <p className="text-2xl font-black text-white mt-1">
-                  ₹{reconciliation.summary.expectedCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[11px] text-purple-300 mt-1">Sum of Site Supplies + Labour</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
+                <div>
+                  <span className="text-slate-400 text-[11px] block">Investment Capital:</span>
+                  <span className="text-white font-bold text-sm">
+                    ₹{(reconciliation.summary.totalInvestmentCapital || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block">Cat 2 Material Supply:</span>
+                  <span className="text-blue-300 font-bold">
+                    ₹{(reconciliation.summary.totalCustomerMaterialSupply || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block">Cat 3 + Cat 4 Spend:</span>
+                  <span className="text-amber-300 font-bold">
+                    ₹{(reconciliation.summary.expectedCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[11px] block">Combined 3-Spend Total:</span>
+                  <span className="text-emerald-300 font-black text-sm">
+                    ₹{(reconciliation.summary.totalThreeSiteExpenses || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <span className="text-xs text-slate-400">Recorded Contractor Cost (Cat 7): </span>
-                <span className="text-lg font-bold text-purple-300 ml-1">
-                  ₹{reconciliation.summary.recordedCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            {/* Downstream Rule 2: Operational Spend vs Contractor Cost */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <HardHat className="w-4 h-4 text-amber-400" />
+                  Downstream Rule 2: (Site Supply + Labour Attendance) vs Contractor Cost
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  reconciliation.summary.reconciliationStatus === "MATCHED"
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : reconciliation.summary.reconciliationStatus === "SURPLUS"
+                    ? "bg-blue-500/20 text-blue-300"
+                    : "bg-amber-500/20 text-amber-300"
+                }`}>
+                  {reconciliation.summary.reconciliationStatus === "MATCHED"
+                    ? "✓ 100% MATCHED"
+                    : reconciliation.summary.reconciliationStatus === "SURPLUS"
+                    ? "+ SURPLUS RECORDED"
+                    : "⚠ ENTRY PENDING"}
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-300 font-medium">Variance (Recorded - Expected):</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-black ${
-                  reconciliation.summary.variance >= 0
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                    : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                }`}>
-                  {reconciliation.summary.variance >= 0 ? "+" : ""}₹{reconciliation.summary.variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
+                <div>
+                  <p className="text-xs text-slate-400">1. Cat 3 Site Supplies to Labour:</p>
+                  <p className="text-xl font-black text-teal-400 mt-0.5">
+                    ₹{reconciliation.summary.totalSiteSupplies.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-[10px] text-slate-400">{reconciliation.summary.siteSupplyCount} supply entries</p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-400">2. Cat 4 Labour Attendance / Salaries:</p>
+                  <p className="text-xl font-black text-amber-400 mt-0.5">
+                    ₹{reconciliation.summary.totalLabourCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-[10px] text-slate-400">{reconciliation.summary.labourCount} wage entries</p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-400">3. Expected Contractor Cost:</p>
+                  <p className="text-xl font-black text-white mt-0.5">
+                    ₹{reconciliation.summary.expectedCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-[10px] text-purple-300">Target to match Cat 5 records</p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs">
+                  <span className="text-slate-400">Cat 5 Recorded Contractor Cost: </span>
+                  <span className="text-base font-bold text-purple-300 ml-1">
+                    ₹{reconciliation.summary.recordedCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[11px] text-slate-400 ml-1">({reconciliation.summary.contractorCount} bills)</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-300 font-medium">Difference / તફાવત:</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-black ${
+                    reconciliation.summary.variance >= 0
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                  }`}>
+                    {reconciliation.summary.variance >= 0 ? "+" : ""}₹{reconciliation.summary.variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -564,7 +718,19 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Gross Amount (₹) *</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700">Gross Amount (₹) *</label>
+                {!editingId && (reconciliation?.summary.variance || 0) < -0.01 && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, amount: Math.abs(reconciliation.summary.variance).toFixed(2) })}
+                    className="text-[10px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 cursor-pointer"
+                    title="Fill exact missing amount to balance contractor cost"
+                  >
+                    Auto-Fill Deficit: ₹{Math.abs(reconciliation.summary.variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </button>
+                )}
+              </div>
               <input
                 type="number"
                 step="0.01"

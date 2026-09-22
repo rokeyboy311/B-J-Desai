@@ -6,7 +6,7 @@ import {
   Building2, Calculator, CheckCircle2, Clock, AlertCircle, Package, User,
   Wallet, Layers, Search, Tag, Filter, Check, BarChart3, PieChart, ArrowRight,
   ShoppingCart, Truck, Wrench, Users, HardHat, RefreshCw, AlertTriangle, Receipt,
-  Download, FileSpreadsheet
+  Download, FileSpreadsheet, Scale, Landmark, ShieldCheck
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
@@ -22,15 +22,16 @@ const GST_PRESETS = ["0", "5", "12", "18", "28"];
 
 export default function InvestmentTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
-  // 7 Distinct Sub-Tabs:
+  // 8 Distinct Sub-Tabs:
   // 1. "analytics" - Executive Category 3-6 Deductions & Capital Analytics Dashboard
-  // 2. "investor_capital" - Direct Investment from Investors (Investment Karya from Cat 1)
-  // 3. "bill_investments" - Bill / Asset / Material Invoiced Investments
-  // 4. "refundable_records" - Refundable Record (લેવાના બાકી - Security Deposit & Advances)
-  // 5. "deductions_ledger" - Live Itemized Operational Deductions Passbook (Cat 3 to 6 & Refundables)
-  // 6. "investor_payments" - Returns / Upad paid to Investors
-  // 7. "combined" - Consolidated Investment Ledger & Balance Sheet
-  const [activeSubTab, setActiveSubTab] = useState<"analytics" | "investor_capital" | "bill_investments" | "refundable_records" | "deductions_ledger" | "investor_payments" | "combined">("analytics");
+  // 2. "reconciliation" - Capital Flow & Expense Matching Reconciliation Matrix
+  // 3. "investor_capital" - Direct Investment from Investors (Investment Karya from Cat 1)
+  // 4. "bill_investments" - Bill / Asset / Material Invoiced Investments
+  // 5. "refundable_records" - Refundable Record (લેવાના બાકી - Security Deposit & Advances)
+  // 6. "deductions_ledger" - Live Itemized Operational Deductions Passbook (Cat 3 to 6 & Refundables)
+  // 7. "investor_payments" - Returns / Upad paid to Investors
+  // 8. "combined" - Consolidated Investment Ledger & Balance Sheet
+  const [activeSubTab, setActiveSubTab] = useState<"analytics" | "reconciliation" | "investor_capital" | "bill_investments" | "refundable_records" | "deductions_ledger" | "investor_payments" | "combined">("analytics");
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -185,6 +186,12 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   // Backward compatibility alias
   const totalInvestorCapital = investmentFromInvestorsCapital;
 
+  // Available Category 7 Investor Capital at this Location
+  const availableInvestorCapitalBalance = useMemo(() => {
+    const list = Array.isArray(parties) ? parties : [];
+    return list.reduce((sum, p) => sum + Number(p?.cat7Available ?? p?.balance ?? 0), 0);
+  }, [parties]);
+
   const totalInvestorPayments = useMemo(() => {
     if (projectUtilization?.budgetBalance?.returnsToInvestors !== undefined) {
       return Number(projectUtilization.budgetBalance.returnsToInvestors || 0);
@@ -248,6 +255,46 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     if (fullCapital <= 0) return 0;
     return Math.min(100, Math.round((totalDeductions / fullCapital) * 1000) / 10);
   }, [totalDeductions, fullCapital]);
+
+  // 3-Expense Breakdown explicitly requested: Material Supply (Cat 2), Site Supply (Cat 3), Labour Attendance (Cat 4)
+  // Reconciled against Investment Capital (Cat 1) & Contractor Cost (Cat 5)
+  const threeExpensesBreakdown = useMemo(() => {
+    const materialSupply = Number(projectUtilization?.siteOperationsExpenditure?.totalMaterialSupply ?? (cat4Data.total || 0));
+    const siteSupply = Number(projectUtilization?.siteOperationsExpenditure?.totalSiteSupply ?? (cat5Data.total || 0));
+    const labourAttendance = Number(projectUtilization?.siteOperationsExpenditure?.totalLabourAttendance ?? (cat6Data.totalDeduction ?? (Number(cat6Data.totalNetSalary || 0) + Number(cat6Data.totalUpad || 0))));
+    const totalSiteExpenses = Math.round((materialSupply + siteSupply + labourAttendance) * 100) / 100;
+
+    // Rule 1: Investment Capital vs (Material Supply + Site Supply + Labour Attendance)
+    const investmentVariance = Math.round((investmentFromInvestorsCapital - totalSiteExpenses) * 100) / 100;
+    const isInvestmentMatched = Math.abs(investmentVariance) < 0.01;
+    const investmentStatus: "MATCHED" | "SURPLUS" | "DEFICIT" = isInvestmentMatched 
+      ? "MATCHED" 
+      : (investmentVariance > 0 ? "SURPLUS" : "DEFICIT");
+
+    // Rule 2: (Site Supply + Labour Attendance) vs Contractor Cost
+    const expectedContractorCost = Math.round((siteSupply + labourAttendance) * 100) / 100;
+    const recordedContractorCost = Number(projectUtilization?.contractorCostReconciliation?.recordedContractorCost ?? 0);
+    const contractorVariance = Math.round((recordedContractorCost - expectedContractorCost) * 100) / 100;
+    const isContractorMatched = Math.abs(contractorVariance) < 0.01;
+    const contractorStatus: "MATCHED" | "SURPLUS" | "DEFICIT" = isContractorMatched 
+      ? "MATCHED" 
+      : (contractorVariance > 0 ? "SURPLUS" : "DEFICIT");
+
+    return {
+      materialSupply,
+      siteSupply,
+      labourAttendance,
+      totalSiteExpenses,
+      investmentCapital: investmentFromInvestorsCapital,
+      investmentVariance,
+      investmentStatus,
+      expectedContractorCost,
+      recordedContractorCost,
+      contractorVariance,
+      contractorStatus,
+      contractorCount: projectUtilization?.contractorCostReconciliation?.contractorCostCount || 0
+    };
+  }, [projectUtilization, cat4Data, cat5Data, cat6Data, investmentFromInvestorsCapital]);
 
   const itemizedDeductionsList = useMemo(() => {
     const list: any[] = projectUtilization?.itemizedDeductions || [];
@@ -406,10 +453,28 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     };
   }, [billData]);
 
-  // Save Capital Contribution
+  // Save Capital Contribution (Add Investment Capital from Investor Capital)
   const handleSaveCapital = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!capitalFormData.partyId || !capitalFormData.amount) return;
+
+    const selectedParty = parties.find(p => p.id.toString() === capitalFormData.partyId);
+    const availableBalance = selectedParty ? Number(selectedParty.cat7Available ?? selectedParty.balance ?? 0) : 0;
+    const enteredAmount = parseFloat(capitalFormData.amount);
+
+    if (isNaN(enteredAmount) || enteredAmount <= 0) {
+      showToast("મહેરબાની કરીને માન્ય રકમ દાખલ કરો / Please enter a valid positive amount", "error");
+      return;
+    }
+
+    if (capitalFormData.type === "INVESTMENT" && !editingTxId && enteredAmount > availableBalance) {
+      showToast(
+        `પસંદ કરેલ ઇન્વેસ્ટર ${selectedParty?.partyName || ''} પાસે માત્ર ₹${availableBalance.toLocaleString('en-IN')} Category 7 ઇન્વેસ્ટર કેપિટલ ઉપલબ્ધ છે. ₹${enteredAmount.toLocaleString('en-IN')} કપાશે નહીં. / Amount exceeds available Category 7 Investor Capital.`,
+        "error"
+      );
+      return;
+    }
+
     try {
       const url = editingTxId ? `/investments/transactions/${editingTxId}` : "/investments/transactions";
       const method = editingTxId ? "PUT" : "POST";
@@ -420,7 +485,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           locationId,
           partyId: parseInt(capitalFormData.partyId),
           type: capitalFormData.type || "INVESTMENT",
-          amount: parseFloat(capitalFormData.amount),
+          amount: enteredAmount,
           date: capitalFormData.date,
           paymentMethod: capitalFormData.paymentMethod,
           referenceNumber: capitalFormData.referenceNumber,
@@ -429,6 +494,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       });
 
       triggerSync("investments");
+      triggerSync("investor_capital");
+      triggerSync("reports");
       setCapitalFormData({
         partyId: "",
         amount: "",
@@ -440,7 +507,12 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       });
       setEditingTxId(null);
       setIsCapitalModalOpen(false);
-      showToast(editingTxId ? "Capital investment updated" : "Capital investment saved", "success");
+      showToast(
+        editingTxId 
+          ? "Investment record updated" 
+          : "ઇન્વેસ્ટર કેપિટલ (Cat 7) માંથી રકમ કટ થઈને ઇન્વેસ્ટમેન્ટ મૂડી (Cat 1) માં સફળતાપૂર્વક ઉમેરાઈ ગઈ / Amount deducted from Category 7 and added to Investment Capital", 
+        "success"
+      );
       loadData();
     } catch (err: any) {
       showToast(err.message || "Failed to save capital investment.", "error");
@@ -655,7 +727,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             }}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
           >
-            <ArrowUpRight className="w-3.5 h-3.5" /> + Add Investment from Investors
+            <ArrowUpRight className="w-3.5 h-3.5" /> + Add Investment Capital from Investor Capital
           </button>
 
           <button
@@ -719,13 +791,13 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         {/* 1. Investment from Investors Capital */}
         <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-emerald-800">
-            <span className="text-xs font-bold uppercase tracking-wider">1. Investment from Investors</span>
+            <span className="text-xs font-bold uppercase tracking-wider">1. Investment from Investor Capital</span>
             <div className="p-1.5 bg-emerald-100 rounded-lg"><ArrowUpRight className="w-4 h-4 text-emerald-700" /></div>
           </div>
           <div className="mt-3">
             <div className="text-xl font-black text-emerald-900">₹{investmentFromInvestorsCapital.toLocaleString()}</div>
             <p className="text-[11px] text-emerald-700 mt-0.5 font-medium">
-              ઇન્વેસ્ટમેન્ટ કર્યા (Cat 1 માંથી આવેલી રકમ)
+              ઇન્વેસ્ટર કેપિટલમાંથી કટ થઈને આવેલી રકમ (From Cat 7 Investor Capital)
             </p>
           </div>
         </div>
@@ -797,7 +869,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       </div>
 
-      {/* 7 Distinct Sub-Tabs Navigation */}
+      {/* 8 Distinct Sub-Tabs Navigation */}
       <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1.5 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab("analytics")}
@@ -812,6 +884,23 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </button>
 
         <button
+          onClick={() => setActiveSubTab("reconciliation")}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === "reconciliation"
+              ? "bg-purple-700 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Scale className="w-4 h-4" />
+          Reconciliation Matrix (મૂડી vs સાઇટ વપરાશ)
+          {threeExpensesBreakdown.investmentStatus === "MATCHED" && (
+            <span className="ml-1 px-1.5 py-0.5 bg-emerald-400 text-slate-900 rounded-full text-[10px] font-black">
+              ✓
+            </span>
+          )}
+        </button>
+
+        <button
           onClick={() => setActiveSubTab("investor_capital")}
           className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
             activeSubTab === "investor_capital"
@@ -820,7 +909,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           }`}
         >
           <ArrowUpRight className="w-4 h-4" />
-          Investment from Investors ({capitalInflowTxs.length})
+          Investment from Investor Capital ({capitalInflowTxs.length})
         </button>
 
         <button
@@ -892,6 +981,124 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       {/* SUBTAB 0: ANALYTICS & DEDUCTIONS DASHBOARD */}
       {activeSubTab === "analytics" && (
         <div className="space-y-5">
+          {/* Quick Dual Reconciliation Highlights Banner */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Box 1: Site Expenses vs Investment Capital Matching */}
+            <div className={`p-4 rounded-2xl border transition-all ${
+              threeExpensesBreakdown.investmentStatus === "MATCHED"
+                ? "bg-emerald-50/70 border-emerald-200"
+                : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                ? "bg-blue-50/70 border-blue-200"
+                : "bg-rose-50/70 border-rose-200"
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                <div className="flex items-center gap-2">
+                  <Scale className="w-4 h-4 text-purple-700" />
+                  <span className="text-xs font-black text-slate-900">
+                    Rule 1: Investment Capital vs Site Expenses
+                  </span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  threeExpensesBreakdown.investmentStatus === "MATCHED"
+                    ? "bg-emerald-200 text-emerald-900"
+                    : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                    ? "bg-blue-200 text-blue-900"
+                    : "bg-rose-200 text-rose-900"
+                }`}>
+                  {threeExpensesBreakdown.investmentStatus === "MATCHED"
+                    ? "✓ 100% MATCHED"
+                    : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                    ? "SURPLUS (UNSPENT)"
+                    : "DEFICIT (SHORTFALL)"}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-500 text-[11px] block">Investment Capital:</span>
+                  <span className="font-black text-slate-900 text-sm">
+                    ₹{threeExpensesBreakdown.investmentCapital.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[11px] block">Material + Site + Labour:</span>
+                  <span className="font-black text-slate-900 text-sm">
+                    ₹{threeExpensesBreakdown.totalSiteExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2.5 pt-2 border-t border-slate-200/50 flex justify-between items-center text-xs">
+                <span className="text-slate-600 font-medium">Variance / તફાવત:</span>
+                <span className={`font-black ${
+                  threeExpensesBreakdown.investmentStatus === "MATCHED"
+                    ? "text-emerald-700"
+                    : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                    ? "text-blue-700"
+                    : "text-rose-700"
+                }`}>
+                  {threeExpensesBreakdown.investmentVariance >= 0 ? "+" : ""}
+                  ₹{threeExpensesBreakdown.investmentVariance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            {/* Box 2: Site Supply + Labour vs Contractor Cost Matching */}
+            <div className={`p-4 rounded-2xl border transition-all ${
+              threeExpensesBreakdown.contractorStatus === "MATCHED"
+                ? "bg-emerald-50/70 border-emerald-200"
+                : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                ? "bg-blue-50/70 border-blue-200"
+                : "bg-amber-50/70 border-amber-200"
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                <div className="flex items-center gap-2">
+                  <HardHat className="w-4 h-4 text-amber-700" />
+                  <span className="text-xs font-black text-slate-900">
+                    Rule 2: (Site Supply + Labour) vs Contractor Cost
+                  </span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  threeExpensesBreakdown.contractorStatus === "MATCHED"
+                    ? "bg-emerald-200 text-emerald-900"
+                    : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                    ? "bg-blue-200 text-blue-900"
+                    : "bg-amber-200 text-amber-900"
+                }`}>
+                  {threeExpensesBreakdown.contractorStatus === "MATCHED"
+                    ? "✓ 100% MATCHED"
+                    : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                    ? "SURPLUS"
+                    : "PENDING ENTRY"}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-500 text-[11px] block">Expected (Supply+Labour):</span>
+                  <span className="font-black text-slate-900 text-sm">
+                    ₹{threeExpensesBreakdown.expectedContractorCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[11px] block">Recorded Contractor Cost:</span>
+                  <span className="font-black text-slate-900 text-sm">
+                    ₹{threeExpensesBreakdown.recordedContractorCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2.5 pt-2 border-t border-slate-200/50 flex justify-between items-center text-xs">
+                <span className="text-slate-600 font-medium">Difference / તફાવત:</span>
+                <span className={`font-black ${
+                  threeExpensesBreakdown.contractorStatus === "MATCHED"
+                    ? "text-emerald-700"
+                    : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                    ? "text-blue-700"
+                    : "text-amber-700"
+                }`}>
+                  {threeExpensesBreakdown.contractorVariance >= 0 ? "+" : ""}
+                  ₹{threeExpensesBreakdown.contractorVariance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
           {/* Capital Allocation & Deduction Waterfall Matrix */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-3 border-b border-slate-100">
@@ -1231,6 +1438,353 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       )}
 
+      {/* SUBTAB: CAPITAL FLOW & EXPENSES RECONCILIATION MATRIX */}
+      {activeSubTab === "reconciliation" && (
+        <div className="space-y-6">
+          {/* Header Description Card */}
+          <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-500/20 border border-purple-400/30 rounded-2xl">
+                    <Scale className="w-6 h-6 text-purple-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-white flex items-center gap-2">
+                      સંપૂર્ણ મૂડી પ્રવાહ અને સાઇટ ખર્ચ મેચિંગ રિકોન્સિલેશન
+                    </h3>
+                    <p className="text-xs text-purple-200/80 mt-0.5">
+                      Full Financial Flow: Admin Capital &rarr; Investor Capital &rarr; Investment Capital &rarr; (Material Supply + Site Supply + Labour Attendance) &rarr; Contractor Cost
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingTxId(null);
+                      setCapitalFormData({
+                        partyId: parties[0]?.id?.toString() || "",
+                        amount: "",
+                        type: "INVESTMENT",
+                        date: new Date().toISOString().split("T")[0],
+                        paymentMethod: "Bank Transfer",
+                        referenceNumber: "",
+                        description: "",
+                      });
+                      setIsCapitalModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5" /> + Add Investment from Investor Capital
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        await downloadExcelReport(`/contractors/reconciliation/export?locationId=${locationId}`, `Reconciliation_Report_Location_${locationId}.xlsx`);
+                        showToast("Reconciliation report exported successfully", "success");
+                      } catch (err: any) {
+                        showToast(err.message || "Failed to export report", "error");
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition-all cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" /> Export Excel
+                  </button>
+                </div>
+              </div>
+
+              {/* 5-Stage Visual Workflow Chain */}
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-5 gap-3">
+                {/* Stage 1 */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 text-center">
+                  <div className="text-[10px] font-bold text-purple-300 uppercase tracking-wider mb-1">Stage 1: Central Pool</div>
+                  <div className="text-sm font-black text-white flex items-center justify-center gap-1">
+                    <Landmark className="w-4 h-4 text-purple-400" /> Admin Capital
+                  </div>
+                  <div className="text-[11px] text-purple-200/70 mt-1">Master Enterprise Fund</div>
+                </div>
+
+                {/* Stage 2 */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 text-center">
+                  <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider mb-1">Stage 2: Category 7</div>
+                  <div className="text-sm font-black text-white flex items-center justify-center gap-1">
+                    <Users className="w-4 h-4 text-emerald-400" /> Investor Capital
+                  </div>
+                  <div className="text-[11px] text-emerald-200/70 mt-1">
+                    Avail: ₹{(availableInvestorCapitalBalance || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+
+                {/* Stage 3 */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 text-center">
+                  <div className="text-[10px] font-bold text-blue-300 uppercase tracking-wider mb-1">Stage 3: Category 1</div>
+                  <div className="text-sm font-black text-white flex items-center justify-center gap-1">
+                    <Building2 className="w-4 h-4 text-blue-400" /> Investment Capital
+                  </div>
+                  <div className="text-[11px] text-blue-200/70 mt-1 font-bold">
+                    ₹{threeExpensesBreakdown.investmentCapital.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+
+                {/* Stage 4 */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 text-center">
+                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">Stage 4: Site Spend</div>
+                  <div className="text-sm font-black text-white flex items-center justify-center gap-1">
+                    <Truck className="w-4 h-4 text-amber-400" /> 3 Expenses Total
+                  </div>
+                  <div className="text-[11px] text-amber-200/70 mt-1 font-bold">
+                    ₹{threeExpensesBreakdown.totalSiteExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+
+                {/* Stage 5 */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 text-center">
+                  <div className="text-[10px] font-bold text-rose-300 uppercase tracking-wider mb-1">Stage 5: Category 5</div>
+                  <div className="text-sm font-black text-white flex items-center justify-center gap-1">
+                    <HardHat className="w-4 h-4 text-rose-400" /> Contractor Cost
+                  </div>
+                  <div className="text-[11px] text-rose-200/70 mt-1 font-bold">
+                    ₹{threeExpensesBreakdown.recordedContractorCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* DUAL MATCHING RECONCILIATION MATRICES */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* MATRIX 1: INVESTMENT CAPITAL vs (MATERIAL SUPPLY + SITE SUPPLY + LABOUR ATTENDANCE) */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md">
+                    Matching Rule 1 (નિયમ ૧)
+                  </span>
+                  <h4 className="text-base font-black text-slate-900 mt-2 flex items-center gap-2">
+                    <Scale className="w-5 h-5 text-purple-600" />
+                    મૂડી vs સાઇટ વપરાશ ખર્ચ મેળવવો
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Investment Capital MUST match (Material Supply + Site Supply + Labour Attendance)
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <span className={`px-3 py-1 rounded-full text-xs font-black inline-flex items-center gap-1 ${
+                    threeExpensesBreakdown.investmentStatus === "MATCHED"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-rose-100 text-rose-800"
+                  }`}>
+                    {threeExpensesBreakdown.investmentStatus === "MATCHED" ? (
+                      <>✓ Balanced & Matched</>
+                    ) : threeExpensesBreakdown.investmentStatus === "SURPLUS" ? (
+                      <>+ Surplus Capital</>
+                    ) : (
+                      <>⚠ Capital Deficit</>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Formula Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-600">ઇન્વેસ્ટમેન્ટ મૂડી (Investment Capital):</span>
+                  <span className="font-black text-indigo-900 text-sm">
+                    ₹{threeExpensesBreakdown.investmentCapital.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="pl-3 border-l-2 border-purple-300 space-y-2 text-xs">
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span className="flex items-center gap-1.5">
+                      <ShoppingCart className="w-3.5 h-3.5 text-blue-500" />
+                      1. Material Supply (Cat 2):
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      ₹{threeExpensesBreakdown.materialSupply.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span className="flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-teal-500" />
+                      2. Site Supply to Labour (Cat 3):
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      ₹{threeExpensesBreakdown.siteSupply.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-rose-500" />
+                      3. Labour Attendance / Wages (Cat 4):
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      ₹{threeExpensesBreakdown.labourAttendance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-200 flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-700">કુલ સાઇટ ખર્ચ (Total 3-Component Spend):</span>
+                  <span className="font-black text-slate-900 text-sm">
+                    ₹{threeExpensesBreakdown.totalSiteExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Variance Indicator */}
+              <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                threeExpensesBreakdown.investmentStatus === "MATCHED"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                  : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                  ? "bg-blue-50 border-blue-200 text-blue-900"
+                  : "bg-rose-50 border-rose-200 text-rose-900"
+              }`}>
+                <div>
+                  <span className="text-xs font-bold block">
+                    {threeExpensesBreakdown.investmentStatus === "MATCHED"
+                      ? "પરફેક્ટ મેચ (Exact Balanced Match)"
+                      : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                      ? "વણવપરાયેલી બાકી મૂડી (Unspent Available Capital)"
+                      : "મૂડીની ઘટ / વધારે ખર્ચ (Capital Shortfall / Deficit)"}
+                  </span>
+                  <span className="text-[11px] opacity-80">
+                    {threeExpensesBreakdown.investmentStatus === "MATCHED"
+                      ? "ઇન્વેસ્ટમેન્ટ કેપિટલ અને સાઇટ ખર્ચ એકબીજા સાથે સંપૂર્ણ મેચ છે (Difference: ₹0)"
+                      : threeExpensesBreakdown.investmentStatus === "SURPLUS"
+                      ? `સાઇટ ખર્ચ કરતાં ₹${threeExpensesBreakdown.investmentVariance.toLocaleString('en-IN')} વધારે મૂડી ઉપલબ્ધ છે`
+                      : `સાઇટ ખર્ચ માટે ₹${Math.abs(threeExpensesBreakdown.investmentVariance).toLocaleString('en-IN')} વધારાની મૂડી ઉમેરવી પડશે`}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-lg font-black block">
+                    {threeExpensesBreakdown.investmentVariance >= 0 ? "+" : ""}
+                    ₹{threeExpensesBreakdown.investmentVariance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* MATRIX 2: (SITE SUPPLY + LABOUR ATTENDANCE) vs CONTRACTOR COST */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md">
+                    Matching Rule 2 (નિયમ ૨)
+                  </span>
+                  <h4 className="text-base font-black text-slate-900 mt-2 flex items-center gap-2">
+                    <HardHat className="w-5 h-5 text-amber-600" />
+                    (સાઇટ સપ્લાય + લેબર) vs કોન્ટ્રાક્ટર કોસ્ટ મેળવવો
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    (Site Supply + Labour Attendance) Combined Total MUST match Contractor Cost Total
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <span className={`px-3 py-1 rounded-full text-xs font-black inline-flex items-center gap-1 ${
+                    threeExpensesBreakdown.contractorStatus === "MATCHED"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {threeExpensesBreakdown.contractorStatus === "MATCHED" ? (
+                      <>✓ Balanced & Matched</>
+                    ) : threeExpensesBreakdown.contractorStatus === "SURPLUS" ? (
+                      <>+ Surplus Recorded</>
+                    ) : (
+                      <>⚠ Entry Pending</>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Formula Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Truck className="w-3.5 h-3.5 text-teal-600" />
+                      સાઇટ સપ્લાય (Cat 3 Site Supply):
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      ₹{threeExpensesBreakdown.siteSupply.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Users className="w-3.5 h-3.5 text-rose-600" />
+                      લેબર હાજરી / પગાર (Cat 4 Labour Attendance):
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      ₹{threeExpensesBreakdown.labourAttendance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-200 flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-700">અપેક્ષિત કોન્ટ્રાક્ટર કોસ્ટ (Expected Cost):</span>
+                  <span className="font-black text-amber-900 text-sm">
+                    ₹{threeExpensesBreakdown.expectedContractorCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-200 flex justify-between items-center text-xs">
+                  <span className="font-bold text-purple-900">નોંધાયેલ કોન્ટ્રાક્ટર કોસ્ટ (Cat 5 Recorded Cost):</span>
+                  <span className="font-black text-purple-900 text-sm">
+                    ₹{threeExpensesBreakdown.recordedContractorCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Variance Indicator */}
+              <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                threeExpensesBreakdown.contractorStatus === "MATCHED"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                  : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                  ? "bg-blue-50 border-blue-200 text-blue-900"
+                  : "bg-amber-50 border-amber-200 text-amber-900"
+              }`}>
+                <div>
+                  <span className="text-xs font-bold block">
+                    {threeExpensesBreakdown.contractorStatus === "MATCHED"
+                      ? "સંપૂર્ણ મેળ (100% Reconciled)"
+                      : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                      ? "કોન્ટ્રાક્ટર કોસ્ટ વધારે નોંધાયેલ છે (Surplus Recorded)"
+                      : "કોન્ટ્રાક્ટર કોસ્ટ નોંધણી બાકી (Pending Contractor Cost)"}
+                  </span>
+                  <span className="text-[11px] opacity-80">
+                    {threeExpensesBreakdown.contractorStatus === "MATCHED"
+                      ? "સાઇટ સપ્લાય + લેબર હાજરી અને કોન્ટ્રાક્ટર કોસ્ટ બંને બરાબર છે (Difference: ₹0)"
+                      : threeExpensesBreakdown.contractorStatus === "SURPLUS"
+                      ? `અપેક્ષિત ખર્ચ કરતાં ₹${threeExpensesBreakdown.contractorVariance.toLocaleString('en-IN')} વધારે નોંધાયેલ છે`
+                      : `મેચ કરવા માટે Cat 5 માં ₹${Math.abs(threeExpensesBreakdown.contractorVariance).toLocaleString('en-IN')} ની એન્ટ્રી બાકી છે`}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-lg font-black block">
+                    {threeExpensesBreakdown.contractorVariance >= 0 ? "+" : ""}
+                    ₹{threeExpensesBreakdown.contractorVariance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    {threeExpensesBreakdown.contractorCount} records in Cat 5
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SUBTAB: ITEMIZED DEDUCTIONS PASSBOOK */}
       {activeSubTab === "deductions_ledger" && (
         <div className="space-y-4">
@@ -1458,10 +2012,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             <div>
               <h3 className="font-black text-emerald-900 text-sm flex items-center gap-2">
                 <ArrowUpRight className="w-4 h-4 text-emerald-700" />
-                Investment from Investors Register (Linked with Category 1)
+                Investment Capital from Investor Capital Register (ઇન્વેસ્ટર કેપિટલમાંથી ફાળવેલ મૂડી)
               </h3>
               <p className="text-xs text-emerald-700">
-                Deployments ("Investment Karya") from Category 1 investors and direct capital contributions credited to this project.
+                Category 7 (Investor Capital) માંથી કટ થઈને આ પ્રોજેક્ટ સાઇટ માટે ઉપલબ્ધ થયેલી ઇન્વેસ્ટમેન્ટ મૂડી.
               </p>
             </div>
 
@@ -1479,9 +2033,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 });
                 setIsCapitalModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow hover:bg-emerald-700 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow hover:bg-emerald-700 transition-colors cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> + Add Investment from Investors
+              <Plus className="w-3.5 h-3.5" /> + Add Investment Capital from Investor Capital
             </button>
           </div>
 
@@ -1981,20 +2535,20 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       )}
 
-      {/* MODAL: Record Investment from Investors (Investment Karya) */}
+      {/* MODAL: Record Investment Capital from Investor Capital */}
       <Modal
         isOpen={isCapitalModalOpen}
         onClose={() => setIsCapitalModalOpen(false)}
         maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-100 text-indigo-800 rounded-lg"><Building2 className="w-5 h-5" /></div>
+            <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><Building2 className="w-5 h-5" /></div>
             <div>
               <span className="font-black text-slate-900 text-base">
-                {editingTxId ? "Edit Investment Record" : "Add Investment from Investors (ઇન્વેસ્ટમેન્ટ કર્યા)"}
+                {editingTxId ? "Edit Investment Record" : "Add Investment Capital from Investor Capital"}
               </span>
               <p className="text-xs text-slate-500 font-normal">
-                Category 1 (Investor) માંથી રકમ કટ થશે અને Category 2 (Project Capital) માં ઉમેરાશે
+                આ રકમ Investor Capital (Cat 7) માંથી કટ થશે અને Location Investment Capital (Cat 1) માં ઉમેરાશે
               </p>
             </div>
           </div>
@@ -2007,62 +2561,103 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               required
               value={capitalFormData.partyId}
               onChange={e => setCapitalFormData({ ...capitalFormData, partyId: e.target.value })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-indigo-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-emerald-500"
             >
               <option value="">-- Choose Investor --</option>
-              {parties.map(p => (
-                <option key={p.id} value={p.id.toString()}>
-                  {p.partyName} (Current Cat 1 Balance: ₹{Number(p.balance || 0).toLocaleString()})
-                </option>
-              ))}
+              {(Array.isArray(parties) ? parties : []).map(p => {
+                const cat7Bal = Number(p?.cat7Available ?? p?.balance ?? 0);
+                return (
+                  <option key={p?.id || Math.random()} value={p?.id ? String(p.id) : ""}>
+                    {p?.partyName || "Investor"} (Category 7 Investor Capital: ₹{cat7Bal.toLocaleString("en-IN")})
+                  </option>
+                );
+              })}
             </select>
           </div>
 
           {/* Live Deduction & Addition Preview */}
           {(() => {
-            const selectedParty = parties.find(p => p.id.toString() === capitalFormData.partyId);
-            const currentBal = selectedParty ? Number(selectedParty.balance || 0) : 0;
+            const partyList = Array.isArray(parties) ? parties : [];
+            const selectedParty = partyList.find(p => p && String(p.id) === capitalFormData.partyId);
+            const currentBal = selectedParty ? Number(selectedParty.cat7Available ?? selectedParty.balance ?? 0) : 0;
             const enteredAmt = parseFloat(capitalFormData.amount) || 0;
             const newBal = currentBal - enteredAmt;
+            const isExceeded = !editingTxId && enteredAmt > currentBal;
 
             return (
-              <div className="p-3.5 bg-indigo-50/90 border border-indigo-200 rounded-xl space-y-2">
-                <div className="font-bold flex items-center justify-between text-xs text-indigo-900">
-                  <span className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                    Investor to Project Capital Transfer Rule
+              <div className={`p-3.5 border rounded-xl space-y-2.5 transition-colors ${
+                isExceeded ? "bg-rose-50/90 border-rose-300" : "bg-emerald-50/90 border-emerald-200"
+              }`}>
+                <div className="font-bold flex items-center justify-between text-xs">
+                  <span className={`flex items-center gap-1.5 ${isExceeded ? "text-rose-900" : "text-emerald-900"}`}>
+                    <Building2 className={`w-3.5 h-3.5 ${isExceeded ? "text-rose-600" : "text-emerald-600"}`} />
+                    Investor Capital ➔ Investment Capital Flow Rule
                   </span>
-                  <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-indigo-200/80 text-indigo-900">
-                    Cat 1 &rarr; Cat 2
+                  <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded ${
+                    isExceeded ? "bg-rose-200 text-rose-900" : "bg-emerald-200/80 text-emerald-900"
+                  }`}>
+                    Cat 7 (Investor Capital) &rarr; Cat 1 (Investment Capital)
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-200/60 text-xs">
-                  <div className="bg-white/90 p-2.5 rounded-lg border border-indigo-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Investor Cat 1 Balance</span>
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-xs">
+                  <div className="bg-white/95 p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Category 7 Investor Capital (ઇન્વેસ્ટર કેપિટલ)
+                    </span>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-slate-700 font-bold">₹{currentBal.toLocaleString()}</span>
+                      <span className="text-slate-700 font-bold">₹{currentBal.toLocaleString("en-IN")}</span>
                       {enteredAmt > 0 && (
                         <>
-                          <span className="text-rose-600 font-black text-[11px]">- ₹{enteredAmt.toLocaleString()}</span>
-                          <span className="text-indigo-950 font-black ml-auto">= ₹{newBal.toLocaleString()}</span>
+                          <span className="text-rose-600 font-black text-[11px]">- ₹{enteredAmt.toLocaleString("en-IN")}</span>
+                          <span className={`font-black ml-auto ${isExceeded ? "text-rose-600" : "text-slate-900"}`}>
+                            = ₹{newBal.toLocaleString("en-IN")}
+                          </span>
                         </>
                       )}
                     </div>
                   </div>
 
-                  <div className="bg-white/90 p-2.5 rounded-lg border border-indigo-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Project Cat 2 Capital</span>
+                  <div className="bg-white/95 p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Category 1 Investment Capital (ઇન્વેસ્ટમેન્ટ મૂડી)
+                    </span>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-emerald-700 font-bold">+ ₹{enteredAmt.toLocaleString()}</span>
-                      <span className="text-[10px] text-slate-500 ml-auto">Added to Investment</span>
+                      <span className="text-emerald-700 font-bold">+ ₹{enteredAmt.toLocaleString("en-IN")}</span>
+                      <span className="text-[10px] text-slate-500 ml-auto">Added to Project</span>
                     </div>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-indigo-800 leading-tight font-medium">
-                  આ રકમ ઇન્વેસ્ટરના ખાતામાંથી કટ થશે અને પ્રોજેક્ટના "Investment Karya" રેકોર્ડમાં ઉમેરાશે, જેમાંથી Category 3 થી 8 ના ખર્ચ બાદ થાય છે.
-                </p>
+                {isExceeded ? (
+                  <div className="p-2 bg-rose-100/80 border border-rose-300 rounded-lg text-rose-800 text-[11px] font-semibold flex items-center justify-between">
+                    <span>
+                      ⚠️ દાખલ કરેલ રકમ Category 7 ઇન્વેસ્ટર કેપિટલ કરતાં વધુ છે! (મહત્તમ ઉપલબ્ધ: ₹{currentBal.toLocaleString("en-IN")})
+                    </span>
+                    {currentBal > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCapitalFormData({ ...capitalFormData, amount: currentBal.toString() })}
+                        className="px-2 py-0.5 bg-rose-700 text-white rounded text-[10px] font-bold hover:bg-rose-800 shrink-0 ml-2 cursor-pointer"
+                      >
+                        Use Max (₹{currentBal.toLocaleString("en-IN")})
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-[11px] text-emerald-900 font-medium">
+                    <span>આ રકમ Category 7 ઇન્વેસ્ટર કેપિટલમાંથી કપાશે અને Category 1 ઇન્વેસ્ટમેન્ટ મૂડીમાં જમા થશે.</span>
+                    {currentBal > 0 && enteredAmt !== currentBal && (
+                      <button
+                        type="button"
+                        onClick={() => setCapitalFormData({ ...capitalFormData, amount: currentBal.toString() })}
+                        className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold hover:bg-emerald-700 shrink-0 ml-2 cursor-pointer"
+                      >
+                        Use Max (₹{currentBal.toLocaleString("en-IN")})
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -2079,7 +2674,22 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Investment Amount (₹) *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">Investment Amount (₹) *</label>
+                {(() => {
+                  const selectedParty = parties.find(p => p.id.toString() === capitalFormData.partyId);
+                  const bal = selectedParty ? Number(selectedParty.balance || 0) : 0;
+                  return bal > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setCapitalFormData({ ...capitalFormData, amount: bal.toString() })}
+                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 cursor-pointer"
+                    >
+                      Max: ₹{bal.toLocaleString("en-IN")}
+                    </button>
+                  ) : null;
+                })()}
+              </div>
               <input
                 type="number"
                 step="any"
@@ -2087,7 +2697,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 required
                 value={capitalFormData.amount}
                 onChange={e => setCapitalFormData({ ...capitalFormData, amount: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-indigo-900"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-900"
                 placeholder="0.00"
               />
             </div>
@@ -2126,15 +2736,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               onChange={e => setCapitalFormData({ ...capitalFormData, description: e.target.value })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
               rows={2}
-              placeholder="e.g. Investment for site foundation & materials..."
+              placeholder="e.g. Investment for site foundation & materials (from Investor Capital)..."
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
           >
-            {editingTxId ? "Update Investment Record" : "Save Investment & Synchronize Capital"}
+            {editingTxId ? "Update Investment Record" : "Save & Cut from Investor Capital (ઇન્વેસ્ટર કેપિટલમાંથી કટ કરી ઉમેરો)"}
           </button>
         </form>
       </Modal>

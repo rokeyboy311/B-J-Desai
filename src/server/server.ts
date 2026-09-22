@@ -25,17 +25,16 @@ import {
 import { normalizeMaterialsAndStockDB, runDatabaseMigrations } from "./lib/accounting.ts";
 
 async function startServer() {
-  // Ensure database DDL tables & migrations are in place
-  await runDatabaseMigrations();
-
-  // Ensure strictly 1 universal password exists in the database on boot
-  await initializeSinglePasswordInDB();
-
-  // Normalize material names to UPPERCASE and reconcile stock records
-  await normalizeMaterialsAndStockDB();
-
   const app = express();
   const PORT = 3000;
+
+  // Global uncaught exception and rejection protection for container stability
+  process.on('uncaughtException', (err) => {
+    console.error('[Process] Uncaught Exception:', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[Process] Unhandled Rejection:', reason);
+  });
 
   // Middleware & CORS configuration
   const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -124,6 +123,7 @@ async function startServer() {
   app.use("/api/labour", labourRouter);
   app.use("/api/supervisor-costs", supervisorRouter);
   app.use("/api/contractor-costs", contractorRouter);
+  app.use("/api/contractors", contractorRouter);
   app.use("/api/master", masterRouter);
   app.use("/api/incomes", incomeRouter);
   
@@ -133,7 +133,11 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : undefined,
+        watch: process.env.DISABLE_HMR === 'true' ? null : undefined,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -141,13 +145,25 @@ async function startServer() {
     // Production static serving
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.use((req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+
+    // Run database migrations, single universal password init, and stock reconciliation in background
+    (async () => {
+      try {
+        await runDatabaseMigrations();
+        await initializeSinglePasswordInDB();
+        await normalizeMaterialsAndStockDB();
+        console.log('[Bootstrap] Database initialization & accounting sanity checks completed.');
+      } catch (err) {
+        console.error('[Bootstrap] Background initialization warning:', err);
+      }
+    })();
   });
 }
 

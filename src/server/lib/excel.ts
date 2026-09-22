@@ -168,6 +168,52 @@ export function generateExcelBuffer(locationName: string, data: any, tab: string
     utils.book_append_sheet(wb, ws7, 'Supervisor Expenses');
   }
 
+  // 10. Category 7: Investor Capital (Admin Allocations)
+  if (data.investorAllocations && data.investorAllocations.length > 0) {
+    const wsAlloc = utils.json_to_sheet(data.investorAllocations.map((r: any) => ({
+      'Date': r.date || '-',
+      'Investor Name': r.investorName || '-',
+      'Allocated Amount (₹)': Number(r.amount || 0),
+      'Payment Method': r.paymentMethod || '-',
+      'Reference / Cheque No': r.referenceNumber || '-',
+      'Notes / Purpose': r.notes || '-'
+    })));
+    utils.book_append_sheet(wb, wsAlloc, 'Investor Capital (Admin)');
+  }
+
+  // 11. Category 5: Contractor Costs
+  if (data.contractorCosts && data.contractorCosts.length > 0) {
+    const wsContr = utils.json_to_sheet(data.contractorCosts.map((r: any) => ({
+      'Date': r.date || '-',
+      'Contractor Name': r.contractorName || '-',
+      'Team': r.teamName || 'Direct',
+      'Work Description': r.workDescription || '-',
+      'Gross Amount (₹)': Number(r.amount || 0),
+      'Deductions (₹)': Number(r.deductionAmount || 0),
+      'Net Amount (₹)': Number(r.netAmount || 0),
+      'Payment Status': r.paymentStatus || 'PAID',
+      'Payment Mode': r.paymentMethod || '-',
+      'Reference No': r.referenceNumber || '-',
+      'Notes': r.notes || '-'
+    })));
+    utils.book_append_sheet(wb, wsContr, 'Contractor Costs');
+  }
+
+  // 12. Material Stock
+  if (data.materialStock && data.materialStock.length > 0) {
+    const wsStock = utils.json_to_sheet(data.materialStock.map((r: any) => ({
+      'Material Name': r.materialName || '-',
+      'Purchased Qty': Number(r.purchasedQuantity || 0),
+      'Customer Supplied Qty': Number(r.suppliedQuantity || 0),
+      'Site Supplied Qty': Number(r.siteSuppliedQuantity || 0),
+      'Current Stock': Number(r.currentStock || 0),
+      'Unit': r.unit || 'Nos',
+      'Avg Purchase Rate (₹)': Number(r.avgPurchaseRate || 0),
+      'Estimated Value (₹)': Number(r.stockValue || 0)
+    })));
+    utils.book_append_sheet(wb, wsStock, 'Material Stock');
+  }
+
   // If no sheets were added, add an empty sheet to avoid corrupted workbook
   if (wb.SheetNames.length === 0) {
     const wsEmpty = utils.aoa_to_sheet([['No data recorded for this category']]);
@@ -622,5 +668,112 @@ export function generateMaterialAnalyticsBuffer(locationName: string, analytics:
 
   return write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
+
+// -------------------------------------------------------------
+// Specialized Generator: Contractor Costs Register
+// -------------------------------------------------------------
+export function generateContractorCostsBuffer(locationName: string, costs: any[]) {
+  const wb = utils.book_new();
+  const summaryHeader = [
+    ['BINA ENTERPRISE - CONTRACTOR COSTS & LABOUR EXPENSE REGISTER'],
+    ['Location / Project:', locationName],
+    ['Generated Date:', new Date().toLocaleString()],
+    ['Total Records:', costs.length],
+    ['Total Net Cost (₹):', costs.reduce((s, c) => s + Number(c.netAmount || 0), 0)],
+    [],
+    ['CONTRACTOR EXPENSE ENTRIES']
+  ];
+  const ws = utils.aoa_to_sheet(summaryHeader);
+  const rows = costs.map((c: any) => ({
+    'Date': c.date || '-',
+    'Contractor Name': c.contractorName,
+    'Team': c.teamName || 'Direct',
+    'Work Description': c.workDescription || '-',
+    'Gross Amount (₹)': Number(c.amount || 0),
+    'Deductions (₹)': Number(c.deductionAmount || 0),
+    'Net Amount (₹)': Number(c.netAmount || 0),
+    'Payment Status': c.paymentStatus || 'PAID',
+    'Payment Method': c.paymentMethod || '-',
+    'Reference No': c.referenceNumber || '-',
+    'Notes': c.notes || '-'
+  }));
+  utils.sheet_add_json(ws, rows, { origin: 'A8' });
+  utils.book_append_sheet(wb, ws, 'Contractor Costs');
+  return write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+// -------------------------------------------------------------
+// Specialized Generator: Reconciliation Report (Matrix)
+// -------------------------------------------------------------
+export function generateReconciliationBuffer(locationName: string, recon: any) {
+  const wb = utils.book_new();
+
+  const summary = [
+    ['BINA ENTERPRISE - 5-TIER FINANCIAL RECONCILIATION AUDIT REPORT'],
+    ['Location / Project:', locationName],
+    ['Generated Date:', new Date().toLocaleString()],
+    [],
+    ['RECONCILIATION RULE 1: INVESTMENT CAPITAL VS SITE OPERATIONAL SPEND'],
+    ['Formula: Investment Capital == Material Supply (Cat 2) + Site Supply (Cat 3) + Labour Attendance (Cat 4)'],
+    ['Investment Capital Received (₹):', recon.totalInvestmentCapital || recon.investmentCapital || 0],
+    ['Customer Material Supply Spend (Cat 2) (₹):', recon.totalMaterialSupply || recon.materialSupply || 0],
+    ['Site Supply to Labour Spend (Cat 3) (₹):', recon.totalSiteSupply || recon.siteSupply || 0],
+    ['Labour Attendance Wages Spend (Cat 4) (₹):', recon.totalLabourAttendance || recon.labourAttendance || 0],
+    ['Total Site Operational Spend (₹):', recon.totalCombinedSiteExpenses || recon.totalSiteExpenses || 0],
+    ['Variance / Surplus / Deficit (₹):', recon.investmentVariance || 0],
+    ['Reconciliation Status 1:', recon.investmentStatus || 'MATCHED'],
+    [],
+    ['RECONCILIATION RULE 2: OPERATIONAL SITE SPEND VS CONTRACTOR COST'],
+    ['Formula: Site Supply (Cat 3) + Labour Attendance (Cat 4) == Contractor Cost (Cat 5)'],
+    ['Expected Contractor Cost (Cat 3 + Cat 4) (₹):', recon.expectedContractorCost || 0],
+    ['Recorded Contractor Cost (Cat 5) (₹):', recon.recordedContractorCost || recon.contractorCost || 0],
+    ['Variance / Difference (₹):', recon.contractorVariance || recon.reconciliationDifference || 0],
+    ['Reconciliation Status 2:', recon.contractorStatus || recon.reconciliationStatus || 'MATCHED'],
+    []
+  ];
+
+  const ws = utils.aoa_to_sheet(summary);
+  utils.book_append_sheet(wb, ws, 'Reconciliation Summary');
+
+  // Sheet 2: Site Supplies (Cat 3)
+  if (recon.siteSupplies && recon.siteSupplies.length > 0) {
+    const wsSupplies = utils.json_to_sheet(recon.siteSupplies.map((s: any) => ({
+      'Date': s.date || '-',
+      'Team / Worker': s.teamName || '-',
+      'Total Items': s.itemCount || 1,
+      'Total Amount (₹)': Number(s.totalAmount || 0)
+    })));
+    utils.book_append_sheet(wb, wsSupplies, 'Site Supplies (Cat 3)');
+  }
+
+  // Sheet 3: Labour Wages (Cat 4)
+  if (recon.labourSalaries && recon.labourSalaries.length > 0) {
+    const wsLabour = utils.json_to_sheet(recon.labourSalaries.map((l: any) => ({
+      'Date': l.date || '-',
+      'Labour Name': l.labourName,
+      'Team': l.labourTeam || l.teamName || 'General',
+      'Net Salary (₹)': Number(l.netSalary || 0),
+      'Paid Amount (₹)': Number(l.paymentAmount || 0),
+      'Balance (₹)': Number(l.balance || 0),
+      'Payment Status': Number(l.balance || 0) <= 0 ? 'PAID' : 'PENDING'
+    })));
+    utils.book_append_sheet(wb, wsLabour, 'Labour Wages (Cat 4)');
+  }
+
+  // Sheet 4: Contractor Costs (Cat 5)
+  if (recon.contractorCosts && recon.contractorCosts.length > 0) {
+    const wsContr = utils.json_to_sheet(recon.contractorCosts.map((c: any) => ({
+      'Date': c.date || '-',
+      'Contractor Name': c.contractorName,
+      'Team': c.teamName || 'Direct',
+      'Net Amount (₹)': Number(c.netAmount || 0),
+      'Payment Status': c.paymentStatus || 'PAID'
+    })));
+    utils.book_append_sheet(wb, wsContr, 'Contractor Costs (Cat 5)');
+  }
+
+  return write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
 
 

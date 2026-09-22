@@ -633,6 +633,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
     setEditingPartyId(party.id);
     setPartyForm({
       partyName: party.partyName,
+      locationId: party.locationId || locationId || 0,
       initialAmount: "0",
       initialDate: new Date().toISOString().split('T')[0]
     });
@@ -737,7 +738,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
               <button
                 onClick={() => {
                   setEditingPartyId(null);
-                  setPartyForm({ partyName: "", initialAmount: "", initialDate: new Date().toISOString().split('T')[0] });
+                  setPartyForm({ partyName: "", locationId: locationId || 0, initialAmount: "", initialDate: new Date().toISOString().split('T')[0] });
                   setIsPartyModalOpen(true);
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold shadow hover:bg-slate-900 transition-colors cursor-pointer"

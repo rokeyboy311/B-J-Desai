@@ -6,12 +6,18 @@ import {
   siteSupplies, 
   siteSupplyItems, 
   labourSalaries, 
+  materialSupplies,
+  investorLocationAllocations,
+  investmentTransactions,
+  investmentParties,
+  locations,
   auditLogs 
 } from '../../db/schema.ts';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { assertLocationAccess } from '../lib/locationAuth.ts';
 import { round2 } from '../lib/accounting.ts';
+import { generateContractorCostsBuffer, generateReconciliationBuffer } from '../lib/excel.ts';
 
 const contractorRouter = Router();
 contractorRouter.use(requireAuth);
@@ -128,7 +134,13 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
     );
 
     const totalLabourAttendance = round2(
-      labourData.reduce((acc, row) => acc + (parseFloat(String(row.netSalary || row.grossSalary || 0)) || 0), 0)
+      labourData.reduce((acc, row) => {
+        const net = parseFloat(String(row.netSalary || 0)) || 0;
+        const gross = parseFloat(String(row.grossSalary || 0)) || 0;
+        const upad = parseFloat(String(row.upad || 0)) || 0;
+        const amt = net > 0 ? net : (gross > 0 ? gross : upad);
+        return acc + amt;
+      }, 0)
     );
     const totalLabourUpadPaid = round2(
       labourData.reduce((acc, row) => acc + (parseFloat(String(row.upad || 0)) || 0), 0)
@@ -160,6 +172,43 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
       status = 'DEFICIT';
     }
 
+    // 4. Upstream context: Material Supply & Investment Capital
+    let totalMaterialSupply = 0;
+    let totalInvestmentCapital = 0;
+
+    if (locationId) {
+      const matSupp = await db.select({
+        total: sql<string>`sum(${materialSupplies.totalAmount})`
+      }).from(materialSupplies).where(
+        and(eq(materialSupplies.locationId, locationId), eq(materialSupplies.isDeleted, 0))
+      );
+      totalMaterialSupply = round2(parseFloat(matSupp[0]?.total || '0') || 0);
+
+      const [allocs, invTxs] = await Promise.all([
+        db.select({ total: sql<string>`sum(${investorLocationAllocations.amount})` })
+          .from(investorLocationAllocations)
+          .where(and(eq(investorLocationAllocations.locationId, locationId), eq(investorLocationAllocations.isDeleted, 0))),
+        db.select({ total: sql<string>`sum(${investmentTransactions.amount})` })
+          .from(investmentTransactions)
+          .innerJoin(investmentParties, eq(investmentTransactions.partyId, investmentParties.id))
+          .where(and(
+            eq(investmentParties.locationId, locationId),
+            eq(investmentTransactions.type, 'INVESTMENT'),
+            eq(investmentTransactions.isDeleted, 0),
+            eq(investmentParties.isDeleted, 0)
+          ))
+      ]);
+      const fromAllocs = parseFloat(allocs[0]?.total || '0') || 0;
+      const fromInvTxs = parseFloat(invTxs[0]?.total || '0') || 0;
+      totalInvestmentCapital = round2(fromAllocs + fromInvTxs);
+    }
+
+    const totalThreeExpenses = round2(totalMaterialSupply + totalSiteSupplyAmount + totalLabourAttendance);
+    const investmentVariance = round2(totalInvestmentCapital - totalThreeExpenses);
+    const investmentReconStatus: 'MATCHED' | 'SURPLUS' | 'DEFICIT' = Math.abs(investmentVariance) <= 0.01
+      ? 'MATCHED'
+      : (investmentVariance > 0 ? 'SURPLUS' : 'DEFICIT');
+
     res.json({
       summary: {
         totalSiteSupplies: totalSiteSupplyAmount,
@@ -171,6 +220,21 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
         contractorCostCount: recordedCosts.length,
         siteSupplyCount: siteSuppliesData.length,
         labourCount: labourData.length,
+        // Context for Site Expenses vs Investment Capital
+        totalMaterialSupply,
+        totalThreeExpenses,
+        totalInvestmentCapital,
+        investmentVariance,
+        investmentReconStatus
+      },
+      siteExpensesReconciliation: {
+        totalMaterialSupply,
+        totalSiteSupply: totalSiteSupplyAmount,
+        totalLabourAttendance,
+        totalThreeExpenses,
+        totalInvestmentCapital,
+        variance: investmentVariance,
+        status: investmentReconStatus
       },
       contractorCosts: recordedCosts,
       siteSupplies: siteSuppliesData,
@@ -192,6 +256,179 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('[Contractor Reconciliation GET Error]', error);
     res.status(500).json({ error: 'Failed to calculate contractor cost reconciliation' });
+  }
+});
+
+/**
+ * GET /api/contractor-costs/reconciliation/export?locationId=X
+ * Export full 5-tier financial reconciliation audit report as Excel
+ */
+contractorRouter.get('/reconciliation/export', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
+
+    let locationName = 'All Locations';
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+      const loc = await db.select().from(locations).where(eq(locations.id, locationId)).limit(1);
+      if (loc.length) locationName = loc[0].name;
+    }
+
+    // 1. Site Supplies
+    const siteSuppliesData = await db.select({
+      id: siteSupplies.id,
+      teamId: siteSupplies.teamId,
+      date: siteSupplies.date,
+      totalAmount: siteSupplies.totalAmount,
+      responsiblePerson: siteSupplies.responsiblePerson,
+      locationId: siteSupplies.locationId
+    }).from(siteSupplies)
+      .where(and(
+        locationId ? eq(siteSupplies.locationId, locationId) : undefined,
+        eq(siteSupplies.isDeleted, 0)
+      ));
+
+    // 2. Labour Salaries
+    const labourData = await db.select({
+      id: labourSalaries.id,
+      labourTeam: labourSalaries.labourTeam,
+      date: labourSalaries.date,
+      netSalary: labourSalaries.netSalary,
+      labourName: labourSalaries.labourName,
+      paymentAmount: labourSalaries.paymentAmount,
+      balance: labourSalaries.balance,
+      locationId: labourSalaries.locationId
+    }).from(labourSalaries)
+      .where(and(
+        locationId ? eq(labourSalaries.locationId, locationId) : undefined,
+        eq(labourSalaries.isDeleted, 0)
+      ));
+
+    // 3. Contractor Costs
+    const recordedCosts = await db.select().from(contractorCosts)
+      .where(and(
+        locationId ? eq(contractorCosts.locationId, locationId) : undefined,
+        eq(contractorCosts.isDeleted, 0)
+      ));
+
+    // 4. Material Supplies
+    const matSupplies = await db.select({
+      totalAmount: materialSupplies.totalAmount
+    }).from(materialSupplies)
+      .where(and(
+        locationId ? eq(materialSupplies.locationId, locationId) : undefined,
+        eq(materialSupplies.isDeleted, 0)
+      ));
+
+    const totalSiteSupplyAmount = round2(siteSuppliesData.reduce((s, row) => s + parseFloat(row.totalAmount || '0'), 0));
+    const totalLabourAttendance = round2(labourData.reduce((s, row) => s + parseFloat(row.netSalary || '0'), 0));
+    const expectedContractorCost = round2(totalSiteSupplyAmount + totalLabourAttendance);
+    const recordedContractorCost = round2(recordedCosts.reduce((s, row) => s + parseFloat(row.netAmount || '0'), 0));
+    const difference = round2(expectedContractorCost - recordedContractorCost);
+    const status = Math.abs(difference) <= 0.01 ? 'MATCHED' : (difference > 0 ? 'DEFICIT' : 'SURPLUS');
+
+    const totalMaterialSupply = round2(matSupplies.reduce((s, row) => s + parseFloat(row.totalAmount || '0'), 0));
+
+    let totalInvestmentCapital = 0;
+    if (locationId) {
+      const [allocs, invTxs] = await Promise.all([
+        db.select({ total: sql<string>`sum(${investorLocationAllocations.amount})` })
+          .from(investorLocationAllocations)
+          .where(and(
+            eq(investorLocationAllocations.locationId, locationId),
+            eq(investorLocationAllocations.isDeleted, 0)
+          )),
+        db.select({ total: sql<string>`sum(${investmentTransactions.amount})` })
+          .from(investmentTransactions)
+          .innerJoin(investmentParties, eq(investmentTransactions.partyId, investmentParties.id))
+          .where(and(
+            eq(investmentParties.locationId, locationId),
+            eq(investmentTransactions.type, 'INVESTMENT'),
+            eq(investmentTransactions.isDeleted, 0),
+            eq(investmentParties.isDeleted, 0)
+          ))
+      ]);
+      const fromAllocs = parseFloat(allocs[0]?.total || '0') || 0;
+      const fromInvTxs = parseFloat(invTxs[0]?.total || '0') || 0;
+      totalInvestmentCapital = round2(fromAllocs + fromInvTxs);
+    }
+
+    const totalCombinedSiteExpenses = round2(totalMaterialSupply + totalSiteSupplyAmount + totalLabourAttendance);
+    const investmentVariance = round2(totalInvestmentCapital - totalCombinedSiteExpenses);
+    const investmentStatus = Math.abs(investmentVariance) <= 0.01 ? 'MATCHED' : (investmentVariance > 0 ? 'SURPLUS' : 'DEFICIT');
+
+    const reconPayload = {
+      totalInvestmentCapital,
+      totalMaterialSupply,
+      totalSiteSupply: totalSiteSupplyAmount,
+      totalLabourAttendance,
+      totalCombinedSiteExpenses,
+      investmentVariance,
+      investmentStatus,
+      expectedContractorCost,
+      recordedContractorCost,
+      contractorVariance: difference,
+      contractorStatus: status,
+      siteSupplies: siteSuppliesData,
+      labourSalaries: labourData,
+      contractorCosts: recordedCosts
+    };
+
+    const buffer = generateReconciliationBuffer(locationName, reconPayload);
+    const filename = `Reconciliation_Audit_${locationName.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('[Contractor Reconciliation Export Error]', error);
+    res.status(500).json({ error: error?.message || 'Failed to export reconciliation audit report', stack: error?.stack });
+  }
+});
+
+/**
+ * GET /api/contractor-costs/export?locationId=X
+ * Export contractor costs register as Excel
+ */
+contractorRouter.get('/export', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
+
+    let locationName = 'All Locations';
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+      const loc = await db.select().from(locations).where(eq(locations.id, locationId)).limit(1);
+      if (loc.length) locationName = loc[0].name;
+    }
+
+    const records = await db.select().from(contractorCosts)
+      .where(and(
+        locationId ? eq(contractorCosts.locationId, locationId) : undefined,
+        eq(contractorCosts.isDeleted, 0)
+      ))
+      .orderBy(desc(contractorCosts.date), desc(contractorCosts.id));
+
+    const buffer = generateContractorCostsBuffer(locationName, records);
+    const filename = `Contractor_Costs_${locationName.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('[Contractor Costs Export Error]', error);
+    res.status(500).json({ error: 'Failed to export contractor costs' });
   }
 });
 

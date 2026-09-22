@@ -34,29 +34,22 @@ export default function AppLayout() {
 
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
-    { name: "Investor Pool", path: "/investors", icon: Users },
-    { name: "Material Category", path: "/materials", icon: Package },
-    { name: "Locations", path: "/locations", icon: MapPin },
-    { name: "Records", path: "/records", icon: Receipt },
-    { name: "Reports", path: "/reports", icon: FileSpreadsheet },
-    { name: "Excel Downloads", path: "/excel-downloads", icon: FileDown },
-    { name: "Activity", path: "/activity", icon: History },
-    { name: "Security & PIN", path: "/profile", icon: Shield },
+    { name: "Admin", path: "/admin", icon: ShieldCheck },
+    { name: "Location", path: "/locations", icon: MapPin },
+    { name: "Material Purchase", path: "/material-purchase", icon: Package },
   ];
 
   // The primary mobile bottom items
   const primaryMobileNav = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
-    { name: "Investors", path: "/investors", icon: Users },
-    { name: "Materials", path: "/materials", icon: Package },
-    { name: "Locations", path: "/locations", icon: MapPin },
-    { name: "Records", path: "/records", icon: Receipt },
+    { name: "Admin", path: "/admin", icon: ShieldCheck },
+    { name: "Location", path: "/locations", icon: MapPin },
+    { name: "Materials", path: "/material-purchase", icon: Package },
   ];
 
-  // Secondary items in the "More" drawer / sheet
+  // Secondary items in the "More" drawer / sheet and desktop sidebar
   const secondaryNav = [
-    { name: "Investor Pool & Accounts", path: "/investors", icon: Users, desc: "Global capital & passbooks" },
-    { name: "Material Purchase & Supply", path: "/materials", icon: Package, desc: "Purchases, team & customer supplies" },
+    { name: "Global Records", path: "/records", icon: Receipt, desc: "Direct master entry log" },
     { name: "Reports & Analytics", path: "/reports", icon: FileSpreadsheet, desc: "Consolidated financial summaries" },
     { name: "Excel Downloads", path: "/excel-downloads", icon: FileDown, desc: "Export ledger & passbooks" },
     { name: "Activity Log", path: "/activity", icon: History, desc: "Audit trail of actions" },
@@ -103,6 +96,29 @@ export default function AppLayout() {
                 )}
                 <item.icon size={18} className="relative z-10 shrink-0" />
                 <span className="relative z-10">{item.name}</span>
+              </button>
+            );
+          })}
+
+          <div className="pt-4 pb-1 px-3">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
+              System Tools
+            </span>
+          </div>
+
+          {secondaryNav.map((item) => {
+            const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+            return (
+              <button 
+                key={item.path}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-xs transition-all relative cursor-pointer ${
+                  isActive ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                }`}
+              >
+                <item.icon size={16} className="shrink-0" />
+                <span>{item.name}</span>
               </button>
             );
           })}

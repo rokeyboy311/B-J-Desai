@@ -1,0 +1,769 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { apiFetch } from "../../lib/api";
+import { Modal } from "../ui/Modal";
+import {
+  Landmark, Plus, Trash2, Search, ArrowRight,
+  CheckCircle2, AlertCircle, RefreshCw,
+  TrendingUp, Download, Eye, ExternalLink
+} from "lucide-react";
+import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
+import { useToast } from "../../contexts/ToastContext";
+import { downloadExcelReport } from "../../lib/excelExport";
+import { useNavigate } from "react-router-dom";
+
+interface AllocationRecord {
+  id: number;
+  investorId: number;
+  investorName: string;
+  investorMobile?: string;
+  locationId: number;
+  amount: string | number;
+  date: string;
+  paymentMethod: string;
+  referenceNumber?: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+interface AdminInvestor {
+  id: number;
+  name: string;
+  mobile?: string;
+  totalContributed: number;
+  totalWithdrawn: number;
+  totalAllocated: number;
+  availableCapital: number;
+}
+
+interface AdminCapitalSummary {
+  totalContributed: number;
+  totalWithdrawn: number;
+  totalAllocated: number;
+  totalPurchases: number;
+  availableAdminCapital: number;
+  investors: AdminInvestor[];
+}
+
+interface InvestorCapitalTabProps {
+  locationId: number;
+  locationName?: string;
+}
+
+export default function InvestorCapitalTab({ locationId, locationName = "This Location" }: InvestorCapitalTabProps) {
+  const { showToast, confirmAction } = useToast();
+  const navigate = useNavigate();
+
+  // State
+  const [allocations, setAllocations] = useState<AllocationRecord[]>([]);
+  const [locationParties, setLocationParties] = useState<any[]>([]);
+  const [adminSummary, setAdminSummary] = useState<AdminCapitalSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedInvestorFilter, setSelectedInvestorFilter] = useState<string>("ALL");
+
+  // Add Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    investorId: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    paymentMethod: "Bank Transfer",
+    referenceNumber: "",
+    notes: ""
+  });
+
+  // Load Data
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [allocRes, adminRes, partiesRes] = await Promise.all([
+        apiFetch(`/investments/location-allocations?locationId=${locationId}`).catch(() => []),
+        apiFetch("/investments/admin-capital-summary").catch(() => null),
+        apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => [])
+      ]);
+
+      if (Array.isArray(allocRes)) {
+        setAllocations(allocRes);
+      }
+      if (adminRes && typeof adminRes.availableAdminCapital === "number") {
+        setAdminSummary(adminRes);
+      }
+      if (Array.isArray(partiesRes)) {
+        setLocationParties(partiesRes);
+      }
+    } catch (err: any) {
+      console.error("Failed to load Investor Capital data", err);
+      if (!silent) {
+        showToast(err.message || "Failed to load investor capital details", "error");
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [locationId]);
+
+  useLiveSync(() => {
+    loadData(true);
+  }, 4000);
+
+  // Selected Investor from form
+  const selectedInvestorObj = useMemo(() => {
+    if (!formData.investorId || !adminSummary?.investors) return null;
+    return adminSummary.investors.find(i => String(i.id) === formData.investorId) || null;
+  }, [formData.investorId, adminSummary]);
+
+  // Max allocatable for selected investor
+  const maxAllocatable = useMemo(() => {
+    if (!selectedInvestorObj || !adminSummary) return 0;
+    return Math.max(0, Math.min(selectedInvestorObj.availableCapital, adminSummary.availableAdminCapital));
+  }, [selectedInvestorObj, adminSummary]);
+
+  // Calculate Aggregates
+  const totalAllocatedAmount = useMemo(() => {
+    return (Array.isArray(allocations) ? allocations : []).reduce((sum, a) => sum + (parseFloat(String(a?.amount)) || 0), 0);
+  }, [allocations]);
+
+  const totalDeployedAmount = useMemo(() => {
+    return (Array.isArray(locationParties) ? locationParties : []).reduce((sum, p) => sum + Number(p?.cat7Deployed ?? p?.totalInvestment ?? 0), 0);
+  }, [locationParties]);
+
+  const totalAvailableAmount = useMemo(() => {
+    return Math.max(0, (totalAllocatedAmount || 0) - (totalDeployedAmount || 0));
+  }, [totalAllocatedAmount, totalDeployedAmount]);
+
+  // Investor-wise Breakdown at this Location
+  const investorBreakdown = useMemo(() => {
+    const map = new Map<number, { 
+      id: number; 
+      name: string; 
+      mobile?: string; 
+      totalAmount: number; 
+      deployedAmount: number;
+      availableAmount: number;
+      count: number; 
+      lastDate: string 
+    }>();
+
+    (Array.isArray(allocations) ? allocations : []).forEach(a => {
+      if (!a) return;
+      const amt = parseFloat(String(a.amount)) || 0;
+      const invId = a.investorId || 0;
+      const existing = map.get(invId);
+      if (existing) {
+        existing.totalAmount += amt;
+        existing.count += 1;
+        if (a.date && a.date > existing.lastDate) existing.lastDate = a.date;
+      } else {
+        map.set(invId, {
+          id: invId,
+          name: a.investorName || `Investor #${invId}`,
+          mobile: a.investorMobile,
+          totalAmount: amt,
+          deployedAmount: 0,
+          availableAmount: amt,
+          count: 1,
+          lastDate: a.date || ""
+        });
+      }
+    });
+
+    // Populate deployed and available from locationParties
+    const safeParties = Array.isArray(locationParties) ? locationParties : [];
+    map.forEach(item => {
+      const party = safeParties.find(p => (p?.partyName || "").trim().toUpperCase() === (item.name || "").trim().toUpperCase());
+      const deployed = party ? Number(party.cat7Deployed ?? party.totalInvestment ?? 0) : 0;
+      item.deployedAmount = isNaN(deployed) ? 0 : deployed;
+      item.availableAmount = Math.max(0, (item.totalAmount || 0) - item.deployedAmount);
+    });
+
+    return Array.from(map.values()).sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
+  }, [allocations, locationParties]);
+
+  // Filtered Allocations
+  const filteredAllocations = useMemo(() => {
+    return allocations.filter(a => {
+      const matchesSearch = 
+        !searchQuery ||
+        (a.investorName && a.investorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (a.referenceNumber && a.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (a.notes && a.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchesInvestor = 
+        selectedInvestorFilter === "ALL" || 
+        String(a.investorId) === selectedInvestorFilter;
+
+      return matchesSearch && matchesInvestor;
+    });
+  }, [allocations, searchQuery, selectedInvestorFilter]);
+
+  // Handle Form Submission (Add Investor Capital from Admin Capital)
+  const handleAddAllocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(formData.amount);
+
+    if (!formData.investorId) {
+      showToast("Please select an investor (ઇન્વેસ્ટર પસંદ કરો)", "error");
+      return;
+    }
+
+    if (!amt || isNaN(amt) || amt <= 0) {
+      showToast("Please enter a valid allocation amount (માન્ય રકમ દાખલ કરો)", "error");
+      return;
+    }
+
+    if (adminSummary && amt > Number(adminSummary.availableAdminCapital || 0)) {
+      showToast(`Amount exceeds Total Available Admin Capital (₹${Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN")})`, "error");
+      return;
+    }
+
+    if (selectedInvestorObj && amt > Number(selectedInvestorObj.availableCapital || 0)) {
+      showToast(`Selected investor has only ₹${Number(selectedInvestorObj.availableCapital || 0).toLocaleString("en-IN")} available in Admin Capital`, "error");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiFetch("/investments/location-allocations", {
+        method: "POST",
+        body: JSON.stringify({
+          investorId: parseInt(formData.investorId, 10),
+          locationId,
+          amount: amt.toString(),
+          date: formData.date,
+          paymentMethod: formData.paymentMethod,
+          referenceNumber: formData.referenceNumber || null,
+          notes: formData.notes || null
+        })
+      });
+
+      triggerSync("investments");
+      triggerSync("reports");
+      showToast(`₹${amt.toLocaleString("en-IN")} Investor Capital successfully allocated from Admin Capital!`, "success");
+      setIsAddModalOpen(false);
+      setFormData({
+        investorId: "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        paymentMethod: "Bank Transfer",
+        referenceNumber: "",
+        notes: ""
+      });
+      loadData(true);
+    } catch (err: any) {
+      console.error("Allocation failed", err);
+      showToast(err.message || "Failed to allocate investor capital", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle Delete Allocation
+  const handleDeleteAllocation = async (record: AllocationRecord) => {
+    const confirmed = await confirmAction({
+      title: "Delete Investor Allocation",
+      message: `Are you sure you want to delete allocation of ₹${parseFloat(String(record.amount)).toLocaleString("en-IN")} for ${record.investorName}? This amount will be returned to Admin Capital.`,
+      confirmLabel: "Delete & Revert",
+      isDanger: true,
+      requirePassword: false
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/investments/location-allocations/${record.id}`, {
+        method: "DELETE"
+      });
+
+      triggerSync("investments");
+      triggerSync("reports");
+      showToast("Allocation record deleted and returned to Admin Capital", "success");
+      loadData(true);
+    } catch (err: any) {
+      console.error("Failed to delete allocation", err);
+      showToast(err.message || "Failed to delete allocation", "error");
+    }
+  };
+
+  const handleOpenAddForInvestor = (invId: number) => {
+    setFormData({
+      investorId: String(invId),
+      amount: "",
+      date: new Date().toISOString().split("T")[0],
+      paymentMethod: "Bank Transfer",
+      referenceNumber: "",
+      notes: ""
+    });
+    setIsAddModalOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Category Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-emerald-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-2">
+            <Landmark className="w-3.5 h-3.5" />
+            <span>Category 7 &bull; Location Investor Capital (ઇન્વેસ્ટર કેપિટલ)</span>
+          </div>
+          <h2 className="text-2xl font-black text-white">7. Investor Capital (ઇન્વેસ્ટર કેપિટલ)</h2>
+          <p className="text-xs text-slate-300 mt-1">
+            <strong>Admin Capital (Tier 1) &rarr; Location Investor Capital (Tier 2)</strong> &bull; ફાળવેલ ઇન્વેસ્ટર મૂડીનું સંચાલન
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Main Action: Add Investor Capital from Admin Capital */}
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                investorId: "",
+                amount: "",
+                date: new Date().toISOString().split("T")[0],
+                paymentMethod: "Bank Transfer",
+                referenceNumber: "",
+                notes: ""
+              });
+              setIsAddModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Add Investor Capital from Admin Capital</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=investor_capital`, `${locationName.replace(/\s+/g, '_')}_Investor_Capital.xlsx`)}
+            className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer"
+            title="Download Excel Report"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => loadData(false)}
+            disabled={loading}
+            className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer"
+            title="Refresh Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Allocated at Location */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Total Allocated (Cat 7)</span>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+              <Landmark className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight">
+            ₹{Number(totalAllocatedAmount || 0).toLocaleString("en-IN")}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            કુલ ફાળવેલ ઇન્વેસ્ટર મૂડી ({allocations.length} ફાળવણીઓ)
+          </div>
+        </div>
+
+        {/* Card 2: Deployed to Category 1 */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Deployed to Cat 1</span>
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-700">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-purple-900 tracking-tight">
+            ₹{Number(totalDeployedAmount || 0).toLocaleString("en-IN")}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            ઇન્વેસ્ટમેન્ટ મૂડી (Cat 1) માં ટ્રાન્સફર થયેલ
+          </div>
+        </div>
+
+        {/* Card 3: Available Investor Capital (Cat 7) */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Available in Cat 7</span>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+              <Landmark className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-emerald-700 tracking-tight">
+            ₹{Number(totalAvailableAmount || 0).toLocaleString("en-IN")}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            બાકી ઉપલબ્ધ (Cat 1 માં ઉમેરવા યોગ્ય)
+          </div>
+        </div>
+
+        {/* Card 4: Central Available Admin Capital */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider">Available Admin Capital</span>
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-indigo-900 tracking-tight">
+            ₹{adminSummary ? Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN") : "0"}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            Tier 1 સેન્ટ્રલ પૂલ ઉપલબ્ધ બેલેન્સ
+          </div>
+        </div>
+      </div>
+
+      {/* Investor-wise Breakdown Cards (if any exist) */}
+      {investorBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <Landmark className="w-4 h-4 text-emerald-600" />
+              <span>Investor-wise Capital at this Location (ઇન્વેસ્ટર મુજબ રકમ)</span>
+            </h3>
+            <span className="text-xs font-semibold text-slate-500">
+              {investorBreakdown.length} Investors
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {investorBreakdown.map((inv) => {
+              const share = totalAllocatedAmount > 0 
+                ? ((inv.totalAmount / totalAllocatedAmount) * 100).toFixed(1)
+                : "0";
+
+              return (
+                <div 
+                  key={inv.id} 
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">{inv.name}</h4>
+                        {inv.mobile && (
+                          <p className="text-xs text-slate-500 font-medium">{inv.mobile}</p>
+                        )}
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                        {share}% Share
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-1.5 p-2 bg-white rounded-lg border border-slate-200/80 text-center">
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block uppercase">Allocated</span>
+                        <span className="text-xs font-bold text-slate-800">₹{Number(inv.totalAmount || 0).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-purple-500 block uppercase">Deployed (Cat 1)</span>
+                        <span className="text-xs font-bold text-purple-700">₹{Number(inv.deployedAmount || 0).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-emerald-600 block uppercase">Available</span>
+                        <span className="text-xs font-black text-emerald-700">₹{Number(inv.availableAmount || 0).toLocaleString("en-IN")}</span>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 mt-2">
+                      {inv.count} Allocation{inv.count > 1 ? "s" : ""} &bull; Last: {inv.lastDate}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddForInvestor(inv.id)}
+                    className="w-full py-1.5 px-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add More from Admin Capital</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Allocation History Ledger Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
+        {/* Table Filter Bar */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search investor, notes, reference..."
+              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <select
+              value={selectedInvestorFilter}
+              onChange={(e) => setSelectedInvestorFilter(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none"
+            >
+              <option value="ALL">All Investors ({allocations.length})</option>
+              {investorBreakdown.map((inv) => (
+                <option key={inv.id} value={String(inv.id)}>
+                  {inv.name} (₹{inv.totalAmount.toLocaleString("en-IN")})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Ledger Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
+              <tr>
+                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Investor Name</th>
+                <th className="py-3 px-4 text-right">Allocated Amount</th>
+                <th className="py-3 px-4 text-center">Payment Method</th>
+                <th className="py-3 px-4">Reference / Cheque</th>
+                <th className="py-3 px-4">Notes / Purpose</th>
+                <th className="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredAllocations.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400">
+                    <Landmark className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm font-semibold">No investor capital allocations found for this location.</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Click "+ Add Investor Capital from Admin Capital" to allocate funds.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredAllocations.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-3 px-4 text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {item.date}
+                    </td>
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {item.investorName}
+                      {item.investorMobile && (
+                        <span className="block text-[11px] text-slate-400 font-normal">
+                          {item.investorMobile}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-black text-emerald-700 text-sm">
+                      ₹{parseFloat(String(item.amount)).toLocaleString("en-IN")}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        {item.paymentMethod || "Bank Transfer"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-xs text-slate-600 font-mono">
+                      {item.referenceNumber || "—"}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-slate-600 max-w-xs truncate">
+                      {item.notes || "—"}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAllocation(item)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Delete this allocation and return funds to Admin Capital"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MODAL: Add Investor Capital from Admin Capital */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Add Investor Capital from Admin Capital (એડમિન કેપિટલમાંથી ઇન્વેસ્ટર કેપિટલ ઉમેરો)"
+      >
+        <form onSubmit={handleAddAllocation} className="space-y-4">
+          {/* Header Info Box */}
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+            <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+              <span className="flex items-center gap-1.5">
+                <Landmark className="w-4 h-4 text-emerald-700" />
+                <span>Tier 1 &rarr; Tier 2 Allocation</span>
+              </span>
+              <span>Available Admin Capital: ₹{adminSummary ? Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN") : "0"}</span>
+            </div>
+            <p className="text-[11px] text-emerald-700">
+              Target Location: <strong>{locationName}</strong> &bull; Selected amount will be moved from central Admin Capital into this location's investor pool.
+            </p>
+          </div>
+
+          {/* Select Investor */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Select Investor (સોર્સ ઇન્વેસ્ટર) *
+            </label>
+            <select
+              required
+              value={formData.investorId}
+              onChange={(e) => setFormData({ ...formData, investorId: e.target.value })}
+              className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            >
+              <option value="">-- Choose Investor from Admin Capital --</option>
+              {adminSummary?.investors && adminSummary.investors.length > 0 ? (
+                adminSummary.investors.map((inv) => (
+                  <option key={inv.id} value={String(inv.id)}>
+                    {inv.name} &bull; Available in Admin: ₹{Number(inv.availableCapital || 0).toLocaleString("en-IN")}
+                  </option>
+                ))
+              ) : (
+                <option value="" disabled>No investors found in Admin Capital</option>
+              )}
+            </select>
+          </div>
+
+          {/* Selected Investor Status Notice */}
+          {selectedInvestorObj && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+              <div className="flex justify-between font-bold text-slate-800">
+                <span>{selectedInvestorObj.name}</span>
+                <span className="text-emerald-700">
+                  Available: ₹{Number(selectedInvestorObj.availableCapital || 0).toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 flex justify-between">
+                <span>Total Contributed: ₹{Number(selectedInvestorObj.totalContributed || 0).toLocaleString("en-IN")}</span>
+                <span>Already Allocated: ₹{Number(selectedInvestorObj.totalAllocated || 0).toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Amount Field */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700">
+                Allocation Amount (₹ રકમ) *
+              </label>
+              {maxAllocatable > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, amount: maxAllocatable.toString() })}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer"
+                >
+                  Use Max (₹{Number(maxAllocatable || 0).toLocaleString("en-IN")})
+                </button>
+              )}
+            </div>
+            <input
+              type="number"
+              step="any"
+              required
+              placeholder="e.g. 250000"
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            />
+            {selectedInvestorObj && parseFloat(formData.amount) > maxAllocatable && (
+              <p className="text-[11px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Amount exceeds available capital (Max: ₹{Number(maxAllocatable || 0).toLocaleString("en-IN")})
+              </p>
+            )}
+          </div>
+
+          {/* Date & Payment Method */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Date (તારીખ) *
+              </label>
+              <input
+                type="date"
+                required
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Payment Method (ચુકવણી પદ્ધતિ)
+              </label>
+              <select
+                value={formData.paymentMethod}
+                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              >
+                <option value="Bank Transfer">Bank Transfer (NEFT/RTGS)</option>
+                <option value="Cheque">Cheque (ચેક)</option>
+                <option value="UPI">UPI / Net Banking</option>
+                <option value="Cash">Cash (રોકડ)</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Reference Number */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Reference / Cheque / UTR Number
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. UTR-9821829 or CHQ-00291"
+              value={formData.referenceNumber}
+              onChange={(e) => setFormData({ ...formData, referenceNumber: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Notes / Purpose */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Notes / Allocation Purpose (વિગત / હેતુ)
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Allocated for excavation & foundation work"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={submitting || (selectedInvestorObj ? parseFloat(formData.amount) > maxAllocatable : false)}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{submitting ? "Allocating Funds..." : "Confirm & Add Investor Capital to Location"}</span>
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+}

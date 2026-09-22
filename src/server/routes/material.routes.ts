@@ -1,5 +1,5 @@
-import express, { Response } from 'express';
-import { db } from '../../db/index.js';
+import express, { type Response } from 'express';
+import { db } from '../../db/index.ts';
 import { 
   materialPurchases, 
   materialSupplies, 
@@ -11,14 +11,154 @@ import {
   siteSupplies,
   siteSupplyItems,
   labourTeams
-} from '../../db/schema.js';
+} from '../../db/schema.ts';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { StockManager } from '../lib/accounting.js';
-import { assertLocationAccess } from '../lib/locationAuth.js';
+import { requireAuth, type AuthRequest } from '../middleware/auth.ts';
+import { StockManager, getAdminCapitalSummary } from '../lib/accounting.ts';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const materialRouter = express.Router();
 materialRouter.use(requireAuth);
+
+/**
+ * GET /api/materials/central-stock
+ * Returns central enterprise-wide stock balance for all materials:
+ * Purchases (IN) - Customer Supplies (OUT) - Site Supplies (OUT) = Current Balance
+ */
+materialRouter.get('/central-stock', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const allMaterials = await db.select().from(materials).where(eq(materials.isDeleted, 0)).orderBy(materials.name);
+
+    const stockSummary = await Promise.all(
+      allMaterials.map(async (m) => {
+        const inRes = await db.execute(sql`
+          SELECT COALESCE(SUM(CAST(quantity AS numeric)), 0) as total
+          FROM stock_ledger
+          WHERE material_id = ${m.id} AND transaction_type = 'IN' AND is_deleted = 0
+        `);
+
+        const outRes = await db.execute(sql`
+          SELECT COALESCE(SUM(ABS(CAST(quantity AS numeric))), 0) as total
+          FROM stock_ledger
+          WHERE material_id = ${m.id} AND transaction_type = 'OUT' AND is_deleted = 0
+        `);
+
+        const totalInward = parseFloat(inRes.rows[0]?.total as string || '0');
+        const totalOutward = parseFloat(outRes.rows[0]?.total as string || '0');
+        const currentBalance = Math.round((totalInward - totalOutward) * 100) / 100;
+        const minStock = parseFloat(m.minStock || '0');
+
+        let status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK';
+        if (currentBalance <= 0) {
+          status = 'OUT_OF_STOCK';
+        } else if (currentBalance <= minStock) {
+          status = 'LOW_STOCK';
+        }
+
+        return {
+          id: m.id,
+          name: m.name,
+          category: m.category || 'General',
+          unit: m.defaultUnit || 'Unit',
+          rate: parseFloat(m.defaultRate || '0'),
+          minStock,
+          totalInward,
+          totalOutward,
+          currentBalance,
+          status
+        };
+      })
+    );
+
+    res.json(stockSummary);
+  } catch (error: any) {
+    console.error('[Central Stock GET Error]', error);
+    res.status(500).json({ error: 'Failed to fetch central stock' });
+  }
+});
+
+/**
+ * GET /api/materials/customer-supplies-history
+ * Returns enterprise-wide Customer Material Supplies across all locations
+ */
+materialRouter.get('/customer-supplies-history', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const supplies = await db.select({
+      id: materialSupplies.id,
+      date: materialSupplies.date,
+      customerName: materialSupplies.partyName,
+      materialName: materialSupplies.materialName,
+      quantity: materialSupplies.quantity,
+      unit: materialSupplies.unit,
+      rate: materialSupplies.rate,
+      subtotal: materialSupplies.subtotal,
+      tax: materialSupplies.tax,
+      totalAmount: materialSupplies.totalAmount,
+      paidAmount: materialSupplies.paidAmount,
+      paymentStatus: materialSupplies.paymentStatus,
+      referenceNumber: materialSupplies.referenceNumber,
+      notes: materialSupplies.notes,
+      locationId: materialSupplies.locationId,
+      locationName: locations.name,
+    })
+    .from(materialSupplies)
+    .leftJoin(locations, eq(materialSupplies.locationId, locations.id))
+    .where(eq(materialSupplies.isDeleted, 0))
+    .orderBy(desc(materialSupplies.date), desc(materialSupplies.id));
+
+    res.json(supplies);
+  } catch (error: any) {
+    console.error('[Customer Supplies History GET Error]', error);
+    res.status(500).json({ error: 'Failed to fetch customer supplies history' });
+  }
+});
+
+/**
+ * GET /api/materials/site-supplies-history
+ * Returns enterprise-wide Site Material Supplies across all locations
+ */
+materialRouter.get('/site-supplies-history', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const supplies = await db.select({
+      id: siteSupplyItems.id,
+      siteSupplyId: siteSupplies.id,
+      date: siteSupplies.date,
+      teamName: labourTeams.name,
+      responsiblePerson: siteSupplies.responsiblePerson,
+      workDescription: siteSupplies.workDescription,
+      materialId: siteSupplyItems.materialId,
+      materialName: materials.name,
+      quantity: siteSupplyItems.quantity,
+      unit: materials.defaultUnit,
+      rate: siteSupplyItems.rate,
+      amount: siteSupplyItems.amount,
+      referenceNumber: siteSupplies.referenceNumber,
+      locationId: siteSupplies.locationId,
+      locationName: locations.name,
+    })
+    .from(siteSupplyItems)
+    .innerJoin(siteSupplies, eq(siteSupplyItems.siteSupplyId, siteSupplies.id))
+    .leftJoin(locations, eq(siteSupplies.locationId, locations.id))
+    .leftJoin(materials, eq(siteSupplyItems.materialId, materials.id))
+    .leftJoin(labourTeams, eq(siteSupplies.teamId, labourTeams.id))
+    .where(and(eq(siteSupplies.isDeleted, 0), eq(siteSupplyItems.isDeleted, 0)))
+    .orderBy(desc(siteSupplies.date), desc(siteSupplyItems.id));
+
+    res.json(supplies);
+  } catch (error: any) {
+    console.error('[Site Supplies History GET Error]', error);
+    res.status(500).json({ error: 'Failed to fetch site supplies history' });
+  }
+});
 
 async function resolveMaterialInfo(
   tx: any,
@@ -75,7 +215,8 @@ materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const { type } = req.params;
+    const rawType = String(req.params.type || '').toLowerCase();
+    const type = (rawType === 'purchases' ? 'purchase' : rawType === 'supplies' ? 'supply' : (rawType === 'labour-supplies' || rawType === 'site-supplies' || rawType === 'site-supply') ? 'labour-supply' : rawType);
     const locParam = req.query.locationId as string | undefined;
     const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
       ? parseInt(locParam, 10)
@@ -270,11 +411,17 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const { type } = req.params;
+    const rawType = String(req.params.type || '').toLowerCase();
+    const type = (rawType === 'purchases' ? 'purchase' : rawType === 'supplies' ? 'supply' : (rawType === 'labour-supplies' || rawType === 'site-supplies' || rawType === 'site-supply') ? 'labour-supply' : rawType);
     
     if (type === 'purchase' || type === 'supply') {
       const data = req.body;
-      const locId = parseInt(String(data.locationId), 10);
+      let locId = parseInt(String(data.locationId), 10);
+      if ((!locId || isNaN(locId)) && type === 'purchase') {
+        const anyLoc = await db.select({ id: locations.id }).from(locations).where(eq(locations.isDeleted, 0)).limit(1);
+        locId = anyLoc.length > 0 ? anyLoc[0].id : 1;
+        data.locationId = locId;
+      }
       if (!locId || isNaN(locId)) return res.status(400).json({ error: 'locationId is required' });
       await assertLocationAccess(userId, locId);
 
@@ -306,6 +453,12 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
         const finalUnit = data.unit || (matInfo ? matInfo.unit : '') || 'Unit';
         
         if (type === 'purchase') {
+          // Material Purchase is funded directly by Admin Capital
+          const adminSummary = await getAdminCapitalSummary(tx, userId);
+          if (totalAmount > adminSummary.availableAdminCapital) {
+            throw new Error(`Cannot complete purchase: Total amount ₹${totalAmount.toLocaleString('en-IN')} exceeds available Admin Capital (₹${adminSummary.availableAdminCapital.toLocaleString('en-IN')}).`);
+          }
+
           const inserted = await tx.insert(materialPurchases).values({
             userId, locationId: data.locationId,
             date: data.date, partyName: data.partyName || '', materialName: finalMatName, materialId: finalMatId,
@@ -324,6 +477,14 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
             await StockManager.addStockMovement(tx, userId, data.locationId, finalMatId, 'IN', qty, insertedId, 'PURCHASE', data.description || data.notes);
           }
         } else {
+          // Customer Material Supply (Location wise) validates Central Stock
+          if (finalMatId && qty > 0) {
+            const stockCheck = await StockManager.checkCentralStockAvailability(tx, finalMatId, qty);
+            if (!stockCheck.available) {
+              throw new Error(`Cannot supply material: Insufficient Central Stock for ${finalMatName}. Available: ${stockCheck.currentStock} ${finalUnit}, Requested: ${qty} ${finalUnit}.`);
+            }
+          }
+
           const inserted = await tx.insert(materialSupplies).values({
             userId, locationId: data.locationId,
             date: data.date, partyName: data.partyName || '', partyId: data.partyId,
@@ -340,7 +501,7 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
           record = inserted[0];
           
           if (finalMatId && qty > 0) {
-            await StockManager.addStockMovement(tx, userId, data.locationId, finalMatId, 'OUT', qty, insertedId, 'MATERIAL_SUPPLY', data.description || data.notes);
+            await StockManager.addStockMovement(tx, userId, data.locationId, finalMatId, 'OUT', qty, insertedId, 'CUSTOMER_SUPPLY', data.description || data.notes);
           }
         }
         
@@ -435,7 +596,9 @@ materialRouter.put('/:type/:id', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const { type, id } = req.params;
+    const rawType = String(req.params.type || '').toLowerCase();
+    const type = (rawType === 'purchases' ? 'purchase' : rawType === 'supplies' ? 'supply' : (rawType === 'labour-supplies' || rawType === 'site-supplies' || rawType === 'site-supply') ? 'labour-supply' : rawType);
+    const { id } = req.params;
     const numId = parseInt(id as string, 10);
     if (isNaN(numId)) return res.status(400).json({ error: 'Invalid record ID' });
     
@@ -535,7 +698,9 @@ materialRouter.delete('/:type/:id', async (req: AuthRequest, res: Response) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
-    const { type, id } = req.params;
+    const rawType = String(req.params.type || '').toLowerCase();
+    const type = (rawType === 'purchases' ? 'purchase' : rawType === 'supplies' ? 'supply' : (rawType === 'labour-supplies' || rawType === 'site-supplies' || rawType === 'site-supply') ? 'labour-supply' : rawType);
+    const { id } = req.params;
     const numId = parseInt(id as string, 10);
     if (isNaN(numId)) return res.status(400).json({ error: 'Invalid record ID' });
     

@@ -18,6 +18,8 @@ import ReportsPage from './pages/ReportsPage';
 import ExcelDownloadsPage from './pages/ExcelDownloadsPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import ProfilePage from './pages/ProfilePage';
+import AdminPage from './pages/AdminPage';
+import MaterialPurchasePage from './pages/MaterialPurchasePage';
 import InvestorsPage from './pages/InvestorsPage';
 import MaterialsPage from './pages/MaterialsPage';
 
@@ -32,8 +34,10 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<DashboardPage />} />
-                <Route path="/investors" element={<InvestorsPage />} />
-                <Route path="/materials" element={<MaterialsPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/investors" element={<AdminPage />} />
+                <Route path="/material-purchase" element={<MaterialPurchasePage />} />
+                <Route path="/materials" element={<MaterialPurchasePage />} />
                 <Route path="/locations" element={<LocationsPage />} />
                 <Route path="/locations/:id" element={<LocationDetailsPage />} />
                 <Route path="/locations/:locationId/central-investors" element={<CentralInvestorPoolPage />} />

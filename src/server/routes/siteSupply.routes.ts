@@ -1,11 +1,10 @@
-import express from 'express';
-import { Response } from 'express';
-import { db } from '../../db/index.js';
-import { siteSupplies, siteSupplyItems, materials, locations, labourTeams, auditLogs } from '../../db/schema.js';
+import express, { type Response } from 'express';
+import { db } from '../../db/index.ts';
+import { siteSupplies, siteSupplyItems, materials, locations, labourTeams, auditLogs } from '../../db/schema.ts';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
-import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { StockManager, calculateSiteSupplyTotals } from '../lib/accounting.js';
-import { assertLocationAccess } from '../lib/locationAuth.js';
+import { requireAuth, type AuthRequest } from '../middleware/auth.ts';
+import { StockManager, calculateSiteSupplyTotals } from '../lib/accounting.ts';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const siteSupplyRouter = express.Router();
 siteSupplyRouter.use(requireAuth);
@@ -250,6 +249,12 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
       const supplyId = supply[0].id;
       
       for (const itemCalc of calculated.items) {
+        // Validate Central Stock availability before deducting
+        const stockCheck = await StockManager.checkCentralStockAvailability(tx, itemCalc.materialId, itemCalc.quantity);
+        if (!stockCheck.available) {
+          throw new Error(`Insufficient Central Stock for material #${itemCalc.materialId}: Available stock is ${stockCheck.currentStock}, requested is ${itemCalc.quantity}.`);
+        }
+
         const itemRow = await tx.insert(siteSupplyItems).values({
           siteSupplyId: supplyId,
           materialId: itemCalc.materialId,

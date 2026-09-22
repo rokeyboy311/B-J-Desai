@@ -1,13 +1,15 @@
-import express, { Response } from 'express';
-import { db } from '../../db/index.js';
+import express, { type Response } from 'express';
+import { db } from '../../db/index.ts';
 import { 
   locations, records, investmentParties, investmentTransactions,
   materialPurchases, materialSupplies, siteSupplies, siteSupplyItems,
   materials, labourTeams,
-  labourSalaries, supervisorCosts
-} from '../../db/schema.js';
+  labourSalaries, supervisorCosts,
+  investors, investorLocationAllocations,
+  contractorCosts
+} from '../../db/schema.ts';
 import { eq, and, sql, inArray } from 'drizzle-orm';
-import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { requireAuth, type AuthRequest } from '../middleware/auth.ts';
 import { 
   generateExcelBuffer, 
   generateInvestorStatementBuffer, 
@@ -16,12 +18,148 @@ import {
   generateRefundableRecordsBuffer,
   generateSiteSuppliesBuffer,
   generateMaterialAnalyticsBuffer
-} from '../lib/excel.js';
-import { calculateCategory2Capital } from '../lib/accounting.js';
-import { assertLocationAccess } from '../lib/locationAuth.js';
+} from '../lib/excel.ts';
+import { calculateCategory2Capital } from '../lib/accounting.ts';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const reportRouter = express.Router();
 reportRouter.use(requireAuth);
+
+/**
+ * GET /api/reports/location-analytics
+ * Location-wise comparative analytics strictly implementing the new workflow:
+ * - Location ID & Name
+ * - Investor Capital: Capital allocated from Admin to this location minus investments
+ * - Investment Capital: Total transferred into project investment
+ * - Customer Supply: Total customer material supplies
+ * - Site Supply: Total site supplies
+ * - Labour Attendance: Net salary of labour attendance
+ * - Contractor Cost: Total contractor cost recorded
+ * - Contractor Cost Reconciliation:
+ *   Expected Cost = Site Supply + Labour Attendance
+ *   Recorded Cost = Contractor Cost
+ *   Difference = Recorded Cost - Expected Cost
+ *   Status = MATCHED | SURPLUS | DEFICIT
+ */
+reportRouter.get('/location-analytics', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL' && req.query.locationId !== '0'
+      ? parseInt(req.query.locationId as string, 10)
+      : undefined;
+
+    const locCondition = locationIdParam && !isNaN(locationIdParam)
+      ? eq(locations.id, locationIdParam)
+      : undefined;
+
+    const locRows = await db.select({ id: locations.id, name: locations.name })
+      .from(locations)
+      .where(and(eq(locations.isDeleted, 0), locCondition))
+      .orderBy(locations.name);
+
+    const analyticsList = [];
+
+    for (const loc of locRows) {
+      const [invTxs, custSupp, siteSupp, labour, contr] = await Promise.all([
+        db.execute(sql`
+          SELECT it.type, COALESCE(SUM(CAST(it.amount AS numeric)), 0) as total
+          FROM investment_transactions it
+          JOIN investment_parties ip ON it.party_id = ip.id
+          WHERE ip.location_id = ${loc.id} AND it.is_deleted = 0 AND ip.is_deleted = 0
+          GROUP BY it.type
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0) as total
+          FROM material_supplies
+          WHERE location_id = ${loc.id} AND is_deleted = 0
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0) as total
+          FROM site_supplies
+          WHERE location_id = ${loc.id} AND is_deleted = 0
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(CAST(net_salary AS numeric)), 0) as total
+          FROM labour_salaries
+          WHERE location_id = ${loc.id} AND is_deleted = 0
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(CAST(amount AS numeric)), 0) as total
+          FROM supervisor_costs
+          WHERE location_id = ${loc.id} AND is_deleted = 0
+        `)
+      ]);
+
+      let contrib = 0, invest = 0, upad = 0;
+      invTxs.rows.forEach((r: any) => {
+        if (r.type === 'CONTRIBUTION') contrib += parseFloat(r.total || '0');
+        if (r.type === 'INVESTMENT') invest += parseFloat(r.total || '0');
+        if (r.type === 'UPAD' || r.type === 'PAYMENT') upad += parseFloat(r.total || '0');
+      });
+
+      const investorCapitalAvailable = Math.max(0, Math.round((contrib - invest - upad) * 100) / 100);
+      const investmentCapital = Math.round(invest * 100) / 100;
+      const customerSupply = Math.round(parseFloat(custSupp.rows[0]?.total as string || '0') * 100) / 100;
+      const siteSupply = Math.round(parseFloat(siteSupp.rows[0]?.total as string || '0') * 100) / 100;
+      const labourAttendance = Math.round(parseFloat(labour.rows[0]?.total as string || '0') * 100) / 100;
+      const contractorCost = Math.round(parseFloat(contr.rows[0]?.total as string || '0') * 100) / 100;
+
+      // 1. Site Expenses vs Investment Capital Matching
+      const totalThreeSiteExpenses = Math.round((customerSupply + siteSupply + labourAttendance) * 100) / 100;
+      const investmentVariance = Math.round((investmentCapital - totalThreeSiteExpenses) * 100) / 100;
+      const investmentStatus = Math.abs(investmentVariance) < 1 ? 'MATCHED' : (investmentVariance > 0 ? 'SURPLUS' : 'DEFICIT');
+
+      // 2. Site Supply + Labour Attendance vs Contractor Cost Matching
+      const expectedContractorCost = Math.round((siteSupply + labourAttendance) * 100) / 100;
+      const reconciliationDifference = Math.round((contractorCost - expectedContractorCost) * 100) / 100;
+      const status = Math.abs(reconciliationDifference) < 1 ? 'MATCHED' : (reconciliationDifference > 0 ? 'SURPLUS' : 'DEFICIT');
+
+      analyticsList.push({
+        locationId: loc.id,
+        locationName: loc.name,
+        investorCapitalTotal: Math.round(contrib * 100) / 100,
+        investorCapitalAvailable,
+        investmentCapital,
+        customerSupply,
+        siteSupply,
+        labourAttendance,
+        totalThreeSiteExpenses,
+        investmentVariance,
+        investmentStatus,
+        contractorCost,
+        expectedContractorCost,
+        reconciliationDifference,
+        status
+      });
+    }
+
+    // Totals across queried locations
+    const totals = {
+      investorCapitalTotal: Math.round(analyticsList.reduce((acc, l) => acc + l.investorCapitalTotal, 0) * 100) / 100,
+      investorCapitalAvailable: Math.round(analyticsList.reduce((acc, l) => acc + l.investorCapitalAvailable, 0) * 100) / 100,
+      investmentCapital: Math.round(analyticsList.reduce((acc, l) => acc + l.investmentCapital, 0) * 100) / 100,
+      customerSupply: Math.round(analyticsList.reduce((acc, l) => acc + l.customerSupply, 0) * 100) / 100,
+      siteSupply: Math.round(analyticsList.reduce((acc, l) => acc + l.siteSupply, 0) * 100) / 100,
+      labourAttendance: Math.round(analyticsList.reduce((acc, l) => acc + l.labourAttendance, 0) * 100) / 100,
+      totalThreeSiteExpenses: Math.round(analyticsList.reduce((acc, l) => acc + l.totalThreeSiteExpenses, 0) * 100) / 100,
+      investmentVariance: Math.round(analyticsList.reduce((acc, l) => acc + l.investmentVariance, 0) * 100) / 100,
+      contractorCost: Math.round(analyticsList.reduce((acc, l) => acc + l.contractorCost, 0) * 100) / 100,
+      expectedContractorCost: Math.round(analyticsList.reduce((acc, l) => acc + l.expectedContractorCost, 0) * 100) / 100,
+      reconciliationDifference: Math.round(analyticsList.reduce((acc, l) => acc + l.reconciliationDifference, 0) * 100) / 100,
+    };
+
+    res.json({
+      locations: analyticsList,
+      totals,
+      count: analyticsList.length
+    });
+  } catch (error: any) {
+    console.error('[Location Analytics GET Error]', error);
+    res.status(500).json({ error: 'Failed to calculate location analytics' });
+  }
+});
 
 reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
   try {
@@ -711,28 +849,43 @@ reportRouter.get('/export-location/:id', async (req: AuthRequest, res: Response)
     if (tab === 'all' || tab === 'expense' || tab === 'income-expense') {
       exportData.incomeExpense = await db.select().from(records).where(and(eq(records.locationId, locationId), eq(records.isDeleted, 0)));
     }
-    if (tab === 'all' || tab === 'investment') {
+    if (tab === 'all' || tab === 'investment' || tab === 'investor' || tab === 'investors' || tab === 'investor_capital' || tab === 'investor-capital') {
       exportData.investments = await db.select({
         date: investmentTransactions.date, type: investmentTransactions.type, amount: investmentTransactions.amount,
         description: investmentTransactions.description, paymentMethod: investmentTransactions.paymentMethod,
         referenceNumber: investmentTransactions.referenceNumber, partyName: investmentParties.partyName
       }).from(investmentTransactions).innerJoin(investmentParties, eq(investmentTransactions.partyId, investmentParties.id))
       .where(and(eq(investmentParties.locationId, locationId), eq(investmentTransactions.isDeleted, 0)));
+
+      exportData.investorAllocations = await db.select({
+        date: investorLocationAllocations.date,
+        investorName: investors.name,
+        amount: investorLocationAllocations.amount,
+        paymentMethod: investorLocationAllocations.paymentMethod,
+        referenceNumber: investorLocationAllocations.referenceNumber,
+        notes: investorLocationAllocations.notes,
+      })
+      .from(investorLocationAllocations)
+      .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+      .where(and(eq(investorLocationAllocations.locationId, locationId), eq(investorLocationAllocations.isDeleted, 0)));
     }
-    if (tab === 'all' || tab === 'material-purchase') {
+    if (tab === 'all' || tab === 'material-purchase' || tab === 'materials' || tab === 'stock') {
       exportData.purchases = await db.select().from(materialPurchases).where(and(eq(materialPurchases.locationId, locationId), eq(materialPurchases.isDeleted, 0)));
     }
-    if (tab === 'all' || tab === 'material-supply') {
+    if (tab === 'all' || tab === 'material-supply' || tab === 'materials' || tab === 'stock') {
       exportData.supplies = await db.select().from(materialSupplies).where(and(eq(materialSupplies.locationId, locationId), eq(materialSupplies.isDeleted, 0)));
     }
-    if (tab === 'all' || tab === 'material-labour-supply') {
+    if (tab === 'all' || tab === 'material-labour-supply' || tab === 'site-supply' || tab === 'materials' || tab === 'stock') {
       exportData.siteSupplies = await db.execute(sql`SELECT s.*, i.material_id, i.quantity, i.rate, i.amount as item_amount FROM site_supplies s LEFT JOIN site_supply_items i ON s.id = i.site_supply_id WHERE s.location_id = ${locationId} AND s.is_deleted = 0`).then(res => res.rows);
     }
-    if (tab === 'all' || tab === 'labour-salary') {
+    if (tab === 'all' || tab === 'labour-salary' || tab === 'labour') {
       exportData.salaries = await db.select().from(labourSalaries).where(and(eq(labourSalaries.locationId, locationId), eq(labourSalaries.isDeleted, 0)));
     }
-    if (tab === 'all' || tab === 'supervisor-cost') {
+    if (tab === 'all' || tab === 'supervisor-cost' || tab === 'supervisor') {
       exportData.supervisorCosts = await db.select().from(supervisorCosts).where(and(eq(supervisorCosts.locationId, locationId), eq(supervisorCosts.isDeleted, 0)));
+    }
+    if (tab === 'all' || tab === 'contractor-cost' || tab === 'contractor-costs' || tab === 'contractor' || tab === 'contractors') {
+      exportData.contractorCosts = await db.select().from(contractorCosts).where(and(eq(contractorCosts.locationId, locationId), eq(contractorCosts.isDeleted, 0)));
     }
 
     const buffer = generateExcelBuffer(locationName, exportData, tab);
@@ -766,6 +919,7 @@ reportRouter.get('/export-all', async (req: AuthRequest, res: Response) => {
     exportData.siteSupplies = await db.execute(sql`SELECT s.*, i.material_id, i.quantity, i.rate, i.amount as item_amount FROM site_supplies s LEFT JOIN site_supply_items i ON s.id = i.site_supply_id WHERE s.is_deleted = 0`).then(res => res.rows);
     exportData.salaries = await db.select().from(labourSalaries).where(eq(labourSalaries.isDeleted, 0));
     exportData.supervisorCosts = await db.select().from(supervisorCosts).where(eq(supervisorCosts.isDeleted, 0));
+    exportData.contractorCosts = await db.select().from(contractorCosts).where(eq(contractorCosts.isDeleted, 0));
 
     const buffer = generateExcelBuffer('All_Locations', exportData, 'all');
     res.setHeader('Content-Disposition', `attachment; filename="Export_All_Locations.xlsx"`);

@@ -13,6 +13,9 @@ import { AllRefundablesModal } from "../components/ui/AllRefundablesModal";
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
+  const [adminSummary, setAdminSummary] = useState<any>(null);
+  const [centralStock, setCentralStock] = useState<any[]>([]);
+  const [contractorReconciliation, setContractorReconciliation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showCat2Breakdown, setShowCat2Breakdown] = useState(true);
   const [showRefundablesModal, setShowRefundablesModal] = useState(false);
@@ -21,8 +24,16 @@ export default function DashboardPage() {
   const loadDashboard = async (isBackground = false) => {
     try {
       if (!isBackground && !metrics) setLoading(true);
-      const res = await apiFetch(`/reports/dashboard?locationId=ALL`);
+      const [res, adminRes, stockRes, reconRes] = await Promise.all([
+        apiFetch(`/reports/dashboard?locationId=ALL`).catch(() => null),
+        apiFetch(`/investments/admin-capital-summary`).catch(() => null),
+        apiFetch(`/materials/central-stock`).catch(() => []),
+        apiFetch(`/contractor-costs/reconciliation?locationId=ALL`).catch(() => null)
+      ]);
       setMetrics(res || null);
+      if (adminRes) setAdminSummary(adminRes);
+      if (Array.isArray(stockRes)) setCentralStock(stockRes);
+      if (reconRes) setContractorReconciliation(reconRes);
     } catch (err) {
       console.error(err);
     } finally {
@@ -90,28 +101,200 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Visual Flow Guide: Cat 1 -> Cat 2 -> Cat 3-6 */}
-      <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-indigo-900">
-        <div className="flex items-center gap-2 font-bold shrink-0">
-          <Calculator className="w-4 h-4 text-indigo-600" />
-          <span>Accounting Flow Model:</span>
+      {/* Visual 3-Tier Enterprise Capital Flow Architecture */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-indigo-900/40 relative overflow-hidden">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-2">
+              <Layers className="w-3.5 h-3.5" />
+              <span>3-Tier Enterprise Capital Architecture</span>
+            </div>
+            <h2 className="text-xl font-black text-white">Capital Inflow & Allocation Flow</h2>
+            <p className="text-xs text-slate-300">
+              Admin Capital (Tier 1) &rarr; Location Investor Capital (Tier 2) &rarr; Investment Capital (Tier 3)
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/admin")}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              Manage Admin Capital &rarr;
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/material-purchase")}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              Central Stock &rarr;
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-          <span className="px-2.5 py-1 bg-white rounded-lg font-semibold border border-indigo-200 shadow-2xs">
-            1. Investor Pool (Cat 1)
-          </span>
-          <ArrowRight className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-          <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg font-bold shadow-2xs">
-            2. Project Investment (Cat 2)
-          </span>
-          <ArrowRight className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-          <span className="px-2.5 py-1 bg-white rounded-lg font-semibold border border-indigo-200 shadow-2xs">
-            3-6. Project Expenses (Cat 3, 4, 5, 6)
-          </span>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Tier 1 */}
+          <div className="bg-white/10 rounded-2xl p-4 border border-white/15">
+            <span className="text-[11px] uppercase font-bold text-indigo-300">Tier 1: Admin Capital</span>
+            <div className="text-2xl font-black text-emerald-400 mt-1">
+              ₹{adminSummary ? adminSummary.availableAdminCapital.toLocaleString("en-IN") : "0"}
+            </div>
+            <div className="text-[11px] text-slate-300 mt-1 space-y-0.5">
+              <div>Total Contributed: ₹{adminSummary ? adminSummary.totalContributed.toLocaleString("en-IN") : "0"}</div>
+              <div>Material Purchases Funded: ₹{adminSummary ? adminSummary.totalPurchases.toLocaleString("en-IN") : "0"}</div>
+            </div>
+          </div>
+
+          {/* Tier 2 */}
+          <div className="bg-white/10 rounded-2xl p-4 border border-white/15">
+            <span className="text-[11px] uppercase font-bold text-blue-300">Tier 2: Location Investor Capital</span>
+            <div className="text-2xl font-black text-white mt-1">
+              ₹{adminSummary ? adminSummary.totalAllocated.toLocaleString("en-IN") : "0"}
+            </div>
+            <div className="text-[11px] text-slate-300 mt-1 space-y-0.5">
+              <div>Allocated across all project locations</div>
+              <div>Transferred to project operations</div>
+            </div>
+          </div>
+
+          {/* Tier 3 */}
+          <div className="bg-white/10 rounded-2xl p-4 border border-white/15">
+            <span className="text-[11px] uppercase font-bold text-amber-300">Tier 3: Investment Capital</span>
+            <div className="text-2xl font-black text-cyan-400 mt-1">
+              ₹{getMetric(cat2.remainingCapital)}
+            </div>
+            <div className="text-[11px] text-slate-300 mt-1 space-y-0.5">
+              <div>Active project operational capital</div>
+              <div>Used for Site Supplies, Labour, Expenses</div>
+            </div>
+          </div>
         </div>
-        <span className="text-[11px] text-indigo-700/80 italic shrink-0">
-          Strict Zero-Discrepancy Audit
-        </span>
+      </div>
+
+      {/* Contractor Cost Reconciliation Summary & Central Stock Bar */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Contractor Cost Reconciliation Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-xl">
+                  <Calculator className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Contractor Cost Reconciliation</h3>
+                  <p className="text-[11px] text-slate-500">Live comparison: Site Supply + Labour vs Contractor Cost</p>
+                </div>
+              </div>
+              {contractorReconciliation?.summary && (
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                  contractorReconciliation.summary.reconciliationStatus === "MATCHED"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : contractorReconciliation.summary.reconciliationStatus === "SURPLUS"
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                }`}>
+                  {contractorReconciliation.summary.reconciliationStatus}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-3 pt-3 border-t border-slate-100 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Total Site Supply (Materials Issued):</span>
+                <span className="font-bold text-slate-800">
+                  ₹{contractorReconciliation?.summary?.totalSiteSupplies?.toLocaleString("en-IN") || "0"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Total Labour Attendance (Earned Wages):</span>
+                <span className="font-bold text-slate-800">
+                  ₹{contractorReconciliation?.summary?.totalLabourCost?.toLocaleString("en-IN") || "0"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-100 font-bold text-indigo-700">
+                <span>Expected Contractor Cost (Site Supply + Labour):</span>
+                <span>₹{contractorReconciliation?.summary?.expectedCost?.toLocaleString("en-IN") || "0"}</span>
+              </div>
+              <div className="flex justify-between items-center font-bold text-slate-900">
+                <span>Recorded Contractor Cost:</span>
+                <span>₹{contractorReconciliation?.summary?.recordedCost?.toLocaleString("en-IN") || "0"}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-100 font-bold">
+                <span>Difference / Variance:</span>
+                <span className={contractorReconciliation?.summary?.variance >= 0 ? "text-blue-600" : "text-rose-600"}>
+                  {contractorReconciliation?.summary?.variance >= 0 ? "+" : ""}
+                  ₹{contractorReconciliation?.summary?.variance?.toLocaleString("en-IN") || "0"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+            <button
+              type="button"
+              onClick={() => navigate("/locations")}
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+            >
+              View Location Details & Reconciliation &rarr;
+            </button>
+          </div>
+        </div>
+
+        {/* Central Stock Summary Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-amber-50 text-amber-700 rounded-xl">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Central Inventory Stock</h3>
+                  <p className="text-[11px] text-slate-500">Stock IN via Purchases & OUT via Supplies</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                {centralStock.length} Materials
+              </span>
+            </div>
+
+            <div className="space-y-3 pt-3 border-t border-slate-100 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Total Materials in Catalog:</span>
+                <span className="font-bold text-slate-800">{centralStock.length}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">In Stock:</span>
+                <span className="font-bold text-emerald-600">
+                  {centralStock.filter((s) => s.status === "IN_STOCK").length} items
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Low Stock Alert:</span>
+                <span className="font-bold text-amber-600">
+                  {centralStock.filter((s) => s.status === "LOW_STOCK").length} items
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600">Out of Stock:</span>
+                <span className="font-bold text-rose-600">
+                  {centralStock.filter((s) => s.status === "OUT_OF_STOCK").length} items
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+            <button
+              type="button"
+              onClick={() => navigate("/material-purchase")}
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+            >
+              Open Central Stock Ledger &rarr;
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Main Financial Overview Row: Segregated Category 1 & Category 2 Capital Pools */}

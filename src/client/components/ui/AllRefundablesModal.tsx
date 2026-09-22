@@ -118,18 +118,18 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-gradient-to-r from-purple-900/90 via-indigo-900 to-slate-900 p-4 rounded-2xl text-white shadow-sm border border-purple-500/20">
           <div>
             <div className="text-[11px] font-bold text-purple-200 uppercase tracking-wider">Total Disbursed (કુલ ડિપોઝિટ)</div>
-            <div className="text-xl font-black text-white mt-0.5">₹{summary.totalDisbursed.toLocaleString()}</div>
-            <div className="text-[10px] text-purple-300 mt-0.5">{summary.count} Total Records</div>
+            <div className="text-xl font-black text-white mt-0.5">₹{Number(summary?.totalDisbursed || 0).toLocaleString("en-IN")}</div>
+            <div className="text-[10px] text-purple-300 mt-0.5">{summary?.count || 0} Total Records</div>
           </div>
           <div>
             <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Received Back (પરત મળેલ)</div>
-            <div className="text-xl font-black text-emerald-400 mt-0.5">₹{summary.totalRefunded.toLocaleString()}</div>
+            <div className="text-xl font-black text-emerald-400 mt-0.5">₹{Number(summary?.totalRefunded || 0).toLocaleString("en-IN")}</div>
             <div className="text-[10px] text-emerald-200 mt-0.5">Reconciled to Cash/Bank</div>
           </div>
           <div className="sm:col-span-2 bg-white/10 p-3 rounded-xl border border-white/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">લેવાના બાકી (Pending Balance)</div>
-              <div className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5">₹{summary.pending.toLocaleString()}</div>
+              <div className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5">₹{Number(summary?.pending || 0).toLocaleString("en-IN")}</div>
               <div className="text-[10px] text-slate-300 mt-0.5">Project Capital Receivable</div>
             </div>
             <button
@@ -254,15 +254,15 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
                     <div className="grid grid-cols-3 gap-2 p-2 bg-slate-50 rounded-xl text-center">
                       <div>
                         <span className="text-[10px] text-slate-400 font-semibold block uppercase">Deposit</span>
-                        <span className="text-xs font-bold text-slate-900">₹{orig.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-slate-900">₹{orig.toLocaleString("en-IN")}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 font-semibold block uppercase">Refunded</span>
-                        <span className="text-xs font-bold text-emerald-600">₹{refd.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-emerald-600">₹{refd.toLocaleString("en-IN")}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 font-semibold block uppercase">Pending</span>
-                        <span className="text-xs font-bold text-amber-700">₹{pend.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-amber-700">₹{pend.toLocaleString("en-IN")}</span>
                       </div>
                     </div>
                   </div>
@@ -307,13 +307,13 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
                         {r.description || 'Security Deposit'}
                       </td>
                       <td className="p-3.5 text-right font-black text-slate-900">
-                        ₹{orig.toLocaleString()}
+                        ₹{orig.toLocaleString("en-IN")}
                       </td>
                       <td className="p-3.5 text-right font-bold text-emerald-600">
-                        ₹{refd.toLocaleString()}
+                        ₹{refd.toLocaleString("en-IN")}
                       </td>
                       <td className="p-3.5 text-right font-black text-amber-700">
-                        ₹{pend.toLocaleString()}
+                        ₹{pend.toLocaleString("en-IN")}
                       </td>
                       <td className="p-3.5 text-center">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${

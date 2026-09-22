@@ -16,11 +16,18 @@ masterRouter.get('/parties', async (req: AuthRequest, res) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
 
-    const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
-    if (!locationId) return res.status(400).json({ error: "Location ID required" });
-    await assertLocationAccess(userId, locationId);
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    const records = await db.select().from(parties).where(and(eq(parties.locationId, locationId), eq(parties.isDeleted, 0)));
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+      const records = await db.select().from(parties).where(and(eq(parties.locationId, locationId), eq(parties.isDeleted, 0)));
+      return res.json(records);
+    }
+
+    const records = await db.select().from(parties).where(eq(parties.isDeleted, 0));
     res.json(records);
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
@@ -119,11 +126,18 @@ masterRouter.get('/teams', async (req: AuthRequest, res) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
 
-    const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
-    if (!locationId) return res.status(400).json({ error: "Location ID required" });
-    await assertLocationAccess(userId, locationId);
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    const records = await db.select().from(labourTeams).where(and(eq(labourTeams.locationId, locationId), eq(labourTeams.isDeleted, 0)));
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+      const records = await db.select().from(labourTeams).where(and(eq(labourTeams.locationId, locationId), eq(labourTeams.isDeleted, 0)));
+      return res.json(records);
+    }
+
+    const records = await db.select().from(labourTeams).where(eq(labourTeams.isDeleted, 0));
     res.json(records);
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
@@ -209,11 +223,18 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
     const userId = req.dbUser?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized: User authentication required" });
 
-    const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
-    if (!locationId) return res.status(400).json({ error: "Location ID required" });
-    await assertLocationAccess(userId, locationId);
+    const locParam = req.query.locationId as string | undefined;
+    const locationId = (locParam && locParam !== 'ALL' && locParam !== '0' && !isNaN(parseInt(locParam, 10)))
+      ? parseInt(locParam, 10)
+      : undefined;
 
-    const records = await db.select().from(materials).where(and(eq(materials.locationId, locationId), eq(materials.isDeleted, 0)));
+    if (locationId) {
+      await assertLocationAccess(userId, locationId);
+      const records = await db.select().from(materials).where(and(eq(materials.locationId, locationId), eq(materials.isDeleted, 0)));
+      return res.json(records);
+    }
+
+    const records = await db.select().from(materials).where(eq(materials.isDeleted, 0));
     res.json(records);
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
