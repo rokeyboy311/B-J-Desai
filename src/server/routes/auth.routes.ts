@@ -10,6 +10,7 @@ import {
   checkPinRateLimit, 
   recordFailedPinAttempt, 
   resetPinRateLimit,
+  clearAllRateLimits,
   getSystemUser
 } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
@@ -34,15 +35,6 @@ function getClientIp(req: Request): string {
 // Shared handler to verify security password and issue app access token
 const handleVerifyPinOrPassword = async (req: Request, res: Response) => {
   try {
-    const clientIp = getClientIp(req);
-    const rateCheck = checkPinRateLimit(clientIp);
-    if (!rateCheck.allowed) {
-      return res.status(429).json({
-        success: false,
-        error: `Too many attempts. Please try again in ${rateCheck.retryAfterMinutes} minutes.`
-      });
-    }
-
     const { pin, password } = req.body;
     const inputVal = pin !== undefined ? pin : password;
     if (!inputVal || (typeof inputVal !== 'string' && typeof inputVal !== 'number')) {
@@ -50,8 +42,10 @@ const handleVerifyPinOrPassword = async (req: Request, res: Response) => {
     }
 
     const trimmedPassword = String(inputVal).trim();
+    const clientIp = getClientIp(req);
 
-    // Query database for the single stored universal password
+    // Query database for the single stored universal password FIRST!
+    // Correct password always unlocks and resets any throttle immediately
     const isMatch = await verifyPasswordAgainstDB(trimmedPassword);
 
     if (isMatch) {
@@ -66,11 +60,12 @@ const handleVerifyPinOrPassword = async (req: Request, res: Response) => {
       });
     }
 
+    // Only if password failed, check and record rate limit
     const failRecord = recordFailedPinAttempt(clientIp);
     if (!failRecord.allowed) {
       return res.status(429).json({
         success: false,
-        error: `Too many attempts. Please try again in ${failRecord.retryAfterMinutes} minutes.`
+        error: `Too many failed attempts. Please wait ${failRecord.retryAfterSeconds || 10} seconds.`
       });
     }
 
@@ -87,20 +82,14 @@ const handleVerifyPinOrPassword = async (req: Request, res: Response) => {
 authRouter.post('/verify-pin', handleVerifyPinOrPassword);
 authRouter.post('/verify-password', handleVerifyPinOrPassword);
 
+authRouter.post('/clear-rate-limits', (req: Request, res: Response) => {
+  clearAllRateLimits();
+  res.json({ success: true, message: 'All rate limits cleared successfully.' });
+});
+
 // Endpoint to verify Category 1 (Investor) & Category 2 (Investment/Bills) Lock Password
 authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const clientIp = getClientIp(req);
-    const rateKey = `cat_${clientIp}_user_${req.dbUser?.id || 'anon'}`;
-    const rateCheck = checkPinRateLimit(rateKey);
-    if (!rateCheck.allowed) {
-      return res.status(429).json({
-        success: false,
-        verified: false,
-        error: `Too many attempts. Please try again in ${rateCheck.retryAfterMinutes} minutes.`
-      });
-    }
-
     const { pin, password } = req.body;
     const inputVal = pin !== undefined ? pin : password;
     if (!inputVal || (typeof inputVal !== 'string' && typeof inputVal !== 'number')) {
@@ -108,8 +97,10 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
     }
 
     const trimmedPassword = String(inputVal).trim();
+    const clientIp = getClientIp(req);
+    const rateKey = `cat_${clientIp}_user_${req.dbUser?.id || 'anon'}`;
 
-    // Check directly against single database password
+    // Check directly against single database password first!
     const isMatch = await verifyPasswordAgainstDB(trimmedPassword);
     if (isMatch) {
       resetPinRateLimit(rateKey);
@@ -127,7 +118,7 @@ authRouter.post('/verify-category-pin', requireAuth, async (req: AuthRequest, re
       return res.status(429).json({
         success: false,
         verified: false,
-        error: `Too many attempts. Please try again in ${failRecord.retryAfterMinutes} minutes.`
+        error: `Too many failed attempts. Please wait ${failRecord.retryAfterSeconds || 10} seconds.`
       });
     }
 

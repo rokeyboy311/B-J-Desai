@@ -7,6 +7,7 @@ import {
 import { apiFetch } from '../lib/api';
 import { downloadExcelReport } from '../lib/excelExport';
 import { useToast } from '../contexts/ToastContext';
+import { useGoogleSync } from '../contexts/GoogleSyncContext';
 
 interface InvestorItem {
   id: number;
@@ -28,6 +29,7 @@ interface CustomerItem {
 
 export default function ExcelDownloadsPage() {
   const { showToast } = useToast();
+  const { isConnected, setIsModalOpen, spreadsheetUrl } = useGoogleSync();
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>('ALL');
   const [catalog, setCatalog] = useState<{
@@ -297,15 +299,24 @@ export default function ExcelDownloadsPage() {
             </select>
           </div>
 
-          <button
-            onClick={() => handleDownload('master_top', '/reports/export-all', 'Export_All_Locations.xlsx')}
-            disabled={downloadingId !== null}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 min-h-[38px]"
-            id="download-master-btn"
-          >
-            <ArrowDownToLine className="w-4 h-4" />
-            Download Master File (.xlsx)
-          </button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 text-xs cursor-pointer min-h-[38px]"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span>{isConnected ? "Google Sheets Live" : "Connect Google Sheets"}</span>
+              {isConnected && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
+            </button>
+
+            <button
+              onClick={() => handleDownload('master_top', '/reports/export-all', 'Export_All_Locations.xlsx')}
+              disabled={downloadingId !== null}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 min-h-[38px]"
+              id="download-master-btn"
+            >
+              <ArrowDownToLine className="w-4 h-4" />
+              Download Master File (.xlsx)
+            </button>
         </div>
       </div>
 

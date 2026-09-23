@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import {
-  ArrowLeft, Download, Trash2, Landmark, Coins, Package, Wrench, CalendarCheck, HardHat
+  ArrowLeft, Download, Trash2, Landmark, Coins, Package, Wrench, CalendarCheck, HardHat, FileSpreadsheet, ExternalLink, RefreshCw
 } from "lucide-react";
 import InvestorCapitalTab from "../components/categories/InvestorCapitalTab";
 import InvestmentTab from "../components/categories/InvestmentTab";
@@ -12,6 +12,7 @@ import ContractorCostTab from "../components/categories/ContractorCostTab";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { useLiveSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
+import { useGoogleSync } from "../contexts/GoogleSyncContext";
 import { downloadExcelReport } from "../lib/excelExport";
 
 export default function LocationDetailsPage() {
@@ -19,18 +20,29 @@ export default function LocationDetailsPage() {
   const { id: locationId } = useParams();
   const navigate = useNavigate();
 
+  const {
+    isConnected,
+    isSyncing,
+    activeSyncTarget,
+    getLocationSpreadsheetUrl,
+    syncLocationSheet,
+    setIsModalOpen
+  } = useGoogleSync();
+
   const [activeCategory, setActiveCategory] = useState<
     "investor_capital" | "investment_capital" | "site_supply" | "labour_attendance" | "contractor_cost"
   >("investor_capital");
   
   const [locationName, setLocationName] = useState("Loading...");
   const [locMetrics, setLocMetrics] = useState<any>(null);
+  const [projectUtilization, setProjectUtilization] = useState<any>(null);
 
   const loadLocationDetails = async () => {
     try {
-      const [locRes, breakdownRes] = await Promise.all([
+      const [locRes, breakdownRes, utilRes] = await Promise.all([
         apiFetch(`/locations/${locationId}`).catch(() => null),
-        apiFetch(`/reports/locations-breakdown`).catch(() => [])
+        apiFetch(`/reports/locations-breakdown`).catch(() => []),
+        apiFetch(`/investments/project-utilization?locationId=${locationId}`).catch(() => null)
       ]);
 
       if (locRes && locRes.name) {
@@ -39,6 +51,9 @@ export default function LocationDetailsPage() {
       if (Array.isArray(breakdownRes)) {
         const found = breakdownRes.find((b: any) => b.id.toString() === locationId);
         if (found) setLocMetrics(found);
+      }
+      if (utilRes) {
+        setProjectUtilization(utilRes);
       }
     } catch (err) {
       console.error("Failed to load location", err);
@@ -75,7 +90,9 @@ export default function LocationDetailsPage() {
 
   // Top KPI Values
   const invCap = locMetrics?.investorCapital || 0;
-  const billInv = locMetrics?.billInvestment || 0;
+  const remainingInvCap = projectUtilization?.budgetBalance?.remainingInvestmentCapital !== undefined
+    ? Number(projectUtilization.budgetBalance.remainingInvestmentCapital)
+    : (locMetrics?.remainingInvestmentCapital ?? locMetrics?.cat2InvestmentCapital?.remainingCapital ?? 0);
   const stockVal = locMetrics?.stockValuation || 0;
   const siteSupply = locMetrics?.siteSupplies || 0;
   const labour = locMetrics?.labourMetrics?.grossSalary || locMetrics?.labourTotal || 0;
@@ -100,11 +117,68 @@ export default function LocationDetailsPage() {
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Location Details</h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Site Google Sheet Live Action */}
+          {(() => {
+            const locNum = Number(locationId);
+            const sheetUrl = getLocationSpreadsheetUrl(locNum);
+            const isThisLocSyncing = isSyncing && activeSyncTarget?.includes(`#${locationId}`);
+
+            if (!isConnected) {
+              return (
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(true)}
+                  className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Connect Google Sheets</span>
+                </button>
+              );
+            }
+
+            return (
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200/80 p-1 rounded-xl">
+                {sheetUrl ? (
+                  <a
+                    href={sheetUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Open Site Sheet</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => syncLocationSheet(locNum)}
+                    disabled={isSyncing}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Create Site Sheet</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => syncLocationSheet(locNum)}
+                  disabled={isSyncing}
+                  title="Re-sync all tabs (Investors, Supplies, and Teams) for this site"
+                  className="p-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isThisLocSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+                </button>
+              </div>
+            );
+          })()}
+
           <button
             type="button"
             onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=all`, `${locationName}_Report.xlsx`)}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
           >
             <Download className="w-4 h-4" />
             <span>Export Excel</span>
@@ -136,13 +210,13 @@ export default function LocationDetailsPage() {
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+          <div className={`p-2.5 rounded-xl ${remainingInvCap < 0 ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
             <Coins className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investment Capital</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{billInv.toLocaleString("en-IN")}
+            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Remaining Investment Capital</span>
+            <span className={`text-sm font-bold tabular-nums ${remainingInvCap < 0 ? "text-rose-600" : "text-slate-800"}`}>
+              ₹{remainingInvCap.toLocaleString("en-IN")}
             </span>
           </div>
         </div>

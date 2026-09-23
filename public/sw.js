@@ -1,18 +1,10 @@
-// Service Worker for B J PWA
+// Service Worker self-unregistration to prevent request blocking
 self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener('fetch', (event) => {
-  // Let browser handle normal network requests without interference
-  event.respondWith(
-    fetch(event.request).catch((err) => {
-      // In offline scenario, return network error
-      return Promise.reject(err);
-    })
+  event.waitUntil(
+    self.registration.unregister().then(() => self.clients.claim())
   );
 });

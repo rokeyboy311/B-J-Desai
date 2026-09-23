@@ -87,8 +87,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     paymentStatus: "PAID",
     partyName: "",
     materialName: "",
-    quantity: "",
-    unit: "Nos",
+    quantity: "1",
+    unit: "N/A",
     rate: "",
     transportCost: "0",
     discount: "0",
@@ -433,9 +433,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
   // Live Bill Calculation Breakdown
   const billCalc = useMemo(() => {
-    const qty = parseFloat(billData.quantity) || 0;
     const rate = parseFloat(billData.rate) || 0;
-    const subtotal = qty * rate;
+    const subtotal = rate;
     const transport = parseFloat(billData.transportCost) || 0;
     const discount = parseFloat(billData.discount) || 0;
     const taxPct = parseFloat(billData.taxPercentage) || 0;
@@ -565,8 +564,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   // Save Bill Investment
   const handleCreateBill = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!billData.partyName || !billData.quantity || !billData.rate) {
-      showToast("Please fill in Party/Customer/Company Name, Quantity and Rate.", "error");
+    if (!billData.partyName || !billData.rate) {
+      showToast("Please fill in Party/Customer/Company Name and Bill Amount.", "error");
       return;
     }
 
@@ -576,8 +575,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         date: billData.date,
         partyName: billData.partyName.trim(),
         materialName: billData.materialName ? billData.materialName.trim() : "General Bill",
-        quantity: parseFloat(billData.quantity) || 0,
-        unit: effectiveUnit,
+        quantity: 1,
+        unit: "N/A",
         rate: parseFloat(billData.rate) || 0,
         subtotal: billCalc.subtotal,
         transportCost: billCalc.transport,
@@ -624,8 +623,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       paymentStatus: "PAID",
       partyName: "",
       materialName: "",
-      quantity: "",
-      unit: "Nos",
+      quantity: "1",
+      unit: "N/A",
       rate: "",
       transportCost: "0",
       discount: "0",
@@ -640,18 +639,14 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
   const openEditBill = (bill: any) => {
     setEditingBillId(bill.id);
-    const isPreset = PRESET_UNITS.includes(bill.unit);
-    setUnitMode(isPreset ? bill.unit : "Custom");
-    setCustomUnit(isPreset ? "" : (bill.unit || ""));
-
     setBillData({
       date: bill.date || new Date().toISOString().split("T")[0],
       paymentStatus: bill.paymentStatus || "PAID",
       partyName: bill.partyName || "",
       materialName: bill.materialName || "",
-      quantity: String(bill.quantity || ""),
-      unit: bill.unit || "Nos",
-      rate: String(bill.rate || ""),
+      quantity: "1",
+      unit: "N/A",
+      rate: String(bill.rate || bill.subtotal || bill.amount || ""),
       transportCost: String(bill.transportCost || "0"),
       discount: String(bill.discount || "0"),
       taxPercentage: String(bill.taxPercentage || "0"),
@@ -2054,7 +2049,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <FileText className="w-4 h-4 text-blue-700" />
                 Bill Investment & Invoices
               </h3>
-              <p className="text-xs text-blue-700">Detailed bill investments with quantity, rate, GST, transport, and discounts.</p>
+              <p className="text-xs text-blue-700">Detailed bill investments with GST, transport, and discounts.</p>
             </div>
 
             <button
@@ -2075,7 +2070,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   <tr>
                     <th className="p-3.5">Bill Date</th>
                     <th className="p-3.5">Party / Customer / Company</th>
-                    <th className="p-3.5">Bill Details / Qty</th>
+                    <th className="p-3.5">Bill Details / Notes</th>
                     <th className="p-3.5">Status</th>
                     <th className="p-3.5 text-right">Subtotal</th>
                     <th className="p-3.5 text-right">Transport / Disc</th>
@@ -2091,7 +2086,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                       <td className="p-3.5 font-bold text-slate-900">{bill.partyName || "-"}</td>
                       <td className="p-3.5">
                         <div className="font-semibold text-slate-800">
-                          {bill.quantity} {bill.unit} &bull; Rate: ₹{bill.rate}
+                          Bill Amount: ₹{Number(bill.rate || bill.subtotal || bill.amount || 0).toLocaleString()}
                         </div>
                         {bill.notes && <div className="text-[10px] text-slate-500 truncate max-w-[180px]">{bill.notes}</div>}
                       </td>
@@ -2836,64 +2831,24 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             </div>
           </div>
 
-          {/* 3. Unit of Measurement */}
+          {/* 3. Bill Amount */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">4. Unit of Measurement *</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <select
-                value={unitMode}
-                onChange={e => setUnitMode(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium"
-              >
-                {PRESET_UNITS.map(u => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
-              </select>
-              {unitMode === "Custom" && (
-                <input
-                  type="text"
-                  required
-                  value={customUnit}
-                  onChange={e => setCustomUnit(e.target.value)}
-                  placeholder="Enter custom unit (e.g. Box, Bundle, Hours)"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                />
-              )}
-            </div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">4. Bill Amount (₹) *</label>
+            <input
+              type="number"
+              step="any"
+              required
+              value={billData.rate}
+              onChange={e => setBillData({ ...billData, rate: e.target.value })}
+              placeholder="0.00"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900"
+            />
           </div>
 
-          {/* 4. Quantity & Rate */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">5. Quantity *</label>
-              <input
-                type="number"
-                step="any"
-                required
-                value={billData.quantity}
-                onChange={e => setBillData({ ...billData, quantity: e.target.value })}
-                placeholder="0.00"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">6. Rate per {effectiveUnit} (₹) *</label>
-              <input
-                type="number"
-                step="any"
-                required
-                value={billData.rate}
-                onChange={e => setBillData({ ...billData, rate: e.target.value })}
-                placeholder="0.00"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
-              />
-            </div>
-          </div>
-
-          {/* 5. Transport, Discount & GST */}
+          {/* 4. Transport, Discount & GST */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">7. Transport Fee (₹) (+)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">5. Transport Fee (₹) (+)</label>
               <input
                 type="number"
                 step="any"
@@ -2905,7 +2860,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <span className="text-[10px] text-slate-500">Excluded from GST (added separately)</span>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">8. Discount (₹) (-)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">6. Discount (₹) (-)</label>
               <input
                 type="number"
                 step="any"
@@ -2916,7 +2871,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">9. Tax / GST (%) (+)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">7. Tax / GST (%) (+)</label>
               <select
                 value={billData.taxPercentage}
                 onChange={e => setBillData({ ...billData, taxPercentage: e.target.value })}
@@ -2932,7 +2887,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {/* Live Calculation Preview Box */}
           <div className="bg-slate-900 text-white rounded-xl p-4 space-y-1.5 text-xs">
             <div className="flex justify-between text-slate-300">
-              <span>Subtotal ({billData.quantity || 0} &times; ₹{billData.rate || 0}):</span>
+              <span>Bill Subtotal:</span>
               <span>₹{billCalc.subtotal.toFixed(2)}</span>
             </div>
             {billCalc.discount > 0 && (
@@ -2956,7 +2911,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </div>
             )}
             <div className="flex justify-between text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
-              <span>10. Net Total Amount:</span>
+              <span>Net Total Amount:</span>
               <span>₹{billCalc.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
@@ -2964,7 +2919,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {/* Payment Method & Ref */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">11. Payment Method</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">8. Payment Method</label>
               <select
                 value={billData.paymentMethod}
                 onChange={e => setBillData({ ...billData, paymentMethod: e.target.value })}
@@ -2977,7 +2932,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">12. Ref / Cheque No.</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">9. Ref / Cheque No.</label>
               <input
                 type="text"
                 value={billData.referenceNumber}
@@ -2989,7 +2944,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">13. Notes / Remarks</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">10. Notes / Remarks</label>
             <input
               type="text"
               value={billData.notes}

@@ -26,7 +26,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
     siteLocationId: locationId.toString(),
     teamId: "",
     notes: "",
-    items: [{ materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }]
+    items: [{ materialId: "", quantity: "", unit: "", rate: "0", taxPercentage: "18" }]
   });
 
   const loadData = async (isBackground = false) => {
@@ -60,7 +60,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   const addItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }]
+      items: [...formData.items, { materialId: "", quantity: "", unit: "", rate: "0", taxPercentage: "18" }]
     });
   };
 
@@ -68,14 +68,18 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
     
-    // Auto-update unit if material changes
+    // Auto-update unit and rate if material changes
     if (field === "materialId") {
       const mat = materials.find(m => m.id.toString() === value);
-      if (mat && mat.defaultUnit) {
-        newItems[index].unit = mat.defaultUnit;
-      }
-      if (mat && mat.defaultRate && (!newItems[index].rate || newItems[index].rate === "0")) {
-        newItems[index].rate = String(mat.defaultRate);
+      if (mat) {
+        newItems[index].unit = mat.defaultUnit || mat.unit || 'Nos';
+        const activeRate = (mat.defaultRate && parseFloat(mat.defaultRate) > 0)
+          ? String(mat.defaultRate)
+          : (mat.rate && parseFloat(mat.rate) > 0 ? String(mat.rate) : "0");
+        newItems[index].rate = activeRate;
+      } else {
+        newItems[index].unit = "";
+        newItems[index].rate = "0";
       }
     }
     
@@ -178,13 +182,16 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
           date: formData.date,
           teamId: formData.teamId ? parseInt(formData.teamId) : null,
           notes: formData.notes,
-          items: validItems.map(i => ({
-            materialId: parseInt(i.materialId),
-            quantity: parseFloat(i.quantity),
-            unit: i.unit || 'Nos',
-            rate: parseFloat(i.rate) || 0,
-            taxPercentage: parseFloat(i.taxPercentage) || 0
-          }))
+          items: validItems.map(i => {
+            const mat = materials.find(m => m.id.toString() === i.materialId);
+            return {
+              materialId: parseInt(i.materialId),
+              quantity: parseFloat(i.quantity),
+              unit: i.unit || mat?.defaultUnit || mat?.unit || 'Nos',
+              rate: parseFloat(i.rate) || 0,
+              taxPercentage: parseFloat(i.taxPercentage) || 0
+            };
+          })
         }),
       });
       triggerSync("site_supplies");
@@ -208,7 +215,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       siteLocationId: locationId.toString(),
       teamId: "",
       notes: "",
-      items: [{ materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }]
+      items: [{ materialId: "", quantity: "", unit: "", rate: "0", taxPercentage: "18" }]
     });
   };
 
@@ -557,6 +564,8 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
             <div className="p-3 space-y-3 bg-white">
                {formData.items.map((item, index) => {
                  const computed = modalCalculations.computedItems[index] || { subtotal: 0, itemTax: 0, itemTotal: 0 };
+                 const selMat = materials.find(m => m.id.toString() === item.materialId);
+                 const detectedUnit = (selMat ? (selMat.defaultUnit || selMat.unit) : '') || item.unit || (item.materialId ? 'Nos' : '');
 
                  return (
                    <div key={index} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
@@ -581,10 +590,28 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                        <div className="sm:col-span-5">
                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Material (મટીરીયલ) *</label>
-                         <select required value={item.materialId} onChange={e => updateItem(index, 'materialId', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800">
-                           <option value="">- Select Material -</option>
-                           {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                         <select 
+                           required 
+                           value={item.materialId} 
+                           onChange={e => updateItem(index, 'materialId', e.target.value)} 
+                           className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-500"
+                         >
+                           <option value="">- Select Material (મટીરીયલ) -</option>
+                           {materials.map(m => {
+                             const r = parseFloat(m.defaultRate || m.rate || '0');
+                             return (
+                               <option key={m.id} value={m.id}>
+                                 {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || m.unit || 'Nos'}{r > 0 ? ` • ₹${r}/${m.defaultUnit || m.unit || 'Nos'}` : ''})
+                               </option>
+                             );
+                           })}
                          </select>
+                         {item.materialId && (
+                           <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                             <span>📦 Stock: {selMat?.currentStock ?? 0} {detectedUnit || 'Nos'}</span>
+                             <span>🏷️ Rate: ₹{parseFloat(selMat?.defaultRate || selMat?.rate || '0')} / {detectedUnit || 'Nos'}</span>
+                           </div>
+                         )}
                        </div>
                        <div className="grid grid-cols-4 sm:col-span-7 gap-2">
                          <div>
@@ -592,12 +619,30 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                            <input type="number" step="any" inputMode="decimal" required placeholder="0.00" value={item.quantity} onChange={e => updateItem(index, 'quantity', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-teal-800" />
                          </div>
                          <div>
-                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Unit</label>
-                           <input type="text" placeholder="Unit" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs" />
+                           <div className="flex items-center justify-between mb-1">
+                             <label className="block text-[11px] font-bold text-slate-600">Unit (એકમ)</label>
+                             <span className="text-[9px] font-semibold text-teal-700 bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
+                               Auto
+                             </span>
+                           </div>
+                           <input 
+                             type="text" 
+                             readOnly
+                             tabIndex={-1}
+                             placeholder="Auto" 
+                             value={detectedUnit} 
+                             className="w-full bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-700 cursor-not-allowed select-none focus:outline-none" 
+                             title="Stock measurement parthi automatic detect thay che (Auto-detected from stock)" 
+                           />
                          </div>
                          <div>
-                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Rate (ભાવ ₹)</label>
-                           <input type="number" step="any" inputMode="decimal" placeholder="0.00" value={item.rate} onChange={e => updateItem(index, 'rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-700" />
+                           <div className="flex items-center justify-between mb-1">
+                             <label className="block text-[11px] font-bold text-slate-600">Rate (ભાવ ₹)</label>
+                             <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                               Auto
+                             </span>
+                           </div>
+                           <input type="number" step="any" inputMode="decimal" placeholder="0.00" value={item.rate} onChange={e => updateItem(index, 'rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-teal-500" />
                          </div>
                          <div>
                            <label className="block text-[11px] font-bold text-slate-600 mb-1">GST %</label>

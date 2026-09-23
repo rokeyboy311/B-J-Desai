@@ -445,10 +445,6 @@ export default function MaterialsPage() {
   // Handlers for Material Purchase Submit
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!purchaseForm.locationId) {
-      alert("મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select location");
-      return;
-    }
     if (!purchaseForm.materialName || !purchaseForm.quantity || !purchaseForm.rate) {
       alert("મહેરબાની કરીને મટિરિયલનું નામ, જથ્થો અને ભાવ ભરો / Please fill material name, qty & rate");
       return;
@@ -474,7 +470,7 @@ export default function MaterialsPage() {
       await apiFetch(url, {
         method,
         body: JSON.stringify({
-          locationId: parseInt(purchaseForm.locationId, 10),
+          locationId: purchaseForm.locationId ? parseInt(purchaseForm.locationId, 10) : null,
           date: purchaseForm.date,
           partyName: purchaseForm.partyName || "General Vendor",
           materialName: purchaseForm.materialName,
@@ -494,7 +490,7 @@ export default function MaterialsPage() {
         })
       });
 
-      showToast(editingItem ? "મટિરિયલ ખરીદી રેકોર્ડ અપડેટ થયો!" : "નવી મટિરિયલ ખરીદી ઇન્વેસ્ટર મૂડીમાંથી સફળતાપૂર્વક નોંધાઈ!", "success");
+      showToast(editingItem ? "મટિરિયલ ખરીદી રેકોર્ડ અપડેટ થયો!" : "નવી મટિરિયલ ખરીદી સેન્ટ્રલ ઇન્વેન્ટરીમાં સફળતાપૂર્વક નોંધાઈ!", "success");
       setIsPurchaseModalOpen(false);
       setEditingItem(null);
       fetchData();
@@ -2012,37 +2008,24 @@ export default function MaterialsPage() {
             </div>
 
             <form onSubmit={handlePurchaseSubmit} className="space-y-4 text-xs font-semibold">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Central Inventory Notice */}
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center gap-2.5 text-blue-900 shadow-2xs">
+                <Package className="w-5 h-5 text-blue-600 shrink-0" />
                 <div>
-                  <label className="text-slate-700 block mb-1 font-bold">Project Location *</label>
-                  <select
-                    value={purchaseForm.locationId}
-                    onChange={e => setPurchaseForm({ ...purchaseForm, locationId: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    required
-                  >
-                    <option value="">-- Choose Location --</option>
-                    {purchaseForm.locationId && !locations.some(loc => loc.id.toString() === purchaseForm.locationId.toString()) && (
-                      <option value={purchaseForm.locationId}>
-                        {editingItem?.locationName || `Location #${purchaseForm.locationId}`} (Archived/Deleted)
-                      </option>
-                    )}
-                    {locations.map(loc => (
-                      <option key={loc.id} value={loc.id}>{loc.name}</option>
-                    ))}
-                  </select>
+                  <span className="font-bold block text-blue-950">સેન્ટ્રલ ઇન્વેન્ટરી (Central Inventory for all sites)</span>
+                  <span className="text-[11px] text-blue-700 font-medium">આ ખરીદી આપોઆપ સેન્ટ્રલ સ્ટોકમાં નોંધાશે અને બધી સાઇટ માટે ઉપલબ્ધ રહેશે.</span>
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold">Purchase Date *</label>
-                  <input
-                    type="date"
-                    value={purchaseForm.date}
-                    onChange={e => setPurchaseForm({ ...purchaseForm, date: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">Purchase Date *</label>
+                <input
+                  type="date"
+                  value={purchaseForm.date}
+                  onChange={e => setPurchaseForm({ ...purchaseForm, date: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                  required
+                />
               </div>
 
               <div>

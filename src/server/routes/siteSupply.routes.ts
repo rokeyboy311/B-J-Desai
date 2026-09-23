@@ -186,6 +186,9 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
         if (existing.length > 0) {
           matId = existing[0].id;
           unit = existing[0].defaultUnit || unit;
+          if (rate <= 0 && existing[0].defaultRate && parseFloat(existing[0].defaultRate) > 0) {
+            rate = parseFloat(existing[0].defaultRate);
+          }
         } else {
           const created = await db.insert(materials).values({
             userId,
@@ -202,6 +205,25 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
       }
 
       if (matId && !isNaN(matId)) {
+        const matRecord = await db.select().from(materials).where(eq(materials.id, matId)).limit(1);
+        if (matRecord.length > 0) {
+          if (matRecord[0].defaultUnit) unit = matRecord[0].defaultUnit;
+          if (rate <= 0 && matRecord[0].defaultRate && parseFloat(matRecord[0].defaultRate) > 0) {
+            rate = parseFloat(matRecord[0].defaultRate);
+          }
+        }
+        // If rate is still 0, check latest purchase
+        if (rate <= 0) {
+          const lp = await db.execute(sql`
+            SELECT rate FROM material_purchases 
+            WHERE (material_id = ${matId} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${matName})))
+              AND is_deleted = 0 AND rate IS NOT NULL AND CAST(rate AS numeric) > 0
+            ORDER BY date DESC, id DESC LIMIT 1
+          `);
+          if (lp.rows[0]?.rate) {
+            rate = parseFloat(String(lp.rows[0].rate));
+          }
+        }
         resolvedItems.push({
           ...rawItem,
           materialId: matId,
@@ -354,7 +376,6 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       if ((!matId || isNaN(matId)) && matName) {
         const existing = await db.select().from(materials).where(
           and(
-            eq(materials.locationId, locId),
             sql`UPPER(TRIM(${materials.name})) = ${matName}`,
             eq(materials.isDeleted, 0)
           )
@@ -363,6 +384,9 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
         if (existing.length > 0) {
           matId = existing[0].id;
           unit = existing[0].defaultUnit || unit;
+          if (rate <= 0 && existing[0].defaultRate && parseFloat(existing[0].defaultRate) > 0) {
+            rate = parseFloat(existing[0].defaultRate);
+          }
         } else {
           const created = await db.insert(materials).values({
             userId,
@@ -379,6 +403,24 @@ siteSupplyRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       }
 
       if (matId && !isNaN(matId)) {
+        const matRecord = await db.select().from(materials).where(eq(materials.id, matId)).limit(1);
+        if (matRecord.length > 0) {
+          if (matRecord[0].defaultUnit) unit = matRecord[0].defaultUnit;
+          if (rate <= 0 && matRecord[0].defaultRate && parseFloat(matRecord[0].defaultRate) > 0) {
+            rate = parseFloat(matRecord[0].defaultRate);
+          }
+        }
+        if (rate <= 0) {
+          const lp = await db.execute(sql`
+            SELECT rate FROM material_purchases 
+            WHERE (material_id = ${matId} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${matName})))
+              AND is_deleted = 0 AND rate IS NOT NULL AND CAST(rate AS numeric) > 0
+            ORDER BY date DESC, id DESC LIMIT 1
+          `);
+          if (lp.rows[0]?.rate) {
+            rate = parseFloat(String(lp.rows[0].rate));
+          }
+        }
         resolvedItems.push({
           ...rawItem,
           materialId: matId,

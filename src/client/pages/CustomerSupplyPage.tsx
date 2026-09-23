@@ -18,6 +18,7 @@ export default function CustomerSupplyPage() {
   const [selectedLocation, setSelectedLocation] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [materials, setMaterials] = useState<any[]>([]);
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,6 +29,7 @@ export default function CustomerSupplyPage() {
     locationId: "",
     date: new Date().toISOString().split("T")[0],
     partyName: "",
+    materialId: "",
     materialName: "",
     quantity: "",
     unit: "Nos",
@@ -40,13 +42,15 @@ export default function CustomerSupplyPage() {
   const loadData = async (isBackground = false) => {
     try {
       if (!isBackground && supplies.length === 0) setLoading(true);
-      const [suppliesData, locsData] = await Promise.all([
+      const [suppliesData, locsData, matsData] = await Promise.all([
         apiFetch(`/materials/supply`).catch(() => []),
-        apiFetch("/locations").catch(() => [])
+        apiFetch("/locations").catch(() => []),
+        apiFetch("/master/materials").catch(() => [])
       ]);
 
       if (Array.isArray(suppliesData)) setSupplies(suppliesData);
       if (Array.isArray(locsData)) setLocations(locsData);
+      if (Array.isArray(matsData)) setMaterials(matsData);
     } catch (err) {
       console.error("Failed to load customer supplies:", err);
     } finally {
@@ -100,6 +104,7 @@ export default function CustomerSupplyPage() {
         locationId: parseInt(formData.locationId, 10),
         date: formData.date,
         partyName: formData.partyName.trim(),
+        materialId: formData.materialId ? parseInt(formData.materialId, 10) : null,
         materialName: formData.materialName.trim().toUpperCase(),
         quantity: qty,
         unit: formData.unit,
@@ -164,6 +169,7 @@ export default function CustomerSupplyPage() {
               locationId: locations[0]?.id?.toString() || "",
               date: new Date().toISOString().split("T")[0],
               partyName: "",
+              materialId: "",
               materialName: "",
               quantity: "",
               unit: "Nos",
@@ -404,24 +410,73 @@ export default function CustomerSupplyPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Material Name *</label>
-              <input
-                type="text"
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Material (મટીરીયલ) *</label>
+              <select
                 required
-                placeholder="Cement / Steel / Bricks"
-                value={formData.materialName}
-                onChange={(e) => setFormData({ ...formData, materialName: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold uppercase"
-              />
+                value={formData.materialId}
+                onChange={(e) => {
+                  const matId = e.target.value;
+                  const sel = materials.find(m => m.id.toString() === matId);
+                  if (sel) {
+                    const activeRate = (sel.defaultRate && parseFloat(sel.defaultRate) > 0)
+                      ? String(sel.defaultRate)
+                      : (sel.rate && parseFloat(sel.rate) > 0 ? String(sel.rate) : "0");
+                    setFormData(prev => ({
+                      ...prev,
+                      materialId: matId,
+                      materialName: sel.name,
+                      unit: sel.defaultUnit || sel.unit || "Nos",
+                      rate: activeRate
+                    }));
+                  } else {
+                    setFormData(prev => ({
+                      ...prev,
+                      materialId: "",
+                      materialName: "",
+                      unit: "Nos",
+                      rate: ""
+                    }));
+                  }
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Select Material (મટીરીયલ પસંદ કરો) --</option>
+                {materials.map((m) => {
+                  const r = parseFloat(m.defaultRate || m.rate || '0');
+                  return (
+                    <option key={m.id} value={m.id}>
+                      {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || m.unit || 'Nos'}{r > 0 ? ` • ₹${r}/${m.defaultUnit || m.unit || 'Nos'}` : ''})
+                    </option>
+                  );
+                })}
+              </select>
+              {formData.materialId && (
+                <div className="mt-1 flex items-center justify-between text-[11px] font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                  {(() => {
+                    const sel = materials.find(m => m.id.toString() === formData.materialId);
+                    const stock = sel?.currentStock ?? 0;
+                    return (
+                      <>
+                        <span className={stock > 0 ? "text-emerald-700 font-extrabold" : "text-rose-600 font-extrabold"}>
+                          📦 Stock: {stock} {formData.unit}
+                        </span>
+                        <span className="text-slate-600">
+                          🏷️ Rate: ₹{parseFloat(sel?.defaultRate || sel?.rate || '0')} / {formData.unit}
+                        </span>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Qty *</label>
               <input
                 type="number"
-                step="0.01"
+                step="any"
                 required
                 placeholder="500"
                 value={formData.quantity}
@@ -431,15 +486,37 @@ export default function CustomerSupplyPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Rate *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase">Unit (એકમ)</label>
+                <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200">
+                  Auto
+                </span>
+              </div>
+              <input
+                type="text"
+                readOnly
+                tabIndex={-1}
+                value={formData.unit}
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold text-slate-700 cursor-not-allowed select-none"
+                title="Stock measurement parthi automatic detect thay che (Auto-detected from stock)"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase">Rate (ભાવ ₹) *</label>
+                <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                  Auto
+                </span>
+              </div>
               <input
                 type="number"
-                step="0.01"
+                step="any"
                 required
-                placeholder="400"
+                placeholder="0.00"
                 value={formData.rate}
                 onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
               />
             </div>
 

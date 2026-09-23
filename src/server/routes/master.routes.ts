@@ -1,11 +1,11 @@
 import express from 'express';
-import { db } from '../../db/index.js';
-import { parties, labourTeams, materials, labourMaster } from '../../db/schema.js';
+import { db } from '../../db/index.ts';
+import { parties, labourTeams, materials, labourMaster } from '../../db/schema.ts';
 import { eq, and, or, sql } from 'drizzle-orm';
-import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { auditLogs } from '../../db/schema.js';
-import { realtimeSync } from '../lib/realtimeSync.js';
-import { assertLocationAccess } from '../lib/locationAuth.js';
+import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { auditLogs } from '../../db/schema.ts';
+import { realtimeSync } from '../lib/realtimeSync.ts';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
 
 const masterRouter = express.Router();
 masterRouter.use(requireAuth);
@@ -240,13 +240,19 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
         const inRes = await db.execute(sql`
           SELECT COALESCE(SUM(CAST(quantity AS numeric)), 0) as total
           FROM stock_ledger
-          WHERE material_id = ${m.id} AND transaction_type = 'IN' AND is_deleted = 0
+          WHERE (material_id = ${m.id} OR material_id IN (
+            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
+          )) AND transaction_type = 'IN' AND is_deleted = 0
+          ${locationId ? sql`AND location_id = ${locationId}` : sql``}
         `);
 
         const outRes = await db.execute(sql`
           SELECT COALESCE(SUM(ABS(CAST(quantity AS numeric))), 0) as total
           FROM stock_ledger
-          WHERE material_id = ${m.id} AND transaction_type = 'OUT' AND is_deleted = 0
+          WHERE (material_id = ${m.id} OR material_id IN (
+            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
+          )) AND transaction_type = 'OUT' AND is_deleted = 0
+          ${locationId ? sql`AND location_id = ${locationId}` : sql``}
         `);
 
         const totalInward = parseFloat(inRes.rows[0]?.total as string || '0');
@@ -261,8 +267,69 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
           status = 'LOW_STOCK';
         }
 
+        let resolvedUnit = '';
+        let resolvedRate = 0;
+
+        // 1. Authoritative: check latest purchase for this material (material purchase defines unit and true purchase rate)
+        const latestPurchase = await db.execute(sql`
+          SELECT unit, rate FROM material_purchases 
+          WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
+            AND is_deleted = 0 
+          ORDER BY date DESC, id DESC LIMIT 1
+        `);
+
+        if (latestPurchase.rows[0]?.unit && String(latestPurchase.rows[0].unit).trim().toLowerCase() !== 'unit') {
+          resolvedUnit = String(latestPurchase.rows[0].unit).trim();
+        } else if (m.defaultUnit && m.defaultUnit.trim() && m.defaultUnit.trim().toLowerCase() !== 'unit') {
+          resolvedUnit = m.defaultUnit.trim();
+        } else {
+          const latestSupply = await db.execute(sql`
+            SELECT unit FROM material_supplies 
+            WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
+              AND is_deleted = 0 
+              AND unit IS NOT NULL AND TRIM(unit) != '' AND LOWER(TRIM(unit)) != 'unit'
+            ORDER BY date DESC, id DESC LIMIT 1
+          `);
+          if (latestSupply.rows[0]?.unit) {
+            resolvedUnit = String(latestSupply.rows[0].unit).trim();
+          }
+        }
+        if (!resolvedUnit) resolvedUnit = 'Nos';
+
+        // Resolve rate: purchase rate > master defaultRate > latest supply rate
+        if (latestPurchase.rows[0]?.rate && parseFloat(String(latestPurchase.rows[0].rate)) > 0) {
+          resolvedRate = parseFloat(String(latestPurchase.rows[0].rate));
+        } else if (m.defaultRate && parseFloat(m.defaultRate) > 0) {
+          resolvedRate = parseFloat(m.defaultRate);
+        } else {
+          const latestSupplyRate = await db.execute(sql`
+            SELECT rate FROM material_supplies 
+            WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
+              AND is_deleted = 0 
+              AND rate IS NOT NULL AND CAST(rate AS numeric) > 0
+            ORDER BY date DESC, id DESC LIMIT 1
+          `);
+          if (latestSupplyRate.rows[0]?.rate) {
+            resolvedRate = parseFloat(String(latestSupplyRate.rows[0].rate));
+          }
+        }
+
+        // Auto-sync defaultUnit and defaultRate in database if different or newly resolved
+        const shouldUpdateUnit = m.defaultUnit !== resolvedUnit;
+        const shouldUpdateRate = resolvedRate > 0 && (!m.defaultRate || parseFloat(m.defaultRate) === 0 || m.defaultRate !== resolvedRate.toString());
+        if (shouldUpdateUnit || shouldUpdateRate) {
+          await db.update(materials).set({ 
+            defaultUnit: resolvedUnit,
+            ...(resolvedRate > 0 ? { defaultRate: resolvedRate.toString() } : {})
+          }).where(eq(materials.id, m.id));
+        }
+
         return {
           ...m,
+          defaultUnit: resolvedUnit,
+          unit: resolvedUnit,
+          defaultRate: resolvedRate.toString(),
+          rate: resolvedRate,
           totalInward,
           totalOutward,
           currentStock,
@@ -308,7 +375,7 @@ masterRouter.post('/materials', async (req: AuthRequest, res) => {
       locationId: locId, 
       userId,
       category: category || null, 
-      defaultUnit: defaultUnit || 'Unit', 
+      defaultUnit: (defaultUnit && String(defaultUnit).trim().toLowerCase() !== 'unit') ? String(defaultUnit).trim() : 'Nos', 
       defaultRate: defaultRate ? String(defaultRate) : '0.00', 
       minStock: minStock ? String(minStock) : '0.00', 
       notes: notes || null

@@ -156,11 +156,15 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
     // Auto-update unit & default rate if material changes
     if (field === "materialId") {
       const mat = materials.find(m => m.id.toString() === value);
-      if (mat && mat.defaultUnit) {
-        newItems[index].unit = mat.defaultUnit;
-      }
-      if (mat && mat.defaultRate && (!newItems[index].rate || newItems[index].rate === "0")) {
-        newItems[index].rate = String(mat.defaultRate);
+      if (mat) {
+        newItems[index].unit = mat.defaultUnit || mat.unit || 'Nos';
+        const activeRate = (mat.defaultRate && parseFloat(mat.defaultRate) > 0)
+          ? String(mat.defaultRate)
+          : (mat.rate && parseFloat(mat.rate) > 0 ? String(mat.rate) : "0");
+        newItems[index].rate = activeRate;
+      } else {
+        newItems[index].unit = "";
+        newItems[index].rate = "0";
       }
     }
     
@@ -516,13 +520,16 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
           date: siteFormData.date,
           teamId: siteFormData.teamId ? parseInt(siteFormData.teamId) : null,
           notes: siteFormData.notes,
-          items: validItems.map(i => ({
-            materialId: parseInt(i.materialId),
-            quantity: parseFloat(i.quantity),
-            unit: i.unit || 'Nos',
-            rate: parseFloat(i.rate) || 0,
-            taxPercentage: parseFloat(i.taxPercentage) || 0
-          }))
+          items: validItems.map(i => {
+            const mat = materials.find(m => m.id.toString() === i.materialId);
+            return {
+              materialId: parseInt(i.materialId),
+              quantity: parseFloat(i.quantity),
+              unit: i.unit || mat?.defaultUnit || mat?.unit || 'Nos',
+              rate: parseFloat(i.rate) || 0,
+              taxPercentage: parseFloat(i.taxPercentage) || 0
+            };
+          })
         }),
       });
       triggerSync("site_supplies");
@@ -1127,13 +1134,18 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                 onChange={(e) => {
                   const matId = e.target.value;
                   const matched = materials.find(m => m.id.toString() === matId);
-                  setCustomerFormData(prev => ({ 
-                    ...prev, 
-                    materialId: matId,
-                    materialName: matched ? matched.name : "",
-                    unit: matched?.defaultUnit || prev.unit || "Nos",
-                    rate: matched?.defaultRate ? String(matched.defaultRate) : prev.rate
-                  }));
+                  setCustomerFormData(prev => {
+                    const activeRate = (matched?.defaultRate && parseFloat(matched.defaultRate) > 0)
+                      ? String(matched.defaultRate)
+                      : (matched?.rate && parseFloat(matched.rate) > 0 ? String(matched.rate) : prev.rate);
+                    return { 
+                      ...prev, 
+                      materialId: matId,
+                      materialName: matched ? matched.name : "",
+                      unit: matched?.defaultUnit || matched?.unit || prev.unit || "Nos",
+                      rate: activeRate
+                    };
+                  });
                 }}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
               >
@@ -1404,15 +1416,21 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                           <option value="">- Select Material (મટીરીયલ) -</option>
                           {materials.map(m => (
                             <option key={m.id} value={m.id}>
-                              {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || 'Nos'})
+                              {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || m.unit || 'Nos'})
                             </option>
                           ))}
                         </select>
                         {item.materialId && (
-                          <div className="mt-1 text-[10px] font-bold text-teal-700">
+                          <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-teal-700 bg-teal-50/70 px-2 py-0.5 rounded border border-teal-100">
                             {(() => {
                               const selMat = materials.find(m => m.id.toString() === item.materialId);
-                              return `Available: ${selMat?.currentStock ?? 0} ${selMat?.defaultUnit || 'Nos'}`;
+                              const detUnit = (selMat ? (selMat.defaultUnit || selMat.unit) : '') || item.unit || 'Nos';
+                              return (
+                                <>
+                                  <span>Stock: {selMat?.currentStock ?? 0} {detUnit}</span>
+                                  <span className="text-slate-500 font-medium">Unit: {detUnit}</span>
+                                </>
+                              );
                             })()}
                           </div>
                         )}
@@ -1432,13 +1450,20 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">Unit</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[11px] font-bold text-slate-600">Unit (એકમ)</label>
+                            <span className="text-[9px] font-semibold text-teal-700 bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
+                              Auto
+                            </span>
+                          </div>
                           <input
                             type="text"
-                            placeholder="Unit"
-                            value={item.unit}
-                            onChange={e => updateSiteItem(index, 'unit', e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs"
+                            readOnly
+                            tabIndex={-1}
+                            placeholder="Auto"
+                            value={(item.materialId ? (materials.find(m => m.id.toString() === item.materialId)?.defaultUnit || materials.find(m => m.id.toString() === item.materialId)?.unit || item.unit || 'Nos') : (item.unit || ''))}
+                            className="w-full bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-700 cursor-not-allowed select-none focus:outline-none"
+                            title="Stock measurement parthi automatic detect thay che (Auto-detected from stock)"
                           />
                         </div>
                         <div>

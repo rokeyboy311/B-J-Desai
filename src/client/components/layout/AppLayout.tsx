@@ -10,10 +10,12 @@ import {
 import { PWAInstallButton } from "../PWAInstallButton";
 import { motion, AnimatePresence } from "motion/react";
 import { triggerGlobalSync } from "../../hooks/useLiveSync";
+import { useGoogleSync } from "../../contexts/GoogleSyncContext";
 import AppLogo from "../icons/AppLogo";
 
 export default function AppLayout() {
   const { logout, user } = useAuth();
+  const { isConnected, setIsModalOpen } = useGoogleSync();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -70,7 +72,7 @@ export default function AppLayout() {
         
         {/* Brand Logo Header */}
         <div className="p-5 flex items-center gap-3 border-b border-slate-800/80">
-          <div className="w-9 h-9 rounded-lg bg-white/10 p-1 flex items-center justify-center shrink-0 border border-white/20">
+          <div className="w-9 h-9 rounded-xl bg-white p-1 flex items-center justify-center shrink-0 shadow-sm border border-slate-200">
             <AppLogo />
           </div>
           <div>
@@ -103,6 +105,24 @@ export default function AppLayout() {
               System
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl font-medium text-xs transition-all relative cursor-pointer text-slate-300 hover:text-white hover:bg-white/5"
+          >
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet size={15} className="shrink-0 text-emerald-400" />
+              <span>Google Sheets Sync</span>
+            </div>
+            {isConnected ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            ) : (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
+                Live
+              </span>
+            )}
+          </button>
 
           {secondaryNav.map((item) => {
             const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -154,7 +174,24 @@ export default function AppLayout() {
           </div>
 
           {/* Right Admin Status */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Google Sheets Sync Pill */}
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
+                isConnected 
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' 
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+              }`}
+            >
+              <FileSpreadsheet size={15} className={isConnected ? "text-emerald-600" : "text-slate-500"} />
+              <span>{isConnected ? "Google Sheets Live" : "Connect Google Sheets"}</span>
+              {isConnected && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={handleManualSync}
@@ -180,7 +217,7 @@ export default function AppLayout() {
         {/* Mobile Header */}
         <header className="md:hidden bg-[#0B1D3A] text-white px-4 py-3 flex items-center justify-between z-30 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-white/10 p-1 border border-white/20 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-white p-1 border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
               <AppLogo />
             </div>
             <div>
@@ -188,6 +225,17 @@ export default function AppLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="p-1.5 text-emerald-400 hover:text-white rounded-lg cursor-pointer relative"
+              title="Google Sheets Live Sync"
+            >
+              <FileSpreadsheet size={18} />
+              {isConnected && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 absolute top-1 right-1"></span>
+              )}
+            </button>
             <button
               type="button"
               onClick={handleManualSync}

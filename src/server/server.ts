@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import cors from "cors";
-import { createServer as createViteServer } from "vite";
 import { errorHandler } from "./middleware/errorHandler.ts";
 import authRouter from "./routes/auth.routes.ts";
 import locationRouter from "./routes/location.routes.ts";
@@ -27,7 +27,7 @@ import { cleanupDeletedLocationsData } from "../db/locations.ts";
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = parseInt(process.env.PORT || "3000", 10);
 
   // Global uncaught exception and rejection protection for container stability
   process.on('uncaughtException', (err) => {
@@ -131,8 +131,35 @@ async function startServer() {
   // Register global error handler (must be after routes)
   app.use(errorHandler);
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Serve public directory assets (icons, manifest, svgs) directly
+  const publicPath = path.join(process.cwd(), 'public');
+  app.use(express.static(publicPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.svg') || filePath.endsWith('.png') || filePath.endsWith('.ico') || filePath.endsWith('.json')) {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      }
+    }
+  }));
+
+  // Vite middleware for development vs Production static serving
+  const isProduction = process.env.NODE_ENV === "production" || Boolean(process.env.K_SERVICE);
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (isProduction && hasDist) {
+    // Production static serving
+    app.use(express.static(distPath, { maxAge: '1h', index: false }));
+    app.use((req, res) => {
+      // Never send index.html for API routes or asset files
+      if (req.path.startsWith('/api') || req.path.startsWith('/assets') || /\.(js|css|json|png|jpg|jpeg|svg|ico|woff2?)$/i.test(req.path)) {
+        return res.status(404).send('Not Found');
+      }
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    // Development mode with Vite middleware
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { 
         middlewareMode: true,
@@ -142,13 +169,6 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    // Production static serving
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.use((req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {

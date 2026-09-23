@@ -126,9 +126,12 @@ investmentRouter.get('/global-investors', async (req: AuthRequest, res: Response
       return {
         ...inv,
         totalCapital,
+        totalContributed: totalCapital,
         totalUpad,
+        totalWithdrawn: totalUpad,
         totalAllocated,
         availableBalance,
+        availableCapital: availableBalance,
         transactions: txs,
         allocations: allocs
       };

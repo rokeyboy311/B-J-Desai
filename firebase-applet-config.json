@@ -1,12 +1,11 @@
 {
-  "projectId": "burnished-elevator-nlcf1",
-  "appId": "1:350817690265:web:650013ff94c40c5903ce08",
-  "apiKey": "AIzaSyBcTDjrZFXNNcgruoqo4EtzqITxKGCTsdI",
-  "authDomain": "burnished-elevator-nlcf1.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-ledgerflow-1869e1dd-8fa2-4fd2-b4f3-7d8a585cbc8a",
-  "storageBucket": "burnished-elevator-nlcf1.firebasestorage.app",
-  "messagingSenderId": "350817690265",
+  "projectId": "gen-lang-client-0827871316",
+  "appId": "1:139493895667:web:2e6650c20067d72942f686",
+  "apiKey": "AIzaSyAt36eE6Hx0AeHwYAmHiVMx_czQveVu3Tg",
+  "authDomain": "gen-lang-client-0827871316.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0827871316.firebasestorage.app",
+  "messagingSenderId": "139493895667",
   "measurementId": "",
-  "oAuthClientId": "350817690265-6q02gv0872v5ciuo9bkje1e9ghq5hudq.apps.googleusercontent.com",
+  "oAuthClientId": "139493895667-jb94t2caspcutvdbj9kugrh4r00kt1vd.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

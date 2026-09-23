@@ -9,7 +9,14 @@ import {
   contractorCosts, supervisorCosts, parties, stockLedger
 } from './schema.ts';
 
-export async function getLocationsWithRecordCount(_userId?: number) {
+export async function getLocationsWithRecordCount(_userId?: number, options?: { includeCentral?: boolean }) {
+  const whereCondition = options?.includeCentral
+    ? eq(locations.isDeleted, 0)
+    : and(
+        eq(locations.isDeleted, 0),
+        sql`LOWER(TRIM(${locations.name})) NOT IN ('central inventory for all sites', 'central inventory', 'central stock')`
+      );
+
   return await db
     .select({
       id: locations.id,
@@ -27,7 +34,7 @@ export async function getLocationsWithRecordCount(_userId?: number) {
         eq(records.isDeleted, 0)
       )
     )
-    .where(eq(locations.isDeleted, 0))
+    .where(whereCondition)
     .groupBy(locations.id)
     .orderBy(locations.name);
 }
@@ -68,6 +75,11 @@ export async function updateLocation(userId: number, locationId: number, name: s
 }
 
 export async function deleteLocation(userId: number, locationId: number) {
+  const target = await db.select().from(locations).where(eq(locations.id, locationId)).limit(1);
+  if (target.length && /central inventory/i.test(target[0].name)) {
+    throw new Error('Central Inventory system location cannot be deleted');
+  }
+
   const result = await db.update(locations)
     .set({ isDeleted: 1, updatedAt: new Date() })
     .where(and(eq(locations.id, locationId), eq(locations.isDeleted, 0)))
@@ -108,7 +120,8 @@ export async function deleteLocation(userId: number, locationId: number) {
  */
 export async function cleanupDeletedLocationsData() {
   try {
-    const deletedLocs = await db.select({ id: locations.id }).from(locations).where(eq(locations.isDeleted, 1));
+    const deletedLocs = await db.select({ id: locations.id }).from(locations)
+      .where(and(eq(locations.isDeleted, 1), sql`LOWER(TRIM(${locations.name})) NOT IN ('central inventory for all sites', 'central inventory', 'central stock')`));
     if (!deletedLocs.length) return;
     const deletedIds = deletedLocs.map(l => l.id).join(',');
     if (!deletedIds) return;

@@ -55,7 +55,7 @@ export default function DashboardPage() {
   // Calculate top KPI totals
   const totalAdminCap = adminSummary?.totalContributed || 0;
   const totalInvestorCap = locationsBreakdown.reduce((sum, loc) => sum + (loc.investorCapital || 0), 0);
-  const totalInvestmentCap = locationsBreakdown.reduce((sum, loc) => sum + (loc.billInvestment || 0), 0);
+  const totalInvestmentCap = locationsBreakdown.reduce((sum, loc) => sum + (loc.remainingInvestmentCapital ?? loc.cat2InvestmentCapital?.remainingCapital ?? loc.billInvestment ?? 0), 0);
   const totalStockVal = metrics?.stockSummary?.totalStockValuation || 0;
 
   // Find max location value for progress bar scaling
@@ -93,7 +93,7 @@ export default function DashboardPage() {
 
         {/* Investment Capital */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden">
-          <div className="text-xs font-semibold text-slate-500">Investment Capital</div>
+          <div className="text-xs font-semibold text-slate-500">Remaining Investment Capital</div>
           <div className="text-2xl font-black text-slate-900 mt-2 tabular-nums">
             {formatLakhOrCr(totalInvestmentCap)}
           </div>

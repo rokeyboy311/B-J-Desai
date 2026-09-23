@@ -1,4 +1,4 @@
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, or } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { 
   stockLedger, 
@@ -8,8 +8,67 @@ import {
   investorTransactions,
   investorLocationAllocations,
   materialPurchases,
-  locations
+  locations,
+  users
 } from '../../db/schema.ts';
+
+export const CENTRAL_LOCATION_NAME = 'Central Inventory for All Sites';
+
+/**
+ * Ensures the persistent Central Inventory system location exists and returns its location ID.
+ * This guarantees material purchases always have a valid, active Central Inventory destination
+ * that can never be lost, deleted, or fail location checks.
+ */
+export async function getOrCreateCentralLocation(userId?: number): Promise<number> {
+  try {
+    // 1. Check if Central Inventory location already exists
+    const existing = await db
+      .select({ id: locations.id, isDeleted: locations.isDeleted })
+      .from(locations)
+      .where(
+        or(
+          eq(locations.name, CENTRAL_LOCATION_NAME),
+          sql`LOWER(TRIM(${locations.name})) IN ('central inventory for all sites', 'central inventory', 'central stock')`
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      if (existing[0].isDeleted === 1) {
+        await db
+          .update(locations)
+          .set({ isDeleted: 0, updatedAt: new Date() })
+          .where(eq(locations.id, existing[0].id));
+      }
+      return existing[0].id;
+    }
+
+    // 2. Resolve a valid user ID for foreign key integrity
+    let validUserId = userId;
+    if (!validUserId) {
+      const userRow = await db.select({ id: users.id }).from(users).limit(1);
+      validUserId = userRow[0]?.id || 1;
+    }
+
+    // 3. Create persistent Central Inventory location
+    const created = await db
+      .insert(locations)
+      .values({
+        userId: validUserId,
+        name: CENTRAL_LOCATION_NAME,
+        address: 'Central Warehouse / All Sites Storage',
+        isDeleted: 0
+      })
+      .returning({ id: locations.id });
+
+    return created[0].id;
+  } catch (err) {
+    console.error('[Central Location Error]', err);
+    // Fallback: query any active location
+    const anyLoc = await db.select({ id: locations.id }).from(locations).where(eq(locations.isDeleted, 0)).limit(1);
+    return anyLoc[0]?.id || 1;
+  }
+}
 
 /**
  * Utility function to round numeric values to 2 decimal places (standard Indian currency precision)
@@ -720,6 +779,22 @@ export async function getAdminCapitalSummary(
  */
 export async function normalizeMaterialsAndStockDB(): Promise<void> {
   try {
+    // 0. Ensure Central Inventory for All Sites system location exists
+    const centralLocId = await getOrCreateCentralLocation();
+
+    // Reconcile purchase records and stock movements to Central Inventory
+    await db.execute(sql`
+      UPDATE material_purchases 
+      SET location_id = ${centralLocId} 
+      WHERE location_id IS NULL OR location_id NOT IN (SELECT id FROM locations WHERE is_deleted = 0);
+    `);
+
+    await db.execute(sql`
+      UPDATE stock_ledger 
+      SET location_id = ${centralLocId} 
+      WHERE reference_type = 'PURCHASE' AND (location_id IS NULL OR location_id != ${centralLocId});
+    `);
+
     // 1. Normalize all material names to UPPERCASE in master table
     await db.execute(sql`
       UPDATE materials 
@@ -812,70 +887,180 @@ export async function normalizeMaterialsAndStockDB(): Promise<void> {
       }
     }
 
-    // 4. Link unlinked material supplies
+    // 4. Link unlinked material supplies (Customer Supplies) and ensure stock movements exist
     const unlinkedSupplies = await db.execute(sql`
-      SELECT id, user_id, location_id, material_name, unit, rate, quantity
+      SELECT id, user_id, location_id, material_id, material_name, unit, rate, quantity
       FROM material_supplies
-      WHERE (material_id IS NULL OR material_id = 0) AND is_deleted = 0 AND material_name IS NOT NULL
+      WHERE is_deleted = 0 AND material_name IS NOT NULL
     `);
 
     for (const row of unlinkedSupplies.rows as any[]) {
       const cleanName = String(row.material_name || '').trim().toUpperCase();
       if (!cleanName) continue;
 
-      let mat = await db.select().from(materials).where(
-        and(
-          eq(materials.locationId, Number(row.location_id)),
-          sql`UPPER(TRIM(${materials.name})) = ${cleanName}`,
-          eq(materials.isDeleted, 0)
-        )
-      ).limit(1);
+      let matId = row.material_id ? Number(row.material_id) : 0;
+      if (!matId) {
+        const mat = await db.select().from(materials).where(
+          and(
+            sql`UPPER(TRIM(${materials.name})) = ${cleanName}`,
+            eq(materials.isDeleted, 0)
+          )
+        ).limit(1);
 
-      let matId: number;
-      if (mat.length > 0) {
-        matId = mat[0].id;
-      } else {
-        const created = await db.insert(materials).values({
-          userId: Number(row.user_id),
-          locationId: Number(row.location_id),
-          name: cleanName,
-          defaultUnit: row.unit || 'Unit',
-          defaultRate: String(row.rate || '0.00'),
-          minStock: '0.00',
-          isActive: 1,
-          isDeleted: 0
-        }).returning();
-        matId = created[0].id;
+        if (mat.length > 0) {
+          matId = mat[0].id;
+        } else {
+          const created = await db.insert(materials).values({
+            userId: Number(row.user_id),
+            locationId: Number(row.location_id) || 1,
+            name: cleanName,
+            defaultUnit: row.unit || 'Nos',
+            defaultRate: String(row.rate || '0.00'),
+            minStock: '0.00',
+            isActive: 1,
+            isDeleted: 0
+          }).returning();
+          matId = created[0].id;
+        }
+
+        await db.execute(sql`
+          UPDATE material_supplies 
+          SET material_id = ${matId}, material_name = ${cleanName}
+          WHERE id = ${row.id};
+        `);
       }
-
-      await db.execute(sql`
-        UPDATE material_supplies 
-        SET material_id = ${matId}, material_name = ${cleanName}
-        WHERE id = ${row.id};
-      `);
 
       const stockCheck = await db.select().from(stockLedger).where(
         and(
           eq(stockLedger.referenceId, Number(row.id)),
-          eq(stockLedger.referenceType, 'MATERIAL_SUPPLY')
+          sql`reference_type IN ('MATERIAL_SUPPLY', 'CUSTOMER_SUPPLY')`,
+          eq(stockLedger.isDeleted, 0)
         )
       );
       if (stockCheck.length === 0 && parseFloat(String(row.quantity || 0)) > 0) {
         await StockManager.addStockMovement(
           db,
           Number(row.user_id),
-          Number(row.location_id),
+          Number(row.location_id) || 1,
           matId,
           'OUT',
           parseFloat(String(row.quantity)),
           Number(row.id),
-          'MATERIAL_SUPPLY',
-          'Auto reconciled'
+          'CUSTOMER_SUPPLY',
+          'Auto reconciled customer supply'
         );
       }
     }
 
-    console.log('[Accounting] Material names normalized to UPPERCASE and stock reconciled.');
+    // 5. Ensure all active site_supply_items have OUT stock movements in stock_ledger
+    const siteSupplyRows = await db.execute(sql`
+      SELECT ssi.id as item_id, ssi.site_supply_id, ssi.material_id, ssi.quantity, 
+             ss.user_id, ss.location_id, m.name as mat_name
+      FROM site_supply_items ssi
+      JOIN site_supplies ss ON ssi.site_supply_id = ss.id
+      LEFT JOIN materials m ON ssi.material_id = m.id
+      WHERE ssi.is_deleted = 0 AND ss.is_deleted = 0 AND ssi.material_id IS NOT NULL AND ssi.material_id > 0
+    `);
+
+    for (const row of siteSupplyRows.rows as any[]) {
+      const q = parseFloat(String(row.quantity || 0));
+      if (q <= 0) continue;
+
+      const ledgerCheck = await db.select().from(stockLedger).where(
+        and(
+          eq(stockLedger.referenceId, Number(row.site_supply_id)),
+          eq(stockLedger.referenceType, 'SITE_SUPPLY'),
+          eq(stockLedger.materialId, Number(row.material_id)),
+          eq(stockLedger.isDeleted, 0)
+        )
+      );
+
+      if (ledgerCheck.length === 0) {
+        await StockManager.addStockMovement(
+          db,
+          Number(row.user_id),
+          Number(row.location_id) || 1,
+          Number(row.material_id),
+          'OUT',
+          q,
+          Number(row.site_supply_id),
+          'SITE_SUPPLY',
+          'Auto reconciled site supply'
+        );
+      }
+    }
+
+    // 6. Deduplicate materials table enterprise-wide by UPPER(TRIM(name))
+    const allMats = await db.select().from(materials).where(eq(materials.isDeleted, 0)).orderBy(materials.id);
+    const seenMap = new Map<string, number>();
+    for (const m of allMats) {
+      const clean = (m.name || '').trim().toUpperCase();
+      if (!clean) continue;
+      if (!seenMap.has(clean)) {
+        seenMap.set(clean, m.id);
+      } else {
+        const primaryId = seenMap.get(clean)!;
+        const duplicateId = m.id;
+        // Point references to primary material
+        await db.execute(sql`UPDATE material_purchases SET material_id = ${primaryId} WHERE material_id = ${duplicateId}`);
+        await db.execute(sql`UPDATE material_supplies SET material_id = ${primaryId} WHERE material_id = ${duplicateId}`);
+        await db.execute(sql`UPDATE site_supply_items SET material_id = ${primaryId} WHERE material_id = ${duplicateId}`);
+        await db.execute(sql`UPDATE stock_ledger SET material_id = ${primaryId} WHERE material_id = ${duplicateId}`);
+        await db.execute(sql`UPDATE materials SET is_deleted = 1 WHERE id = ${duplicateId}`);
+      }
+    }
+
+    // 7. Reconcile materials.default_unit with latest material_purchases unit
+    await db.execute(sql`
+      UPDATE materials m
+      SET default_unit = p.unit
+      FROM (
+        SELECT DISTINCT ON (material_id) material_id, unit
+        FROM material_purchases
+        WHERE material_id IS NOT NULL AND unit IS NOT NULL AND TRIM(unit) != '' AND LOWER(TRIM(unit)) != 'unit' AND is_deleted = 0
+        ORDER BY material_id, date DESC, id DESC
+      ) p
+      WHERE m.id = p.material_id AND (m.default_unit IS NULL OR m.default_unit != p.unit);
+    `);
+
+    await db.execute(sql`
+      UPDATE materials m
+      SET default_unit = p.unit
+      FROM (
+        SELECT DISTINCT ON (UPPER(TRIM(material_name))) UPPER(TRIM(material_name)) as mat_name, unit
+        FROM material_purchases
+        WHERE material_name IS NOT NULL AND unit IS NOT NULL AND TRIM(unit) != '' AND LOWER(TRIM(unit)) != 'unit' AND is_deleted = 0
+        ORDER BY UPPER(TRIM(material_name)), date DESC, id DESC
+      ) p
+      WHERE UPPER(TRIM(m.name)) = p.mat_name AND (m.default_unit IS NULL OR m.default_unit != p.unit);
+    `);
+
+    // 8. Reconcile materials.default_rate with latest material_purchases rate
+    await db.execute(sql`
+      UPDATE materials m
+      SET default_rate = p.rate::numeric
+      FROM (
+        SELECT DISTINCT ON (material_id) material_id, rate
+        FROM material_purchases
+        WHERE material_id IS NOT NULL AND rate IS NOT NULL AND rate::numeric > 0 AND is_deleted = 0
+        ORDER BY material_id, date DESC, id DESC
+      ) p
+      WHERE m.id = p.material_id AND (m.default_rate IS NULL OR m.default_rate = 0 OR m.default_rate != p.rate::numeric);
+    `);
+
+    await db.execute(sql`
+      UPDATE materials m
+      SET default_rate = p.rate::numeric
+      FROM (
+        SELECT DISTINCT ON (UPPER(TRIM(material_name))) UPPER(TRIM(material_name)) as mat_name, rate
+        FROM material_purchases
+        WHERE material_name IS NOT NULL AND rate IS NOT NULL AND rate::numeric > 0 AND is_deleted = 0
+        ORDER BY UPPER(TRIM(material_name)), date DESC, id DESC
+      ) p
+      WHERE UPPER(TRIM(m.name)) = p.mat_name AND (m.default_rate IS NULL OR m.default_rate = 0 OR m.default_rate != p.rate::numeric);
+    `);
+
+    console.log('[Accounting] Enterprise materials normalized, stock ledger auto-reconciled, and rates/units synchronized.');
   } catch (err) {
     console.error('[Accounting] Normalization error (non-fatal):', err);
   }

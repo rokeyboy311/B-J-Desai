@@ -26,7 +26,6 @@ export const PinScreen: React.FC = () => {
     try {
       const success = await unlockWithPin(value);
       if (!success) {
-        setLocalError('Incorrect PIN. Access Denied.');
         triggerShake();
         setPin('');
       }

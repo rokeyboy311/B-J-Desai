@@ -25,7 +25,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
   const [isManageMaterialOpen, setIsManageMaterialOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   
-  const [unitMode, setUnitMode] = useState<string>("Bags");
+  const [unitMode, setUnitMode] = useState<string>("Nos");
   const [customUnit, setCustomUnit] = useState<string>("");
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -174,6 +174,8 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
   const resetForm = () => {
     setEditingId(null);
+    setUnitMode("Nos");
+    setCustomUnit("");
     setFormData({
       date: new Date().toISOString().split("T")[0],
       partyName: "",
@@ -254,46 +256,55 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       lastMovement?: string;
     }>();
 
-    // 1. Seed with materials from master data
+    // 1. Seed with materials from master data, deduplicating by UPPERCASE name
     materials.forEach(m => {
-      const key = String(m.id);
-      summaryMap.set(key, {
-        materialId: m.id,
-        materialName: m.name,
-        unit: m.defaultUnit || "Unit",
-        category: m.category || "-",
-        purchasedQty: 0,
-        suppliedQty: 0,
-        currentStock: 0
-      });
+      const cleanName = (m.name || '').trim().toUpperCase();
+      if (!cleanName) return;
+      if (!summaryMap.has(cleanName)) {
+        summaryMap.set(cleanName, {
+          materialId: m.id,
+          materialName: cleanName,
+          unit: m.defaultUnit || m.unit || "Nos",
+          category: m.category || "-",
+          purchasedQty: 0,
+          suppliedQty: 0,
+          currentStock: 0
+        });
+      }
+    });
+
+    const idToName = new Map<number, string>();
+    materials.forEach(m => {
+      idToName.set(m.id, (m.name || '').trim().toUpperCase());
     });
 
     // 2. Process stock ledger entries (canonical single-source-of-truth)
     stockLedger.forEach((s: any) => {
-      let key = s.materialId ? String(s.materialId) : null;
-      let item = key ? summaryMap.get(key) : null;
-
-      if (!item && s.materialName) {
-        for (const [_, val] of summaryMap.entries()) {
-          if (val.materialName.toLowerCase().trim() === s.materialName.toLowerCase().trim()) {
-            item = val;
-            break;
-          }
-        }
+      let cleanName = '';
+      if (s.materialId && idToName.has(Number(s.materialId))) {
+        cleanName = idToName.get(Number(s.materialId))!;
+      } else if (s.materialName) {
+        cleanName = String(s.materialName).trim().toUpperCase();
       }
 
+      if (!cleanName) return;
+
+      let item = summaryMap.get(cleanName);
       if (!item) {
-        key = key || `name_${(s.materialName || 'item').toLowerCase().trim()}`;
         item = {
           materialId: s.materialId || undefined,
-          materialName: s.materialName || s.notes || "Material",
-          unit: s.unit || "Unit",
+          materialName: cleanName,
+          unit: s.unit || "Nos",
           category: "-",
           purchasedQty: 0,
           suppliedQty: 0,
           currentStock: 0
         };
-        summaryMap.set(key, item);
+        summaryMap.set(cleanName, item);
+      }
+
+      if (s.unit && s.unit.toLowerCase() !== 'unit' && (!item.unit || item.unit.toLowerCase() === 'unit')) {
+        item.unit = s.unit;
       }
 
       const qty = Math.abs(parseFloat(s.quantity) || 0);
@@ -326,6 +337,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
         map.set(String(item.materialId), { currentStock: item.currentStock, unit: item.unit });
       }
       map.set(item.materialName.toLowerCase().trim(), { currentStock: item.currentStock, unit: item.unit });
+      map.set(item.materialName.toUpperCase().trim(), { currentStock: item.currentStock, unit: item.unit });
     });
     return map;
   }, [stockSummary]);

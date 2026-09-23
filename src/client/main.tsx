@@ -12,13 +12,6 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-// Safely initialize global multi-device real-time sync
-try {
-  initRealtimeSyncManager();
-} catch (e) {
-  console.warn('Realtime sync manager init skipped:', e);
-}
-
 const rootElement = document.getElementById('root');
 if (rootElement) {
   try {
@@ -36,3 +29,12 @@ if (rootElement) {
 } else {
   console.error('Root DOM element #root not found in document.');
 }
+
+// Safely initialize global multi-device real-time sync after initial render
+setTimeout(() => {
+  try {
+    initRealtimeSyncManager();
+  } catch (e) {
+    console.warn('Realtime sync manager init skipped:', e);
+  }
+}, 100);

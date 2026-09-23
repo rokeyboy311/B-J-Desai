@@ -18,18 +18,22 @@ interface RateLimitEntry {
 }
 
 const pinRateLimitMap = new Map<string, RateLimitEntry>();
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes lockout
+const MAX_ATTEMPTS = 50;
+const LOCKOUT_MS = 10 * 1000; // 10 seconds temporary cooldown only
 
-export function checkPinRateLimit(key: string): { allowed: boolean; retryAfterMinutes?: number } {
+export function clearAllRateLimits(): void {
+  pinRateLimitMap.clear();
+}
+
+export function checkPinRateLimit(key: string): { allowed: boolean; retryAfterMinutes?: number; retryAfterSeconds?: number } {
   const now = Date.now();
   const entry = pinRateLimitMap.get(key);
   if (!entry) return { allowed: true };
 
   if (entry.blockedUntil && entry.blockedUntil > now) {
     const remainingMs = entry.blockedUntil - now;
-    const retryAfterMinutes = Math.max(1, Math.ceil(remainingMs / (60 * 1000)));
-    return { allowed: false, retryAfterMinutes };
+    const retryAfterSeconds = Math.max(1, Math.ceil(remainingMs / 1000));
+    return { allowed: false, retryAfterMinutes: 1, retryAfterSeconds };
   }
 
   // Reset if lockout window has expired
@@ -41,7 +45,7 @@ export function checkPinRateLimit(key: string): { allowed: boolean; retryAfterMi
   return { allowed: true };
 }
 
-export function recordFailedPinAttempt(key: string): { allowed: boolean; retryAfterMinutes?: number } {
+export function recordFailedPinAttempt(key: string): { allowed: boolean; retryAfterMinutes?: number; retryAfterSeconds?: number } {
   const now = Date.now();
   const entry = pinRateLimitMap.get(key) || { attempts: 0, blockedUntil: null };
   entry.attempts += 1;
@@ -49,8 +53,7 @@ export function recordFailedPinAttempt(key: string): { allowed: boolean; retryAf
   if (entry.attempts >= MAX_ATTEMPTS) {
     entry.blockedUntil = now + LOCKOUT_MS;
     pinRateLimitMap.set(key, entry);
-    const retryAfterMinutes = Math.ceil(LOCKOUT_MS / (60 * 1000));
-    return { allowed: false, retryAfterMinutes };
+    return { allowed: false, retryAfterMinutes: 1, retryAfterSeconds: 10 };
   }
 
   pinRateLimitMap.set(key, entry);

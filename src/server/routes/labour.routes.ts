@@ -1,10 +1,10 @@
 import { Router, Response } from 'express';
-import { db } from '../../db/index.js';
-import { labourSalaries, auditLogs, locations } from '../../db/schema.js';
+import { db } from '../../db/index.ts';
+import { labourSalaries, auditLogs, locations } from '../../db/schema.ts';
 import { eq, and, desc } from 'drizzle-orm';
-import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { assertLocationAccess } from '../lib/locationAuth.js';
-import { calculateLabourSalaryTotals } from '../lib/accounting.js';
+import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { assertLocationAccess } from '../lib/locationAuth.ts';
+import { calculateLabourSalaryTotals } from '../lib/accounting.ts';
 
 const labourRouter = Router();
 labourRouter.use(requireAuth);

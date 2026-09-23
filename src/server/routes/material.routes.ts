@@ -32,18 +32,31 @@ materialRouter.get('/central-stock', async (req: AuthRequest, res: Response) => 
 
     const allMaterials = await db.select().from(materials).where(eq(materials.isDeleted, 0)).orderBy(materials.name);
 
+    // Deduplicate materials by uppercase trimmed name so central inventory has clean 1:1 items
+    const seenNames = new Set<string>();
+    const uniqueMaterials = allMaterials.filter(m => {
+      const clean = (m.name || '').trim().toUpperCase();
+      if (!clean || seenNames.has(clean)) return false;
+      seenNames.add(clean);
+      return true;
+    });
+
     const stockSummary = await Promise.all(
-      allMaterials.map(async (m) => {
+      uniqueMaterials.map(async (m) => {
         const inRes = await db.execute(sql`
           SELECT COALESCE(SUM(CAST(quantity AS numeric)), 0) as total
           FROM stock_ledger
-          WHERE material_id = ${m.id} AND transaction_type = 'IN' AND is_deleted = 0
+          WHERE (material_id = ${m.id} OR material_id IN (
+            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
+          )) AND transaction_type = 'IN' AND is_deleted = 0
         `);
 
         const outRes = await db.execute(sql`
           SELECT COALESCE(SUM(ABS(CAST(quantity AS numeric))), 0) as total
           FROM stock_ledger
-          WHERE material_id = ${m.id} AND transaction_type = 'OUT' AND is_deleted = 0
+          WHERE (material_id = ${m.id} OR material_id IN (
+            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
+          )) AND transaction_type = 'OUT' AND is_deleted = 0
         `);
 
         const totalInward = parseFloat(inRes.rows[0]?.total as string || '0');
@@ -58,16 +71,41 @@ materialRouter.get('/central-stock', async (req: AuthRequest, res: Response) => 
           status = 'LOW_STOCK';
         }
 
+        // 1. Authoritative: check latest purchase for this material
+        const latestPurchase = await db.execute(sql`
+          SELECT unit, rate FROM material_purchases 
+          WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
+            AND is_deleted = 0 
+          ORDER BY date DESC, id DESC LIMIT 1
+        `);
+
+        let resolvedUnit = m.defaultUnit || 'Nos';
+        if (latestPurchase.rows[0]?.unit && String(latestPurchase.rows[0].unit).trim().toLowerCase() !== 'unit') {
+          resolvedUnit = String(latestPurchase.rows[0].unit).trim();
+        }
+
+        let resolvedRate = parseFloat(m.defaultRate || '0');
+        if (latestPurchase.rows[0]?.rate && parseFloat(String(latestPurchase.rows[0].rate)) > 0) {
+          resolvedRate = parseFloat(String(latestPurchase.rows[0].rate));
+        }
+
+        const stockValue = Math.round(Math.max(0, currentBalance) * resolvedRate * 100) / 100;
+
         return {
           id: m.id,
           name: m.name,
           category: m.category || 'General',
-          unit: m.defaultUnit || 'Unit',
-          rate: parseFloat(m.defaultRate || '0'),
+          unit: resolvedUnit,
+          rate: resolvedRate,
+          defaultRate: resolvedRate.toString(),
           minStock,
+          purchasedQty: totalInward,
           totalInward,
+          suppliedQty: totalOutward,
           totalOutward,
+          currentStock: currentBalance,
           currentBalance,
+          stockValue,
           status
         };
       })
@@ -164,22 +202,47 @@ materialRouter.get('/site-supplies-history', async (req: AuthRequest, res: Respo
   }
 });
 
+async function getOrCreateEnterpriseLocationId(txOrDb: any, userId: number): Promise<number> {
+  const existing = await txOrDb.select({ id: locations.id }).from(locations).where(eq(locations.isDeleted, 0)).limit(1);
+  if (existing.length > 0) {
+    return existing[0].id;
+  }
+  const created = await txOrDb.insert(locations).values({
+    userId,
+    name: "Central Site",
+    address: "Central Enterprise Inventory",
+    isDeleted: 0
+  }).returning({ id: locations.id });
+  return created[0].id;
+}
+
 async function resolveMaterialInfo(
   tx: any,
   userId: number,
-  locationId: number,
+  locationId: number | null | undefined,
   materialIdInput: any,
   materialNameInput: any,
   unitInput?: string,
   rateInput?: number
 ): Promise<{ id: number; name: string; unit: string } | null> {
-  const locId = parseInt(String(locationId), 10);
+  const locId = locationId ? parseInt(String(locationId), 10) : null;
   let matId = materialIdInput ? parseInt(String(materialIdInput), 10) : null;
+  const cleanUnit = (unitInput || '').trim();
+  const validUnit = cleanUnit && cleanUnit.toLowerCase() !== 'unit' ? cleanUnit : null;
 
   if (matId && !isNaN(matId)) {
     const existing = await tx.select().from(materials).where(and(eq(materials.id, matId), eq(materials.isDeleted, 0)));
     if (existing.length > 0) {
-      return { id: existing[0].id, name: (existing[0].name || '').trim().toUpperCase(), unit: existing[0].defaultUnit || unitInput || 'Unit' };
+      const activeUnit = validUnit || existing[0].defaultUnit || 'Nos';
+      const needUnitUpdate = validUnit && existing[0].defaultUnit !== validUnit;
+      const needRateUpdate = rateInput !== undefined && rateInput > 0 && (!existing[0].defaultRate || parseFloat(existing[0].defaultRate) === 0 || parseFloat(existing[0].defaultRate) !== rateInput);
+      if (needUnitUpdate || needRateUpdate) {
+        await tx.update(materials).set({ 
+          ...(needUnitUpdate ? { defaultUnit: validUnit } : {}),
+          ...(needRateUpdate && rateInput ? { defaultRate: rateInput.toString() } : {})
+        }).where(eq(materials.id, existing[0].id));
+      }
+      return { id: existing[0].id, name: (existing[0].name || '').trim().toUpperCase(), unit: activeUnit };
     }
   }
 
@@ -194,22 +257,41 @@ async function resolveMaterialInfo(
     ).limit(1);
 
     if (existingByName.length > 0) {
-      return { id: existingByName[0].id, name: existingByName[0].name.trim().toUpperCase(), unit: existingByName[0].defaultUnit || unitInput || 'Unit' };
+      const activeUnit = validUnit || existingByName[0].defaultUnit || 'Nos';
+      const needUnitUpdate = validUnit && existingByName[0].defaultUnit !== validUnit;
+      const needRateUpdate = rateInput !== undefined && rateInput > 0 && (!existingByName[0].defaultRate || parseFloat(existingByName[0].defaultRate) === 0 || parseFloat(existingByName[0].defaultRate) !== rateInput);
+      if (needUnitUpdate || needRateUpdate) {
+        await tx.update(materials).set({ 
+          ...(needUnitUpdate ? { defaultUnit: validUnit } : {}),
+          ...(needRateUpdate && rateInput ? { defaultRate: rateInput.toString() } : {})
+        }).where(eq(materials.id, existingByName[0].id));
+      }
+      return { id: existingByName[0].id, name: existingByName[0].name.trim().toUpperCase(), unit: activeUnit };
+    }
+
+    // Resolve valid location for material master creation
+    let validLocId = locId && !isNaN(locId) && locId > 0 ? locId : null;
+    if (validLocId) {
+      const locExists = await tx.select({ id: locations.id }).from(locations).where(and(eq(locations.id, validLocId), eq(locations.isDeleted, 0))).limit(1);
+      if (locExists.length === 0) validLocId = null;
+    }
+    if (!validLocId) {
+      validLocId = await getOrCreateEnterpriseLocationId(tx, userId);
     }
 
     // Automatically create master material in UPPERCASE so stock records stay consistent and deduplicated!
     const created = await tx.insert(materials).values({
       userId,
-      locationId: !isNaN(locId) && locId > 0 ? locId : 1,
+      locationId: validLocId,
       name: rawName,
-      defaultUnit: unitInput || 'Unit',
+      defaultUnit: validUnit || 'Nos',
       defaultRate: rateInput ? rateInput.toString() : '0.00',
       minStock: '0.00',
       isActive: 1,
       isDeleted: 0
     }).returning();
 
-    return { id: created[0].id, name: created[0].name.trim().toUpperCase(), unit: created[0].defaultUnit || unitInput || 'Unit' };
+    return { id: created[0].id, name: created[0].name.trim().toUpperCase(), unit: created[0].defaultUnit || 'Nos' };
   }
 
   return null;
@@ -421,14 +503,28 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
     
     if (type === 'purchase' || type === 'supply') {
       const data = req.body;
-      let locId = parseInt(String(data.locationId), 10);
-      if ((!locId || isNaN(locId)) && type === 'purchase') {
-        const anyLoc = await db.select({ id: locations.id }).from(locations).where(eq(locations.isDeleted, 0)).limit(1);
-        locId = anyLoc.length > 0 ? anyLoc[0].id : 1;
+      let locId = parseInt(String(data.locationId || data.purchaseLocationId || data.siteLocationId), 10);
+      
+      if (type === 'purchase') {
+        // Purchases are Central Enterprise-Wide Stock for all sites
+        if (!locId || isNaN(locId)) {
+          locId = await getOrCreateEnterpriseLocationId(db, userId);
+        } else {
+          // If a location was passed, make sure it exists, otherwise fall back to any active enterprise location
+          const valid = await db.select({ id: locations.id }).from(locations).where(and(eq(locations.id, locId), eq(locations.isDeleted, 0))).limit(1);
+          if (valid.length === 0) {
+            locId = await getOrCreateEnterpriseLocationId(db, userId);
+          }
+        }
         data.locationId = locId;
+      } else {
+        // Supplies (Customer or Site Supplies)
+        if (!locId || isNaN(locId)) {
+          locId = await getOrCreateEnterpriseLocationId(db, userId);
+        }
+        data.locationId = locId;
+        await assertLocationAccess(userId, locId);
       }
-      if (!locId || isNaN(locId)) return res.status(400).json({ error: 'locationId is required' });
-      await assertLocationAccess(userId, locId);
 
       const qty = parseFloat(String(data.quantity)) || 0;
       const rate = parseFloat(String(data.rate)) || 0;
@@ -452,17 +548,28 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
         let insertedId = 0;
         let record: any;
 
-        const matInfo = await resolveMaterialInfo(tx, userId, data.locationId, data.materialId, data.materialName, data.unit, rate);
+        const cleanUnit = (data.unit && String(data.unit).trim() && String(data.unit).trim().toLowerCase() !== 'unit') 
+          ? String(data.unit).trim() 
+          : undefined;
+
+        const matInfo = await resolveMaterialInfo(tx, userId, data.locationId, data.materialId, data.materialName, cleanUnit, rate);
         const finalMatId = matInfo ? matInfo.id : (data.materialId ? parseInt(String(data.materialId), 10) : null);
         const finalMatName = matInfo ? matInfo.name : (data.materialName || '');
-        const finalUnit = data.unit || (matInfo ? matInfo.unit : '') || 'Unit';
+        const finalUnit = cleanUnit || (matInfo ? matInfo.unit : '') || 'Nos';
         
         if (type === 'purchase') {
+          if (finalMatId && finalUnit) {
+            await tx.update(materials).set({ 
+              defaultUnit: finalUnit,
+              ...(rate > 0 ? { defaultRate: rate.toString() } : {})
+            }).where(eq(materials.id, finalMatId));
+          }
+
           const inserted = await tx.insert(materialPurchases).values({
             userId, 
             locationId: locId,
             date: data.date || new Date().toISOString().split('T')[0], 
-            partyName: data.partyName || 'Supplier', 
+            partyName: data.partyName || data.supplierName || 'Supplier', 
             materialName: finalMatName, 
             materialId: finalMatId,
             quantity: qty.toString(), 
@@ -623,9 +730,21 @@ materialRouter.put('/:type/:id', async (req: AuthRequest, res: Response) => {
     
     if (type === 'purchase' || type === 'supply') {
       const data = req.body;
-      const locationId = parseInt(String(data.locationId), 10);
-      if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
-      await assertLocationAccess(userId, locationId, { allowDeleted: true });
+      let locationId = parseInt(String(data.locationId || data.purchaseLocationId), 10);
+      if (type === 'purchase') {
+        if (isNaN(locationId) || !locationId) {
+          locationId = await getOrCreateEnterpriseLocationId(db, userId);
+        } else {
+          const valid = await db.select({ id: locations.id }).from(locations).where(eq(locations.id, locationId)).limit(1);
+          if (valid.length === 0) {
+            locationId = await getOrCreateEnterpriseLocationId(db, userId);
+          }
+        }
+        data.locationId = locationId;
+      } else {
+        if (isNaN(locationId)) return res.status(400).json({ error: 'locationId is required' });
+        await assertLocationAccess(userId, locationId, { allowDeleted: true });
+      }
 
       const qty = parseFloat(String(data.quantity)) || 0;
       const rate = parseFloat(String(data.rate)) || 0;
@@ -648,12 +767,23 @@ materialRouter.put('/:type/:id', async (req: AuthRequest, res: Response) => {
       const result = await db.transaction(async (tx) => {
         let record: any;
 
-        const matInfo = await resolveMaterialInfo(tx, userId, data.locationId, data.materialId, data.materialName, data.unit, rate);
+        const cleanUnit = (data.unit && String(data.unit).trim() && String(data.unit).trim().toLowerCase() !== 'unit') 
+          ? String(data.unit).trim() 
+          : undefined;
+
+        const matInfo = await resolveMaterialInfo(tx, userId, data.locationId, data.materialId, data.materialName, cleanUnit, rate);
         const finalMatId = matInfo ? matInfo.id : (data.materialId ? parseInt(String(data.materialId), 10) : null);
         const finalMatName = matInfo ? matInfo.name : (data.materialName || '');
-        const finalUnit = data.unit || (matInfo ? matInfo.unit : '') || 'Unit';
+        const finalUnit = cleanUnit || (matInfo ? matInfo.unit : '') || 'Nos';
         
         if (type === 'purchase') {
+          if (finalMatId && finalUnit) {
+            await tx.update(materials).set({ 
+              defaultUnit: finalUnit,
+              ...(rate > 0 ? { defaultRate: rate.toString() } : {})
+            }).where(eq(materials.id, finalMatId));
+          }
+
           // Revert old stock
           const oldRec = await tx.select().from(materialPurchases).where(and(eq(materialPurchases.id, numId), eq(materialPurchases.isDeleted, 0)));
           if (oldRec.length && oldRec[0].materialId) {
@@ -661,7 +791,7 @@ materialRouter.put('/:type/:id', async (req: AuthRequest, res: Response) => {
           }
 
           const updated = await tx.update(materialPurchases).set({
-            date: data.date, partyName: data.partyName || '', materialName: finalMatName, materialId: finalMatId,
+            date: data.date, partyName: data.partyName || data.supplierName || '', materialName: finalMatName, materialId: finalMatId,
             quantity: qty.toString(), unit: finalUnit, rate: rate.toString(),
             subtotal: subtotal.toString(), transportCost: transportCost.toString(),
             discount: discount.toString(), taxPercentage: taxPercentage.toString(),
@@ -806,6 +936,7 @@ materialRouter.delete('/:type/:id', async (req: AuthRequest, res: Response) => {
         }
         await tx.update(materials).set({ isDeleted: 1 }).where(eq(materials.id, numId));
         await tx.update(stockLedger).set({ isDeleted: 1 }).where(eq(stockLedger.materialId, numId));
+        await tx.update(materialPurchases).set({ isDeleted: 1 }).where(eq(materialPurchases.materialId, numId));
         await tx.insert(auditLogs).values({ userId, action: 'DELETE_MATERIAL', entityType: 'MATERIAL', entityId: numId });
         return;
       }

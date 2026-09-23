@@ -95,7 +95,7 @@ export default function LocationsPage() {
         ) : (
           locations.map((loc) => {
             const invCap = loc.investorCapital || 0;
-            const billInv = loc.billInvestment || 0;
+            const remainingInvCap = loc.remainingInvestmentCapital ?? loc.cat2InvestmentCapital?.remainingCapital ?? loc.billInvestment ?? 0;
             const stockVal = loc.stockValuation || 0;
             const siteSupply = loc.siteSupplies || 0;
             const labour = loc.labourMetrics?.grossSalary || loc.labourTotal || 0;
@@ -129,9 +129,9 @@ export default function LocationsPage() {
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investment Capital</span>
-                    <span className="text-sm font-bold text-slate-800 tabular-nums">
-                      ₹{billInv.toLocaleString("en-IN")}
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Remaining Investment Capital</span>
+                    <span className={`text-sm font-bold tabular-nums ${remainingInvCap < 0 ? "text-rose-600" : "text-slate-800"}`}>
+                      ₹{remainingInvCap.toLocaleString("en-IN")}
                     </span>
                   </div>
 
