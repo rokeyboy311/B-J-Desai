@@ -1,6 +1,6 @@
 import { getStoredPinToken, getStoredCategoryPinToken } from './api';
 
-export async function downloadExcelReport(endpoint: string, fallbackFilename: string = 'BJ_Desai_Export.xlsx'): Promise<void> {
+export async function downloadExcelReport(endpoint: string, fallbackFilename: string = 'BJ_Export.xlsx'): Promise<void> {
   const token = getStoredPinToken();
   const categoryToken = getStoredCategoryPinToken();
   const headers: Record<string, string> = {};

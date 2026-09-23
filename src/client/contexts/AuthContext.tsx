@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (res.valid) {
         setIsUnlocked(true);
-        setSystemUser(res.user || { id: 1, email: 'admin@bjdesai.com', name: 'B J Desai Admin' });
+        setSystemUser(res.user || { id: 1, email: 'admin@bj.com', name: 'B J Admin' });
       } else {
         clearStoredPinToken();
         setIsUnlocked(false);
@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.success && res.token) {
         setStoredPinToken(res.token);
         setIsUnlocked(true);
-        setSystemUser(res.user || { id: 1, email: 'admin@bjdesai.com', name: 'B J Desai Admin' });
+        setSystemUser(res.user || { id: 1, email: 'admin@bj.com', name: 'B J Admin' });
         setError(null);
         return true;
       } else {

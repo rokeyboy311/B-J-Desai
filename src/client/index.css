@@ -2,13 +2,30 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 3.9%;
+    --navy-dark: #0b1d3a;
+    --navy-sidebar: #0f2942;
+    --blue-primary: #1e88e5;
+    --bg-main: #f4f6f9;
   }
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: #f4f6f9;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom hide scrollbar */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Tabular numbers for clean financial alignment */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

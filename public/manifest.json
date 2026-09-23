@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "B J Desai",
-  "short_name": "B J Desai",
-  "description": "B J Desai Central ERP System",
+  "name": "B J",
+  "short_name": "B J",
+  "description": "B J Central ERP System",
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
   "display": "standalone",
@@ -16,21 +16,9 @@
       "purpose": "any"
     },
     {
-      "src": "/pwa-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/pwa-512x512.png",
+      "src": "/app-icon.svg",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/pwa-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "maskable"
     }
   ]

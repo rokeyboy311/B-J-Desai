@@ -20,6 +20,7 @@ import ActivityLogPage from './pages/ActivityLogPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MaterialPurchasePage from './pages/MaterialPurchasePage';
+import CustomerSupplyPage from './pages/CustomerSupplyPage';
 import InvestorsPage from './pages/InvestorsPage';
 import MaterialsPage from './pages/MaterialsPage';
 
@@ -36,6 +37,7 @@ export default function App() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/investors" element={<AdminPage />} />
+                <Route path="/customer-supply" element={<CustomerSupplyPage />} />
                 <Route path="/material-purchase" element={<MaterialPurchasePage />} />
                 <Route path="/materials" element={<MaterialPurchasePage />} />
                 <Route path="/locations" element={<LocationsPage />} />

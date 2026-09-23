@@ -1,15 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { 
-  ShieldCheck, Users, Banknote, ArrowDownLeft, ArrowUpRight, 
-  Building2, Plus, Wallet, RefreshCw, AlertCircle, CheckCircle2,
-  TrendingUp, ArrowRight, FileSpreadsheet, Lock
+  ShieldCheck, Plus, ArrowRight, Building2, CheckCircle2, Wallet
 } from "lucide-react";
-import { motion } from "motion/react";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerGlobalSync } from "../hooks/useLiveSync";
-import AdminInvestorsListRecord from "../components/admin/AdminInvestorsListRecord";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { Modal } from "../components/ui/Modal";
 
@@ -22,45 +17,25 @@ interface AdminCapitalSummary {
 }
 
 export default function AdminPage() {
-  const navigate = useNavigate();
   const { showToast } = useToast();
   const [adminSummary, setAdminSummary] = useState<AdminCapitalSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [investors, setInvestors] = useState<any[]>([]);
 
-  // Modals
-  const [isContributionModalOpen, setIsContributionModalOpen] = useState(false);
-  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
-  const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
+  // Modal State
+  const [isAddInvestorOpen, setIsAddInvestorOpen] = useState(false);
+  const [isAllocationOpen, setIsAllocationOpen] = useState(false);
 
   // Forms
-  const [contributionForm, setContributionForm] = useState({
-    investorId: "",
-    newInvestorName: "",
-    amount: "",
-    date: new Date().toISOString().split("T")[0],
-    paymentMethod: "Bank Transfer",
-    referenceNumber: "",
-    notes: ""
-  });
-
-  const [withdrawalForm, setWithdrawalForm] = useState({
-    investorId: "",
-    amount: "",
-    date: new Date().toISOString().split("T")[0],
-    paymentMethod: "Bank Transfer",
-    referenceNumber: "",
-    notes: ""
-  });
+  const [newInvestorName, setNewInvestorName] = useState("");
+  const [initialCapital, setInitialCapital] = useState("");
 
   const [allocationForm, setAllocationForm] = useState({
     investorId: "",
     locationId: "",
     amount: "",
     date: new Date().toISOString().split("T")[0],
-    paymentMethod: "Bank Transfer",
-    referenceNumber: "",
     notes: ""
   });
 
@@ -91,129 +66,53 @@ export default function AdminPage() {
     loadData(true);
   }, 3500);
 
-  const handleAddContribution = async (e: React.FormEvent) => {
+  const handleAddInvestor = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amount = parseFloat(contributionForm.amount);
-    if (!amount || amount <= 0) {
-      showToast("Please enter a valid contribution amount", "error");
+    if (!newInvestorName.trim()) {
+      showToast("Please enter investor name", "error");
       return;
     }
 
     try {
-      let invId = contributionForm.investorId;
-      if (!invId && contributionForm.newInvestorName.trim()) {
-        const newInv = await apiFetch("/investments/global-investors", {
+      const inv = await apiFetch("/investments/global-investors", {
+        method: "POST",
+        body: JSON.stringify({ name: newInvestorName.trim() })
+      });
+
+      if (initialCapital && parseFloat(initialCapital) > 0) {
+        await apiFetch("/investments/global-transactions", {
           method: "POST",
-          body: JSON.stringify({ name: contributionForm.newInvestorName.trim() })
+          body: JSON.stringify({
+            investorId: inv.id,
+            type: "CONTRIBUTION",
+            amount: initialCapital,
+            date: new Date().toISOString().split("T")[0],
+            paymentMethod: "Bank Transfer",
+            notes: "Initial Capital Contribution"
+          })
         });
-        invId = newInv.id;
       }
 
-      if (!invId) {
-        showToast("Please select or enter an investor name", "error");
-        return;
-      }
-
-      await apiFetch("/investments/global-transactions", {
-        method: "POST",
-        body: JSON.stringify({
-          investorId: parseInt(invId, 10),
-          type: "CONTRIBUTION",
-          amount: amount.toString(),
-          date: contributionForm.date,
-          paymentMethod: contributionForm.paymentMethod,
-          referenceNumber: contributionForm.referenceNumber,
-          notes: contributionForm.notes
-        })
-      });
-
-      showToast(`Admin Capital Contribution of ₹${amount.toLocaleString("en-IN")} recorded successfully!`, "success");
-      setIsContributionModalOpen(false);
-      setContributionForm({
-        investorId: "",
-        newInvestorName: "",
-        amount: "",
-        date: new Date().toISOString().split("T")[0],
-        paymentMethod: "Bank Transfer",
-        referenceNumber: "",
-        notes: ""
-      });
+      showToast(`Investor "${newInvestorName}" added successfully!`, "success");
+      setIsAddInvestorOpen(false);
+      setNewInvestorName("");
+      setInitialCapital("");
       triggerGlobalSync();
       loadData(true);
     } catch (err: any) {
-      showToast(err.message || "Failed to record contribution", "error");
+      showToast(err.message || "Failed to add investor", "error");
     }
   };
 
-  const handleAddWithdrawal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(withdrawalForm.amount);
-    if (!amount || amount <= 0) {
-      showToast("Please enter a valid withdrawal amount", "error");
-      return;
-    }
-
-    if (!withdrawalForm.investorId) {
-      showToast("Please select an investor", "error");
-      return;
-    }
-
-    if (adminSummary && amount > adminSummary.availableAdminCapital) {
-      showToast(`Withdrawal amount exceeds Available Admin Capital (₹${adminSummary.availableAdminCapital.toLocaleString("en-IN")})`, "error");
-      return;
-    }
-
-    try {
-      await apiFetch("/investments/global-transactions", {
-        method: "POST",
-        body: JSON.stringify({
-          investorId: parseInt(withdrawalForm.investorId, 10),
-          type: "UPAD",
-          amount: amount.toString(),
-          date: withdrawalForm.date,
-          paymentMethod: withdrawalForm.paymentMethod,
-          referenceNumber: withdrawalForm.referenceNumber,
-          notes: withdrawalForm.notes
-        })
-      });
-
-      showToast(`Admin Capital Withdrawal of ₹${amount.toLocaleString("en-IN")} recorded successfully!`, "success");
-      setIsWithdrawalModalOpen(false);
-      setWithdrawalForm({
-        investorId: "",
-        amount: "",
-        date: new Date().toISOString().split("T")[0],
-        paymentMethod: "Bank Transfer",
-        referenceNumber: "",
-        notes: ""
-      });
-      triggerGlobalSync();
-      loadData(true);
-    } catch (err: any) {
-      showToast(err.message || "Failed to record withdrawal", "error");
-    }
-  };
-
-  const handleAddAllocation = async (e: React.FormEvent) => {
+  const handleAllocate = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseFloat(allocationForm.amount);
     if (!amount || amount <= 0) {
-      showToast("Please enter a valid allocation amount", "error");
+      showToast("Please enter valid allocation amount", "error");
       return;
     }
-
-    if (!allocationForm.investorId) {
-      showToast("Please select an investor", "error");
-      return;
-    }
-
-    if (!allocationForm.locationId) {
-      showToast("Please select a target location", "error");
-      return;
-    }
-
-    if (adminSummary && amount > adminSummary.availableAdminCapital) {
-      showToast(`Allocation amount exceeds Available Admin Capital (₹${adminSummary.availableAdminCapital.toLocaleString("en-IN")})`, "error");
+    if (!allocationForm.investorId || !allocationForm.locationId) {
+      showToast("Please select investor and location", "error");
       return;
     }
 
@@ -225,21 +124,18 @@ export default function AdminPage() {
           locationId: parseInt(allocationForm.locationId, 10),
           amount: amount.toString(),
           date: allocationForm.date,
-          paymentMethod: allocationForm.paymentMethod,
-          referenceNumber: allocationForm.referenceNumber,
+          paymentMethod: "Bank Transfer",
           notes: allocationForm.notes
         })
       });
 
       showToast(`₹${amount.toLocaleString("en-IN")} allocated to location successfully!`, "success");
-      setIsAllocationModalOpen(false);
+      setIsAllocationOpen(false);
       setAllocationForm({
         investorId: "",
         locationId: "",
         amount: "",
         date: new Date().toISOString().split("T")[0],
-        paymentMethod: "Bank Transfer",
-        referenceNumber: "",
         notes: ""
       });
       triggerGlobalSync();
@@ -249,365 +145,256 @@ export default function AdminPage() {
     }
   };
 
+  // Metrics calculation
+  const totalAdminCap = adminSummary?.totalContributed || 0;
+  const totalAllocated = adminSummary?.totalAllocated || 0;
+  const remainingAdminCap = adminSummary?.availableAdminCapital || (totalAdminCap - totalAllocated);
+
   return (
     <CategoryPinGate categoryName="Admin Control & Capital" categoryNumber={1}>
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-7xl mx-auto space-y-8 pb-20"
-      >
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-tr from-indigo-700 to-blue-600 text-white rounded-2xl shadow-lg shadow-indigo-600/20">
-              <ShieldCheck className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-800 border border-indigo-200">
-                  Central Governance
-                </span>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Admin & Capital Management
-                </h1>
-              </div>
-              <p className="text-xs text-slate-500 font-medium mt-1">
-                B J Desai &bull; Central Enterprise Capital Pool & Admin Investors Record
-              </p>
-            </div>
+      <div className="space-y-6 pb-20">
+        
+        {/* Page Header matching 02_admin.svg */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Admin</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Manage investors and central capital allocation</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => setIsContributionModalOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Admin Inflow (ફાળો)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsWithdrawalModalOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
-            >
-              <ArrowUpRight className="w-4 h-4" />
-              <span>Admin Upad (ઉપાડ)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsAllocationModalOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
-            >
-              <Building2 className="w-4 h-4" />
-              <span>Allocate to Location</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsAddInvestorOpen(true)}
+            className="px-4 py-2.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Add Investor</span>
+          </button>
         </div>
 
-        {/* Admin Capital Visual Card */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-indigo-900/40 relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Top 3 KPI Cards matching 02_admin.svg */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-3">
-                <Wallet className="w-3.5 h-3.5" />
-                <span>Admin Central Capital Pool</span>
-              </div>
-              <h2 className="text-3xl font-black tracking-tight text-white">
-                Admin Capital Pool
-              </h2>
-              <p className="text-sm text-slate-300 mt-1 max-w-xl">
-                Source of enterprise truth: Capital contributed here directly funds enterprise Material Purchases and Location Allocations.
-              </p>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+            <div className="p-3 bg-[#0B1D3A] text-white rounded-xl">
+              <Wallet className="w-5 h-5" />
             </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15 min-w-[280px]">
-              <span className="text-xs uppercase tracking-wider text-indigo-200 font-bold">
-                Available Admin Capital (નેટ બેલેન્સ)
+            <div>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Total Admin Capital</span>
+              <span className="text-xl font-black text-slate-900 tabular-nums">
+                ₹{totalAdminCap.toLocaleString("en-IN")}
               </span>
-              <div className="text-3xl font-black text-emerald-400 mt-1">
-                ₹{adminSummary ? adminSummary.availableAdminCapital.toLocaleString("en-IN") : "0"}
-              </div>
-              <p className="text-[11px] text-slate-300 mt-1">
-                Contributed - Withdrawn - Allocated - Purchases
-              </p>
             </div>
           </div>
 
-          {/* Metrics breakdown */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/10 relative z-10">
-            <div className="bg-white/5 rounded-xl p-3.5 border border-white/10">
-              <span className="text-[11px] text-emerald-300 font-semibold uppercase">Total Contributed</span>
-              <div className="text-lg font-black text-white mt-0.5">
-                ₹{adminSummary ? adminSummary.totalContributed.toLocaleString("en-IN") : "0"}
-              </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+            <div className="p-3 bg-[#10B981] text-white rounded-xl">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
-
-            <div className="bg-white/5 rounded-xl p-3.5 border border-white/10">
-              <span className="text-[11px] text-rose-300 font-semibold uppercase">Total Withdrawn</span>
-              <div className="text-lg font-black text-white mt-0.5">
-                ₹{adminSummary ? adminSummary.totalWithdrawn.toLocaleString("en-IN") : "0"}
-              </div>
-            </div>
-
-            <div className="bg-white/5 rounded-xl p-3.5 border border-white/10">
-              <span className="text-[11px] text-blue-300 font-semibold uppercase">Allocated to Locations</span>
-              <div className="text-lg font-black text-white mt-0.5">
-                ₹{adminSummary ? adminSummary.totalAllocated.toLocaleString("en-IN") : "0"}
-              </div>
-            </div>
-
-            <div className="bg-white/5 rounded-xl p-3.5 border border-white/10">
-              <span className="text-[11px] text-amber-300 font-semibold uppercase">Material Purchases Funded</span>
-              <div className="text-lg font-black text-white mt-0.5">
-                ₹{adminSummary ? adminSummary.totalPurchases.toLocaleString("en-IN") : "0"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Admin Investors List Record */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-4 sm:p-6 lg:p-8">
-          <AdminInvestorsListRecord onRefreshParent={() => loadData(true)} />
-        </div>
-
-        {/* MODAL: Record Admin Contribution */}
-        <Modal
-          isOpen={isContributionModalOpen}
-          onClose={() => setIsContributionModalOpen(false)}
-          title="Record Admin Capital Inflow / Contribution"
-        >
-          <form onSubmit={handleAddContribution} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Select Existing Investor</label>
-              <select
-                value={contributionForm.investorId}
-                onChange={(e) => setContributionForm({ ...contributionForm, investorId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">-- Choose Investor or Add New Below --</option>
-                {investors.map((inv) => (
-                  <option key={inv.id} value={inv.id}>{inv.name}</option>
-                ))}
-              </select>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Allocated</span>
+              <span className="text-xl font-black text-slate-900 tabular-nums">
+                ₹{totalAllocated.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+            <div className="p-3 bg-[#F59E0B] text-white rounded-xl">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Remaining</span>
+              <span className="text-xl font-black text-slate-900 tabular-nums">
+                ₹{remainingAdminCap.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Investors Table matching 02_admin.svg */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Investors</h2>
+              <p className="text-[11px] text-slate-500">Central investor master and capital pool</p>
+            </div>
+            <span className="text-xs font-semibold text-slate-500">{investors.length} Investors</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+                <tr>
+                  <th className="p-3.5">Investor</th>
+                  <th className="p-3.5 text-right">Total Capital</th>
+                  <th className="p-3.5 text-right">Allocated</th>
+                  <th className="p-3.5 text-right">Remaining</th>
+                  <th className="p-3.5 text-center">Status</th>
+                  <th className="p-3.5 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {investors.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-400">No investors registered yet.</td>
+                  </tr>
+                ) : (
+                  investors.map((inv) => {
+                    const total = Number(inv.totalContributed || 0);
+                    const allocated = Number(inv.totalAllocated || 0);
+                    const remaining = Math.max(0, total - allocated);
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="p-3.5 font-bold text-slate-900">{inv.name}</td>
+                        <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
+                          ₹{total.toLocaleString("en-IN")}
+                        </td>
+                        <td className="p-3.5 text-right font-semibold text-blue-700 tabular-nums">
+                          ₹{allocated.toLocaleString("en-IN")}
+                        </td>
+                        <td className="p-3.5 text-right font-black text-emerald-700 tabular-nums">
+                          ₹{remaining.toLocaleString("en-IN")}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold uppercase">
+                            Active
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAllocationForm(prev => ({ ...prev, investorId: inv.id.toString() }));
+                              setIsAllocationOpen(true);
+                            }}
+                            className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+                          >
+                            Allocate Capital
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Capital Allocation Flow Section matching 02_admin.svg */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Capital Allocation</h2>
+            <p className="text-[11px] text-slate-500">Transfer from Admin Capital to location-wise Investor Capital</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+            
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Admin Capital</span>
+              <span className="text-base font-black text-slate-900 mt-1 block tabular-nums">
+                ₹{totalAdminCap.toLocaleString("en-IN")}
+              </span>
             </div>
 
-            {!contributionForm.investorId && (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Investor Capital</span>
+              <span className="text-base font-black text-blue-700 mt-1 block tabular-nums">
+                ₹{totalAllocated.toLocaleString("en-IN")}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Location</span>
+              <span className="text-base font-extrabold text-slate-800 mt-1 block truncate">
+                {locations[0]?.name || "Select Site"}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Or New Investor Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ramesh Patel"
-                  value={contributionForm.newInvestorName}
-                  onChange={(e) => setContributionForm({ ...contributionForm, newInvestorName: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Allocated Amount</span>
+                <span className="text-base font-black text-emerald-700 mt-1 block tabular-nums">
+                  ₹{remainingAdminCap.toLocaleString("en-IN")}
+                </span>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setIsAllocationOpen(true)}
+                className="mt-2 text-xs font-bold text-blue-600 hover:underline text-left cursor-pointer"
+              >
+                + New Transfer
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Modal: Add Investor */}
+        <Modal
+          isOpen={isAddInvestorOpen}
+          onClose={() => setIsAddInvestorOpen(false)}
+          title="+ Add New Investor"
+        >
+          <form onSubmit={handleAddInvestor} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Investor Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Ramesh Patel"
+                value={newInvestorName}
+                onChange={(e) => setNewInvestorName(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              />
+            </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Contribution Amount (₹) *</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Initial Capital Contribution (₹)</label>
               <input
                 type="number"
                 step="0.01"
-                required
                 placeholder="500000"
-                value={contributionForm.amount}
-                onChange={(e) => setContributionForm({ ...contributionForm, amount: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                value={initialCapital}
+                onChange={(e) => setInitialCapital(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={contributionForm.date}
-                  onChange={(e) => setContributionForm({ ...contributionForm, date: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Payment Method</label>
-                <select
-                  value={contributionForm.paymentMethod}
-                  onChange={(e) => setContributionForm({ ...contributionForm, paymentMethod: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="Bank Transfer">Bank Transfer / NEFT</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Cash">Cash</option>
-                  <option value="UPI">UPI</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reference / Cheque No.</label>
-              <input
-                type="text"
-                placeholder="UTR / Cheque number"
-                value={contributionForm.referenceNumber}
-                onChange={(e) => setContributionForm({ ...contributionForm, referenceNumber: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Notes / Description</label>
-              <input
-                type="text"
-                placeholder="Optional notes"
-                value={contributionForm.notes}
-                onChange={(e) => setContributionForm({ ...contributionForm, notes: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsContributionModalOpen(false)}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold cursor-pointer"
+                onClick={() => setIsAddInvestorOpen(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md cursor-pointer"
+                className="px-4 py-2 bg-[#1E88E5] text-white rounded-xl text-xs font-bold cursor-pointer"
               >
-                Record Contribution
+                Save Investor
               </button>
             </div>
           </form>
         </Modal>
 
-        {/* MODAL: Record Admin Withdrawal */}
+        {/* Modal: Transfer Capital to Location */}
         <Modal
-          isOpen={isWithdrawalModalOpen}
-          onClose={() => setIsWithdrawalModalOpen(false)}
-          title="Record Admin Capital Withdrawal (ઉપાડ)"
+          isOpen={isAllocationOpen}
+          onClose={() => setIsAllocationOpen(false)}
+          title="Transfer Capital to Location"
         >
-          <form onSubmit={handleAddWithdrawal} className="space-y-4">
+          <form onSubmit={handleAllocate} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Select Investor *</label>
-              <select
-                required
-                value={withdrawalForm.investorId}
-                onChange={(e) => setWithdrawalForm({ ...withdrawalForm, investorId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">-- Choose Investor --</option>
-                {investors.map((inv) => (
-                  <option key={inv.id} value={inv.id}>{inv.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Withdrawal Amount (₹) *</label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                placeholder="100000"
-                value={withdrawalForm.amount}
-                onChange={(e) => setWithdrawalForm({ ...withdrawalForm, amount: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-              />
-              {adminSummary && (
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Max available: ₹{adminSummary.availableAdminCapital.toLocaleString("en-IN")}
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={withdrawalForm.date}
-                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, date: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Payment Method</label>
-                <select
-                  value={withdrawalForm.paymentMethod}
-                  onChange={(e) => setWithdrawalForm({ ...withdrawalForm, paymentMethod: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="Bank Transfer">Bank Transfer / NEFT</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Cash">Cash</option>
-                  <option value="UPI">UPI</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reference / Cheque No.</label>
-              <input
-                type="text"
-                placeholder="UTR / Cheque number"
-                value={withdrawalForm.referenceNumber}
-                onChange={(e) => setWithdrawalForm({ ...withdrawalForm, referenceNumber: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Notes / Description</label>
-              <input
-                type="text"
-                placeholder="Optional notes"
-                value={withdrawalForm.notes}
-                onChange={(e) => setWithdrawalForm({ ...withdrawalForm, notes: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setIsWithdrawalModalOpen(false)}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold shadow-md cursor-pointer"
-              >
-                Record Withdrawal
-              </button>
-            </div>
-          </form>
-        </Modal>
-
-        {/* MODAL: Allocate Capital to Location */}
-        <Modal
-          isOpen={isAllocationModalOpen}
-          onClose={() => setIsAllocationModalOpen(false)}
-          title="Allocate Admin Capital to Location (Tier 1 -> Tier 2)"
-        >
-          <form onSubmit={handleAddAllocation} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Select Investor (Source) *</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Investor *</label>
               <select
                 required
                 value={allocationForm.investorId}
                 onChange={(e) => setAllocationForm({ ...allocationForm, investorId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- Choose Investor --</option>
                 {investors.map((inv) => (
@@ -617,12 +404,12 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Select Target Location *</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target Location *</label>
               <select
                 required
                 value={allocationForm.locationId}
                 onChange={(e) => setAllocationForm({ ...allocationForm, locationId: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- Choose Location --</option>
                 {locations.map((loc) => (
@@ -632,7 +419,7 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Allocation Amount (₹) *</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Amount (₹) *</label>
               <input
                 type="number"
                 step="0.01"
@@ -640,81 +427,29 @@ export default function AdminPage() {
                 placeholder="200000"
                 value={allocationForm.amount}
                 onChange={(e) => setAllocationForm({ ...allocationForm, amount: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-              />
-              {adminSummary && (
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Max available: ₹{adminSummary.availableAdminCapital.toLocaleString("en-IN")}
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={allocationForm.date}
-                  onChange={(e) => setAllocationForm({ ...allocationForm, date: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Payment Method</label>
-                <select
-                  value={allocationForm.paymentMethod}
-                  onChange={(e) => setAllocationForm({ ...allocationForm, paymentMethod: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="Bank Transfer">Bank Transfer / NEFT</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Internal Transfer">Internal Allocation</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Reference No.</label>
-              <input
-                type="text"
-                placeholder="Transfer reference"
-                value={allocationForm.referenceNumber}
-                onChange={(e) => setAllocationForm({ ...allocationForm, referenceNumber: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Notes / Description</label>
-              <input
-                type="text"
-                placeholder="Allocation purpose"
-                value={allocationForm.notes}
-                onChange={(e) => setAllocationForm({ ...allocationForm, notes: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsAllocationModalOpen(false)}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold cursor-pointer"
+                onClick={() => setIsAllocationOpen(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md cursor-pointer"
+                className="px-4 py-2 bg-[#1E88E5] text-white rounded-xl text-xs font-bold cursor-pointer"
               >
-                Confirm Allocation
+                Confirm Transfer
               </button>
             </div>
           </form>
         </Modal>
-      </motion.div>
+
+      </div>
     </CategoryPinGate>
   );
 }

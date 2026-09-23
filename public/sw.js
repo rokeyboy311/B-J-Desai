@@ -1,4 +1,4 @@
-// Service Worker for B J Desai PWA
+// Service Worker for B J PWA
 self.addEventListener('install', () => {
   self.skipWaiting();
 });

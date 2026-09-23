@@ -88,7 +88,7 @@ export const PinScreen: React.FC = () => {
               <AppLogo />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
-              B J Desai
+              B J
             </h1>
             <p className="text-xs text-indigo-400 font-medium tracking-wide uppercase mt-1">
               CENTRAL SHARED SYSTEM

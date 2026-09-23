@@ -1,298 +1,224 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MapPin, Edit2, Trash2, MapPinned, AlertTriangle } from "lucide-react";
+import { Plus, Building2, MapPin, ExternalLink } from "lucide-react";
 import { apiFetch } from "../lib/api";
-import { Modal } from "../components/ui/Modal";
-import { motion } from "motion/react";
-import { useLiveSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
-
-interface Location {
-  id: number;
-  name: string;
-  address: string | null;
-  createdAt: string;
-  recordCount?: number;
-}
+import { useLiveSync, triggerGlobalSync } from "../hooks/useLiveSync";
+import { Modal } from "../components/ui/Modal";
 
 export default function LocationsPage() {
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { showToast, confirmAction } = useToast();
+  const { showToast } = useToast();
+  const [locations, setLocations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const [formData, setFormData] = useState({ name: "", address: "" });
-  const [formError, setFormError] = useState("");
+  // Add Location Modal
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newLocationName, setNewLocationName] = useState("");
+  const [newLocationAddress, setNewLocationAddress] = useState("");
 
-  const fetchLocations = async (isBackground = false) => {
+  const loadLocations = async (isBackground = false) => {
     try {
       if (!isBackground && locations.length === 0) setLoading(true);
-      const res = await apiFetch("/locations");
-      setLocations(res);
-    } catch (error) {
-      console.error("Failed to load locations: ", error);
+      const res = await apiFetch("/reports/locations-breakdown").catch(() => []);
+      if (Array.isArray(res)) {
+        setLocations(res);
+      }
+    } catch (err) {
+      console.error("Failed to load locations", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchLocations(false);
+    loadLocations(false);
   }, []);
 
   useLiveSync(() => {
-    fetchLocations(true);
+    loadLocations(true);
   }, 3500);
 
-  const openCreateModal = () => {
-    setSelectedLocation(null);
-    setFormData({ name: "", address: "" });
-    setFormError("");
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (loc: Location, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedLocation(loc);
-    setFormData({ name: loc.name, address: loc.address || "" });
-    setFormError("");
-    setIsModalOpen(true);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
+  const handleAddLocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError("");
-
-    if (!formData.name.trim()) {
-      setFormError("Location name is required");
+    if (!newLocationName.trim()) {
+      showToast("Please enter location name", "error");
       return;
     }
 
     try {
-      const payload = { name: formData.name.trim(), address: formData.address.trim() || undefined };
-      
-      if (selectedLocation) {
-        await apiFetch(`/locations/${selectedLocation.id}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-        showToast("Location updated successfully", "success");
-      } else {
-        await apiFetch("/locations", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        showToast("Location created successfully", "success");
-      }
-      setIsModalOpen(false);
-      fetchLocations();
-    } catch (error: any) {
-      setFormError(error.message);
+      await apiFetch("/locations", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newLocationName.trim(),
+          address: newLocationAddress.trim() || null
+        })
+      });
+
+      showToast(`Location "${newLocationName}" created successfully!`, "success");
+      setIsAddOpen(false);
+      setNewLocationName("");
+      setNewLocationAddress("");
+      triggerGlobalSync();
+      loadLocations(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to create location", "error");
     }
-  };
-
-  const handleDeleteLocation = async (loc: Location, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const confirmed = await confirmAction({
-      title: "Delete Location",
-      message: `Are you sure you want to delete ${loc.name}? This will permanently remove access to all associated records.`,
-      confirmLabel: "Verify & Delete",
-      isDanger: true,
-      requirePassword: true
-    });
-
-    if (!confirmed) return;
-
-    try {
-      await apiFetch(`/locations/${loc.id}`, { method: "DELETE" });
-      showToast(`Location "${loc.name}" deleted successfully`, "success");
-      fetchLocations();
-    } catch (error: any) {
-      showToast(error.message || "Failed to delete location", "error");
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05 }
-    }
-  };
-
-  const item = {
-    hidden: { opacity: 0, y: 10 },
-    show: { opacity: 1, y: 0 }
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="space-y-6 pb-20">
       
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Page Header matching 03_locations.svg */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <MapPin className="w-6 h-6 text-indigo-500" /> Locations
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">Manage all your operating regions and folders.</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Locations</h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Manage all project locations</p>
         </div>
-        <button type="button" 
-          onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-600/20"
+
+        <button
+          type="button"
+          onClick={() => setIsAddOpen(true)}
+          className="px-4 py-2.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
         >
-          <Plus size={18} />
-          Add Location
+          <Plus className="w-4 h-4" />
+          <span>+ Add Location</span>
         </button>
-      </header>
+      </div>
 
-      {locations.length === 0 ? (
-        <motion.div initial={{opacity: 0, scale: 0.95}} animate={{opacity:1, scale:1}} className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm">
-          <div className="w-20 h-20 bg-indigo-50 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-6">
-            <MapPinned size={32} />
+      {/* Grid of Location Cards matching 03_locations.svg */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {locations.length === 0 ? (
+          <div className="col-span-2 bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center text-slate-400 text-xs">
+            No locations created yet. Click <b>+ Add Location</b> above to create a location.
           </div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">No locations yet</h3>
-          <p className="text-slate-500 mb-8 max-w-sm mx-auto">
-            Create your first location to start managing records and organizing your accounting data.
-          </p>
-          <button type="button" 
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors"
-          >
-            <Plus size={18} />
-            Create First Location
-          </button>
-        </motion.div>
-      ) : (
-        <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {locations.map((loc) => (
-            <motion.div 
-              variants={item}
-              key={loc.id} 
-              onClick={() => navigate(`/locations/${loc.id}`)}
-              className="bg-white border border-slate-200/60 rounded-2xl p-6 hover:shadow-lg hover:border-indigo-100 transition-all cursor-pointer group flex flex-col h-full relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full -z-0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              
-              <div className="flex items-start justify-between mb-4 relative z-10">
-                <div className="w-12 h-12 bg-slate-50 group-hover:bg-indigo-50 text-slate-400 group-hover:text-indigo-600 rounded-xl flex items-center justify-center shrink-0 transition-colors">
-                  <MapPin size={24} />
-                </div>
-                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button type="button" 
-                    onClick={(e) => openEditModal(loc, e)}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
-                    title="Edit Location"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button type="button" 
-                    onClick={(e) => handleDeleteLocation(loc, e)}
-                    className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
-                    title="Delete Location"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="flex-1 relative z-10">
-                <h3 className="text-lg font-bold text-slate-900 line-clamp-1 group-hover:text-indigo-700 transition-colors">{loc.name}</h3>
-                {loc.address ? (
-                  <p className="text-sm text-slate-500 mt-2 line-clamp-2">{loc.address}</p>
-                ) : (
-                  <p className="text-sm text-slate-400 mt-2 italic">No address provided</p>
-                )}
-              </div>
+        ) : (
+          locations.map((loc) => {
+            const invCap = loc.investorCapital || 0;
+            const billInv = loc.billInvestment || 0;
+            const stockVal = loc.stockValuation || 0;
+            const siteSupply = loc.siteSupplies || 0;
+            const labour = loc.labourMetrics?.grossSalary || loc.labourTotal || 0;
+            const contractor = loc.contractorCosts?.recorded || loc.contractorTotal || 0;
 
-              {/* Bottom Card Footer: Record Count & Bottom-Right Delete Button */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between relative z-10">
-                <span className="text-xs font-semibold text-slate-400">
-                  {loc.recordCount !== undefined ? `${loc.recordCount} records` : "Active Site"}
-                </span>
-                <button
-                  type="button"
-                  title="Delete this location"
-                  onClick={(e) => handleDeleteLocation(loc, e)}
-                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-200 cursor-pointer shadow-none hover:shadow-sm"
-                >
-                  <Trash2 size={17} className="text-rose-500" />
-                </button>
-              </div>
-              
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
+            return (
+              <div 
+                key={loc.id}
+                onClick={() => navigate(`/locations/${loc.id}`)}
+                className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:border-blue-300 hover:shadow-md transition-all duration-200 p-6 space-y-4 cursor-pointer"
+              >
+                {/* Location Header */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900">{loc.name}</h2>
+                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                      Active location &bull; live capital and operating summary
+                    </p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-400 hover:text-blue-600 transition-colors" />
+                </div>
 
-      {/* Create/Edit Modal */}
+                {/* 6 Key Metrics Grid matching SVG */}
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investor Capital</span>
+                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                      ₹{invCap.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investment Capital</span>
+                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                      ₹{billInv.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Stock</span>
+                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                      ₹{stockVal.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Site Supply</span>
+                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                      ₹{siteSupply.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Labour</span>
+                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                      ₹{labour.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Contractor</span>
+                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                      ₹{contractor.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                </div>
+
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Modal: Add Location */}
       <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={selectedLocation ? "Edit Location" : "Add Location"}
-        maxWidth="md"
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        title="+ Add New Project Location"
       >
-        <form onSubmit={handleSave} className="space-y-4">
-          {formError && (
-            <div className="p-3 bg-rose-50 text-rose-700 text-sm rounded-xl border border-rose-100">
-              {formError}
-            </div>
-          )}
+        <form onSubmit={handleAddLocation} className="space-y-4">
           <div>
-            <label htmlFor="locationName" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Location Name <span className="text-rose-500">*</span>
-            </label>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location Name *</label>
             <input
-              id="locationName"
-              name="locationName"
               type="text"
               required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-              placeholder="e.g., Ahmedabad Branch"
-              autoFocus
+              placeholder="e.g. Ahmedabad, Surat, Rajkot"
+              value={newLocationName}
+              onChange={(e) => setNewLocationName(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
             />
           </div>
+
           <div>
-            <label htmlFor="locationAddress" className="block text-sm font-semibold text-slate-700 mb-1.5">
-              Address / Details (Optional)
-            </label>
-            <textarea
-              id="locationAddress"
-              name="locationAddress"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all resize-none"
-              placeholder="Full address or description"
-              rows={3}
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Site Address / Description</label>
+            <input
+              type="text"
+              placeholder="e.g. Near Science City, Ahmedabad"
+              value={newLocationAddress}
+              onChange={(e) => setNewLocationAddress(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="pt-4 flex items-center justify-end gap-3">
+
+          <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              onClick={() => setIsAddOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors"
+              className="px-4 py-2 bg-[#1E88E5] text-white rounded-xl text-xs font-bold cursor-pointer"
             >
-              {selectedLocation ? "Save Changes" : "Create Location"}
+              Create Location
             </button>
           </div>
         </form>
       </Modal>
+
     </div>
   );
 }
