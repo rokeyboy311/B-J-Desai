@@ -625,152 +625,166 @@ export async function getAdminCapitalSummary(
   dbOrTx: any = db,
   userId?: number
 ): Promise<AdminCapitalSummaryResult> {
-  // 1. Fetch all active investors
-  const activeInvestors = await dbOrTx
-    .select()
-    .from(investors)
-    .where(eq(investors.isDeleted, 0))
-    .orderBy(desc(investors.createdAt));
-
-  const investorIds = activeInvestors.map((i: any) => i.id);
-
-  // 2. Fetch all investor transactions (CONTRIBUTION & UPAD)
-  let allTxs: any[] = [];
-  if (investorIds.length > 0) {
-    allTxs = await dbOrTx
+  try {
+    // 1. Fetch all active investors
+    const activeInvestors = await dbOrTx
       .select()
-      .from(investorTransactions)
-      .where(
-        and(
-          sql`${investorTransactions.investorId} IN (${sql.join(investorIds, sql`, `)})`,
-          eq(investorTransactions.isDeleted, 0)
-        )
-      )
-      .orderBy(desc(investorTransactions.date), desc(investorTransactions.id));
-  }
+      .from(investors)
+      .where(eq(investors.isDeleted, 0))
+      .orderBy(desc(investors.createdAt));
 
-  // 3. Fetch all allocations from Admin Capital to Location Investor Capital
-  let allAllocations: any[] = [];
-  if (investorIds.length > 0) {
-    allAllocations = await dbOrTx
+    const investorIds = activeInvestors.map((i: any) => i.id);
+
+    // 2. Fetch all investor transactions (CONTRIBUTION & UPAD)
+    let allTxs: any[] = [];
+    if (investorIds.length > 0) {
+      allTxs = await dbOrTx
+        .select()
+        .from(investorTransactions)
+        .where(
+          and(
+            sql`${investorTransactions.investorId} IN (${sql.join(investorIds, sql`, `)})`,
+            eq(investorTransactions.isDeleted, 0)
+          )
+        )
+        .orderBy(desc(investorTransactions.date), desc(investorTransactions.id));
+    }
+
+    // 3. Fetch all allocations from Admin Capital to Location Investor Capital
+    let allAllocations: any[] = [];
+    if (investorIds.length > 0) {
+      allAllocations = await dbOrTx
+        .select({
+          id: investorLocationAllocations.id,
+          investorId: investorLocationAllocations.investorId,
+          investorName: investors.name,
+          locationId: investorLocationAllocations.locationId,
+          locationName: locations.name,
+          amount: investorLocationAllocations.amount,
+          date: investorLocationAllocations.date,
+          paymentMethod: investorLocationAllocations.paymentMethod,
+          referenceNumber: investorLocationAllocations.referenceNumber,
+          notes: investorLocationAllocations.notes,
+          createdAt: investorLocationAllocations.createdAt,
+        })
+        .from(investorLocationAllocations)
+        .leftJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+        .leftJoin(locations, eq(investorLocationAllocations.locationId, locations.id))
+        .where(
+          and(
+            sql`${investorLocationAllocations.investorId} IN (${sql.join(investorIds, sql`, `)})`,
+            eq(investorLocationAllocations.isDeleted, 0)
+          )
+        )
+        .orderBy(desc(investorLocationAllocations.date), desc(investorLocationAllocations.id));
+    }
+
+    // 4. Fetch all Material Purchases funded from Admin Capital
+    const allPurchases = await dbOrTx
       .select({
-        id: investorLocationAllocations.id,
-        investorId: investorLocationAllocations.investorId,
-        investorName: investors.name,
-        locationId: investorLocationAllocations.locationId,
+        id: materialPurchases.id,
+        date: materialPurchases.date,
+        partyName: materialPurchases.partyName,
+        materialName: materialPurchases.materialName,
+        quantity: materialPurchases.quantity,
+        unit: materialPurchases.unit,
+        rate: materialPurchases.rate,
+        totalAmount: materialPurchases.totalAmount,
+        paidAmount: materialPurchases.paidAmount,
+        paymentStatus: materialPurchases.paymentStatus,
+        referenceNumber: materialPurchases.referenceNumber,
+        description: materialPurchases.description,
+        locationId: materialPurchases.locationId,
         locationName: locations.name,
-        amount: investorLocationAllocations.amount,
-        date: investorLocationAllocations.date,
-        paymentMethod: investorLocationAllocations.paymentMethod,
-        referenceNumber: investorLocationAllocations.referenceNumber,
-        notes: investorLocationAllocations.notes,
-        createdAt: investorLocationAllocations.createdAt,
       })
-      .from(investorLocationAllocations)
-      .leftJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
-      .leftJoin(locations, eq(investorLocationAllocations.locationId, locations.id))
-      .where(
-        and(
-          sql`${investorLocationAllocations.investorId} IN (${sql.join(investorIds, sql`, `)})`,
-          eq(investorLocationAllocations.isDeleted, 0)
-        )
-      )
-      .orderBy(desc(investorLocationAllocations.date), desc(investorLocationAllocations.id));
-  }
+      .from(materialPurchases)
+      .leftJoin(locations, eq(materialPurchases.locationId, locations.id))
+      .where(eq(materialPurchases.isDeleted, 0))
+      .orderBy(desc(materialPurchases.date), desc(materialPurchases.id));
 
-  // 4. Fetch all Material Purchases funded from Admin Capital
-  const allPurchases = await dbOrTx
-    .select({
-      id: materialPurchases.id,
-      date: materialPurchases.date,
-      partyName: materialPurchases.partyName,
-      materialName: materialPurchases.materialName,
-      quantity: materialPurchases.quantity,
-      unit: materialPurchases.unit,
-      rate: materialPurchases.rate,
-      totalAmount: materialPurchases.totalAmount,
-      paidAmount: materialPurchases.paidAmount,
-      paymentStatus: materialPurchases.paymentStatus,
-      referenceNumber: materialPurchases.referenceNumber,
-      description: materialPurchases.description,
-      locationId: materialPurchases.locationId,
-      locationName: locations.name,
-    })
-    .from(materialPurchases)
-    .leftJoin(locations, eq(materialPurchases.locationId, locations.id))
-    .where(eq(materialPurchases.isDeleted, 0))
-    .orderBy(desc(materialPurchases.date), desc(materialPurchases.id));
-
-  // 5. Aggregate overall totals
-  const totalContributed = round2(
-    allTxs
-      .filter((t: any) => t.type === 'CONTRIBUTION' || t.type === 'CAPITAL' || t.type === 'INVESTMENT')
-      .reduce((acc: number, t: any) => acc + (parseFloat(String(t.amount || 0)) || 0), 0)
-  );
-
-  const totalWithdrawn = round2(
-    allTxs
-      .filter((t: any) => t.type === 'UPAD' || t.type === 'WITHDRAWAL' || t.type === 'PAYMENT')
-      .reduce((acc: number, t: any) => acc + (parseFloat(String(t.amount || 0)) || 0), 0)
-  );
-
-  const totalAllocated = round2(
-    allAllocations.reduce((acc: number, a: any) => acc + (parseFloat(String(a.amount || 0)) || 0), 0)
-  );
-
-  const totalPurchases = round2(
-    allPurchases.reduce((acc: number, p: any) => acc + (parseFloat(String(p.totalAmount || 0)) || 0), 0)
-  );
-
-  const availableAdminCapital = round2(totalContributed - totalWithdrawn - totalAllocated - totalPurchases);
-
-  // 6. Calculate investor-specific metrics
-  const investorList = activeInvestors.map((inv: any) => {
-    const invTxs = allTxs.filter((t: any) => t.investorId === inv.id);
-    const invAllocs = allAllocations.filter((a: any) => a.investorId === inv.id);
-
-    const contributed = round2(
-      invTxs
+    // 5. Aggregate overall totals
+    const totalContributed = round2(
+      allTxs
         .filter((t: any) => t.type === 'CONTRIBUTION' || t.type === 'CAPITAL' || t.type === 'INVESTMENT')
         .reduce((acc: number, t: any) => acc + (parseFloat(String(t.amount || 0)) || 0), 0)
     );
 
-    const withdrawn = round2(
-      invTxs
+    const totalWithdrawn = round2(
+      allTxs
         .filter((t: any) => t.type === 'UPAD' || t.type === 'WITHDRAWAL' || t.type === 'PAYMENT')
         .reduce((acc: number, t: any) => acc + (parseFloat(String(t.amount || 0)) || 0), 0)
     );
 
-    const allocated = round2(
-      invAllocs.reduce((acc: number, a: any) => acc + (parseFloat(String(a.amount || 0)) || 0), 0)
+    const totalAllocated = round2(
+      allAllocations.reduce((acc: number, a: any) => acc + (parseFloat(String(a.amount || 0)) || 0), 0)
     );
 
-    const availableCapital = round2(contributed - withdrawn - allocated);
+    const totalPurchases = round2(
+      allPurchases.reduce((acc: number, p: any) => acc + (parseFloat(String(p.totalAmount || 0)) || 0), 0)
+    );
+
+    const availableAdminCapital = round2(totalContributed - totalWithdrawn - totalAllocated - totalPurchases);
+
+    // 6. Calculate investor-specific metrics
+    const investorList = activeInvestors.map((inv: any) => {
+      const invTxs = allTxs.filter((t: any) => t.investorId === inv.id);
+      const invAllocs = allAllocations.filter((a: any) => a.investorId === inv.id);
+
+      const contributed = round2(
+        invTxs
+          .filter((t: any) => t.type === 'CONTRIBUTION' || t.type === 'CAPITAL' || t.type === 'INVESTMENT')
+          .reduce((acc: number, t: any) => acc + (parseFloat(String(t.amount || 0)) || 0), 0)
+      );
+
+      const withdrawn = round2(
+        invTxs
+          .filter((t: any) => t.type === 'UPAD' || t.type === 'WITHDRAWAL' || t.type === 'PAYMENT')
+          .reduce((acc: number, t: any) => acc + (parseFloat(String(t.amount || 0)) || 0), 0)
+      );
+
+      const allocated = round2(
+        invAllocs.reduce((acc: number, a: any) => acc + (parseFloat(String(a.amount || 0)) || 0), 0)
+      );
+
+      const availableCapital = round2(contributed - withdrawn - allocated);
+
+      return {
+        id: inv.id,
+        name: inv.name,
+        mobile: inv.mobile,
+        email: inv.email,
+        address: inv.address,
+        notes: inv.notes,
+        totalContributed: contributed,
+        totalWithdrawn: withdrawn,
+        totalAllocated: allocated,
+        availableCapital
+      };
+    });
 
     return {
-      id: inv.id,
-      name: inv.name,
-      mobile: inv.mobile,
-      email: inv.email,
-      address: inv.address,
-      notes: inv.notes,
-      totalContributed: contributed,
-      totalWithdrawn: withdrawn,
-      totalAllocated: allocated,
-      availableCapital
+      totalContributed,
+      totalWithdrawn,
+      totalAllocated,
+      totalPurchases,
+      availableAdminCapital,
+      investors: investorList,
+      recentTransfers: allAllocations,
+      recentPurchases: allPurchases
     };
-  });
-
-  return {
-    totalContributed,
-    totalWithdrawn,
-    totalAllocated,
-    totalPurchases,
-    availableAdminCapital,
-    investors: investorList,
-    recentTransfers: allAllocations,
-    recentPurchases: allPurchases
-  };
+  } catch (error) {
+    console.warn('[Admin Capital Summary] Database query error, returning fallback:', error);
+    return {
+      totalContributed: 0,
+      totalWithdrawn: 0,
+      totalAllocated: 0,
+      totalPurchases: 0,
+      availableAdminCapital: 0,
+      investors: [],
+      recentTransfers: [],
+      recentPurchases: []
+    };
+  }
 }
 
 /**

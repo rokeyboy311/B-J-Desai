@@ -29,7 +29,7 @@ interface CustomerItem {
 
 export default function ExcelDownloadsPage() {
   const { showToast } = useToast();
-  const { isConnected, setIsModalOpen, spreadsheetUrl } = useGoogleSync();
+  const { isConnected, setIsModalOpen, centralSpreadsheetUrl } = useGoogleSync();
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>('ALL');
   const [catalog, setCatalog] = useState<{

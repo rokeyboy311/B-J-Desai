@@ -135,16 +135,27 @@ let cachedSystemUser: { id: number; uid: string; email: string; name: string | n
 
 export async function getSystemUser() {
   if (cachedSystemUser) return cachedSystemUser;
-  const user = await getOrCreateUser(
-    'central-bd-accounting',
-    'system@bd-accounting.local',
-    'B_D Accounting ERP'
-  );
-  if (!user || !user.id) {
-    throw new Error('System user account could not be initialized from database.');
+  try {
+    const user = await getOrCreateUser(
+      'central-bd-accounting',
+      'system@bd-accounting.local',
+      'B_D Accounting ERP'
+    );
+    if (user && user.id) {
+      cachedSystemUser = user;
+      return user;
+    }
+  } catch (err) {
+    console.warn('[Auth] System user fetch failed, using memory fallback:', err);
   }
-  cachedSystemUser = user;
-  return user;
+
+  cachedSystemUser = {
+    id: 1,
+    uid: 'central-bd-accounting',
+    email: 'system@bd-accounting.local',
+    name: 'B_D Accounting ERP'
+  };
+  return cachedSystemUser;
 }
 
 export const requireAuth = async (

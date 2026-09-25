@@ -13,7 +13,7 @@ import { FileSpreadsheet } from "lucide-react";
 
 export default function MaterialPurchasePage() {
   const { showToast, confirmAction } = useToast();
-  const { isConnected, setIsModalOpen: setGoogleModalOpen, spreadsheetUrl } = useGoogleSync();
+  const { isConnected, setIsModalOpen: setGoogleModalOpen, centralSpreadsheetUrl } = useGoogleSync();
   
   const [activeTab, setActiveCategory] = useState<"purchase" | "stock">("purchase");
   

@@ -17,6 +17,7 @@ if (!fs.existsSync(distServer)) {
 }
 
 if (fs.existsSync(distServer)) {
+  // @ts-ignore
   await import("./dist/server.cjs");
 } else {
   console.log("[Server] Spawning tsx fallback for src/server/server.ts...");

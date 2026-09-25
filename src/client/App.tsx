@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { GoogleSyncProvider } from './contexts/GoogleSyncContext';
@@ -29,7 +29,7 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
         <GoogleSyncProvider>
-          <BrowserRouter>
+          <HashRouter>
             <GoogleSheetsSyncModal />
             <Routes>
               <Route path="/login" element={<Navigate to="/" replace />} />
@@ -54,7 +54,7 @@ export default function App() {
                 </Route>
               </Route>
             </Routes>
-          </BrowserRouter>
+          </HashRouter>
         </GoogleSyncProvider>
       </ToastProvider>
     </AuthProvider>

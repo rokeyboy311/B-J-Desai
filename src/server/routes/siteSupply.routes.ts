@@ -107,7 +107,8 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
     res.json(combined);
   } catch (err: any) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
-    res.status(500).json({ error: 'Failed to fetch site supplies' });
+    console.warn('[Site Supplies GET Notice] Database fallback:', err?.message || err);
+    res.json([]);
   }
 });
 

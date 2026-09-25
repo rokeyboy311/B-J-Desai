@@ -280,25 +280,27 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteInvestor = (invId: number, name: string) => {
-    confirmAction(
-      `Are you sure you want to delete investor "${name}"?`,
-      async () => {
-        try {
-          await apiFetch(`/investments/global-investors/${invId}`, { method: "DELETE" });
-          showToast(`Investor "${name}" deleted successfully`, "success");
-          if (selectedInvestor?.id === invId) {
-            setIsPassbookOpen(false);
-            setSelectedInvestor(null);
-          }
-          triggerGlobalSync();
-          triggerSync("global_investors");
-          await loadData(true);
-        } catch (err: any) {
-          showToast(err.message || "Failed to delete investor", "error");
-        }
+  const handleDeleteInvestor = async (invId: number, name: string) => {
+    const confirmed = await confirmAction({
+      title: "Delete Investor",
+      message: `Are you sure you want to delete investor "${name}"?`,
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/investments/global-investors/${invId}`, { method: "DELETE" });
+      showToast(`Investor "${name}" deleted successfully`, "success");
+      if (selectedInvestor?.id === invId) {
+        setIsPassbookOpen(false);
+        setSelectedInvestor(null);
       }
-    );
+      triggerGlobalSync();
+      triggerSync("global_investors");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete investor", "error");
+    }
   };
 
   // Filtered Investors list

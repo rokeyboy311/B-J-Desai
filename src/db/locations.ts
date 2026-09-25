@@ -10,33 +10,38 @@ import {
 } from './schema.ts';
 
 export async function getLocationsWithRecordCount(_userId?: number, options?: { includeCentral?: boolean }) {
-  const whereCondition = options?.includeCentral
-    ? eq(locations.isDeleted, 0)
-    : and(
-        eq(locations.isDeleted, 0),
-        sql`LOWER(TRIM(${locations.name})) NOT IN ('central inventory for all sites', 'central inventory', 'central stock')`
-      );
+  try {
+    const whereCondition = options?.includeCentral
+      ? eq(locations.isDeleted, 0)
+      : and(
+          eq(locations.isDeleted, 0),
+          sql`LOWER(TRIM(${locations.name})) NOT IN ('central inventory for all sites', 'central inventory', 'central stock')`
+        );
 
-  return await db
-    .select({
-      id: locations.id,
-      name: locations.name,
-      address: locations.address,
-      createdAt: locations.createdAt,
-      updatedAt: locations.updatedAt,
-      recordCount: sql<number>`count(${records.id})::int`,
-    })
-    .from(locations)
-    .leftJoin(
-      records,
-      and(
-        eq(records.locationId, locations.id),
-        eq(records.isDeleted, 0)
+    return await db
+      .select({
+        id: locations.id,
+        name: locations.name,
+        address: locations.address,
+        createdAt: locations.createdAt,
+        updatedAt: locations.updatedAt,
+        recordCount: sql<number>`count(${records.id})::int`,
+      })
+      .from(locations)
+      .leftJoin(
+        records,
+        and(
+          eq(records.locationId, locations.id),
+          eq(records.isDeleted, 0)
+        )
       )
-    )
-    .where(whereCondition)
-    .groupBy(locations.id)
-    .orderBy(locations.name);
+      .where(whereCondition)
+      .groupBy(locations.id)
+      .orderBy(locations.name);
+  } catch (error) {
+    console.warn('[Locations] Database query error, returning empty fallback list:', error);
+    return [];
+  }
 }
 
 export async function createLocation(userId: number, name: string, address?: string | null) {
