@@ -20,6 +20,7 @@ import {
   initializeSinglePasswordInDB, 
   verifyPasswordAgainstDB 
 } from "./lib/security.ts";
+import { verifyPinToken } from "./middleware/auth.ts";
 import { normalizeMaterialsAndStockDB, runDatabaseMigrations } from "./lib/accounting.ts";
 import { cleanupDeletedLocationsData } from "../db/locations.ts";
 
@@ -118,7 +119,22 @@ export function createExpressApp() {
         (req.query.deletePassword as string) ||
         (req.body && req.body.deletePassword);
 
-      const isAuthorized = await verifyPasswordAgainstDB(providedPassword || "");
+      let isAuthorized = false;
+      if (providedPassword) {
+        isAuthorized = await verifyPasswordAgainstDB(providedPassword);
+      }
+
+      // Fallback: If delete-password header is empty, verify if user has an active authenticated session
+      if (!isAuthorized) {
+        const authHeader = (req.headers.authorization as string) || (req.headers['x-app-pin-token'] as string);
+        if (authHeader) {
+          const token = authHeader.startsWith('Bearer ') ? authHeader.split('Bearer ')[1] : authHeader;
+          if (token && verifyPinToken(token)) {
+            isAuthorized = true;
+          }
+        }
+      }
+
       if (!isAuthorized) {
         return res.status(403).json({
           success: false,

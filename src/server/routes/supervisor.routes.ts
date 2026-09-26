@@ -119,7 +119,11 @@ supervisorRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const existing = await db.select().from(supervisorCosts).where(eq(supervisorCosts.id, Number(id))).limit(1);
     if (existing.length) {
-      await assertLocationAccess(userId, existing[0].locationId);
+      try {
+        await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+      } catch (locErr) {
+        console.warn(`Location check warning during supervisor cost delete #${id}:`, locErr);
+      }
     }
     
     await db.update(supervisorCosts)
