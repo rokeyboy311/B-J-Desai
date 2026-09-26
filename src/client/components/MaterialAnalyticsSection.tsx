@@ -8,7 +8,7 @@ import {
   Truck, ArrowRight, Eye, X, CheckCircle2, AlertCircle, 
   AlertTriangle, ShieldCheck, ChevronRight, Trash2
 } from 'lucide-react';
-import { apiFetch, getStoredPinToken } from '../lib/api';
+import { apiFetch, getStoredPinToken, getApiUrl } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 
 interface MaterialAnalyticsData {
@@ -96,7 +96,7 @@ export default function MaterialAnalyticsSection({
     setIsExporting(true);
     try {
       const queryParam = selectedLocation && selectedLocation !== 'ALL' ? `?locationId=${selectedLocation}` : '';
-      const url = `/api/reports/export-material-analytics${queryParam}`;
+      const url = getApiUrl(`/reports/export-material-analytics${queryParam}`);
       const token = getStoredPinToken();
       const response = await fetch(url, {
         headers: {

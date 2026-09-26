@@ -1,4 +1,4 @@
-import { getStoredPinToken, getStoredCategoryPinToken } from './api';
+import { getStoredPinToken, getStoredCategoryPinToken, getApiUrl } from './api';
 
 export async function downloadExcelReport(endpoint: string, fallbackFilename: string = 'BJ_Export.xlsx'): Promise<void> {
   const token = getStoredPinToken();
@@ -13,7 +13,7 @@ export async function downloadExcelReport(endpoint: string, fallbackFilename: st
     headers['x-category-pin-token'] = categoryToken;
   }
 
-  const res = await fetch(`/api${endpoint}`, { headers });
+  const res = await fetch(getApiUrl(endpoint), { headers });
   if (!res.ok) {
     let errMsg = 'Failed to download Excel file';
     try {

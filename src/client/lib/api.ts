@@ -69,6 +69,32 @@ export function getActiveDeletePassword(): string | null {
   return activeDeletePassword;
 }
 
+export function getApiUrl(endpoint: string): string {
+  const cleanEndpoint = endpoint.startsWith('/api/')
+    ? endpoint.slice(4)
+    : endpoint.startsWith('api/')
+    ? endpoint.slice(3)
+    : endpoint;
+
+  const normalizedPath = cleanEndpoint.startsWith('/') ? cleanEndpoint : `/${cleanEndpoint}`;
+
+  // If VITE_API_URL is configured (e.g. deployed backend URL for Vercel static deployments)
+  const envBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) 
+    ? String(import.meta.env.VITE_API_URL).trim() 
+    : '';
+
+  if (envBase && !envBase.includes('placeholder')) {
+    const cleanBase = envBase.replace(/\/+$/, '');
+    if (cleanBase.endsWith('/api')) {
+      return `${cleanBase}${normalizedPath}`;
+    }
+    return `${cleanBase}/api${normalizedPath}`;
+  }
+
+  // Default same-origin relative URL (standard for Vite dev & Vercel rewrites)
+  return `/api${normalizedPath}`;
+}
+
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const token = getStoredPinToken();
   const categoryToken = getStoredCategoryPinToken();
@@ -92,13 +118,12 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     headers.set("Content-Type", "application/json");
   }
 
-  // Normalize endpoint URL to prevent double /api/api or missing slashes
   const cleanEndpoint = endpoint.startsWith('/api/')
     ? endpoint.slice(4)
     : endpoint.startsWith('api/')
     ? endpoint.slice(3)
     : endpoint;
-  const targetUrl = cleanEndpoint.startsWith('/') ? `/api${cleanEndpoint}` : `/api/${cleanEndpoint}`;
+  const targetUrl = getApiUrl(cleanEndpoint);
 
   let response: Response | null = null;
   let lastError: any = null;

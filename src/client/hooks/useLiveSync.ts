@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { getApiUrl } from '../lib/api';
 
 let globalKnownVersion = 0;
 let sseConnection: EventSource | null = null;
@@ -35,7 +36,7 @@ export function initRealtimeSyncManager() {
     }
 
     try {
-      sseConnection = new EventSource('/api/sync/events');
+      sseConnection = new EventSource(getApiUrl('/sync/events'));
 
       sseConnection.onmessage = (event) => {
         try {
@@ -71,7 +72,7 @@ export function initRealtimeSyncManager() {
   // 3. Fast Version Poll fallback (checks every 3.5 seconds)
   async function checkVersion() {
     try {
-      const res = await fetch('/api/sync/version', {
+      const res = await fetch(getApiUrl('/sync/version'), {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
       if (res.ok) {
@@ -133,7 +134,7 @@ export function triggerGlobalSync(eventType?: string, details?: any) {
     }
 
     // Ping server sync endpoint
-    fetch('/api/sync/trigger', {
+    fetch(getApiUrl('/sync/trigger'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventType, details, timestamp: Date.now() })

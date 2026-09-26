@@ -6,40 +6,39 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+export const NEON_CONNECTION_STRING =
+  'postgresql://neondb_owner:npg_EFhz2LiMmG9c@ep-twilight-hat-b4jrehma-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+
+export const getDatabaseUrl = (): string => {
+  const envUrl = process.env.DATABASE_URL?.trim();
+  // If envUrl is the obsolete database or empty, use the new Neon database
+  if (!envUrl || envUrl.includes('ep-odd-king-ae3gm793')) {
+    return NEON_CONNECTION_STRING;
+  }
+  let clean = envUrl;
+  if ((clean.startsWith("'") && clean.endsWith("'")) || (clean.startsWith('"') && clean.endsWith('"'))) {
+    clean = clean.slice(1, -1).trim();
+  }
+  return clean || NEON_CONNECTION_STRING;
+};
+
 export const createPool = () => {
   if (!global._postgresPool) {
-    let config: any;
+    let connStr = getDatabaseUrl();
 
-    if (process.env.SQL_HOST && process.env.SQL_DB_NAME) {
-      config = {
-        host: process.env.SQL_HOST,
-        user: process.env.SQL_USER || process.env.SQL_ADMIN_USER || 'postgres',
-        password: process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD || '',
-        database: process.env.SQL_DB_NAME,
-        max: 10,
-        connectionTimeoutMillis: 15000,
-      };
-    } else if (process.env.DATABASE_URL) {
-      let connStr = process.env.DATABASE_URL.trim();
-      if ((connStr.startsWith("'") && connStr.endsWith("'")) || (connStr.startsWith('"') && connStr.endsWith('"'))) {
-        connStr = connStr.slice(1, -1).trim();
-      }
-      config = {
-        connectionString: connStr,
-        max: 10,
-        connectionTimeoutMillis: 15000,
-        ssl: connStr.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
-      };
-    } else {
-      config = {
-        host: process.env.SQL_HOST || 'localhost',
-        user: process.env.SQL_USER || 'postgres',
-        password: process.env.SQL_PASSWORD || '',
-        database: process.env.SQL_DB_NAME || 'postgres',
-        max: 10,
-        connectionTimeoutMillis: 15000,
-      };
-    }
+    // Always configure SSL for remote PostgreSQL / Neon
+    const isRemote =
+      connStr.includes('sslmode=require') ||
+      connStr.includes('neon.tech') ||
+      connStr.includes('aws.neon.tech');
+
+    const config: any = {
+      connectionString: connStr,
+      max: process.env.NODE_ENV === 'production' ? 10 : 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 15000,
+      ssl: isRemote ? { rejectUnauthorized: false } : undefined,
+    };
 
     global._postgresPool = new Pool(config);
 

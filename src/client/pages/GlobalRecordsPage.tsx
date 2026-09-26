@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { apiFetch, getStoredPinToken } from "../lib/api";
+import { apiFetch, getStoredPinToken, getApiUrl } from "../lib/api";
 import { Receipt, Search, Filter, Download } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
@@ -41,7 +41,7 @@ export default function GlobalRecordsPage() {
   const handleExport = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let url = `/api/reports/export-all`;
+      let url = getApiUrl('/reports/export-all');
       const params = new URLSearchParams();
       if (exportStartDate) params.append("startDate", exportStartDate);
       if (exportEndDate) params.append("endDate", exportEndDate);
