@@ -1,11 +1,9 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import app, { ensureDbInitialized } from "../src/server/app.ts";
 
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  try {
-    await ensureDbInitialized();
-  } catch (err) {
-    console.warn("[Vercel Handler] DB initialization non-fatal warning:", err);
-  }
-  return (app as any)(req, res);
+ensureDbInitialized().catch((err) => {
+  console.warn("[Vercel Serverless] DB initialization background note:", err);
+});
+
+export default function handler(req: any, res: any) {
+  return app(req, res);
 }

@@ -1085,6 +1085,16 @@ export async function normalizeMaterialsAndStockDB(): Promise<void> {
  */
 export async function runDatabaseMigrations(): Promise<void> {
   try {
+    // Ensure all enum values exist in PostgreSQL investment_type enum
+    try {
+      await db.execute(sql`ALTER TYPE investment_type ADD VALUE IF NOT EXISTS 'CONTRIBUTION';`);
+      await db.execute(sql`ALTER TYPE investment_type ADD VALUE IF NOT EXISTS 'UPAD';`);
+      await db.execute(sql`ALTER TYPE investment_type ADD VALUE IF NOT EXISTS 'INVESTMENT';`);
+      await db.execute(sql`ALTER TYPE investment_type ADD VALUE IF NOT EXISTS 'PAYMENT';`);
+    } catch (enumErr) {
+      // Ignore if already added or not supported
+    }
+
     // Backfill / migrate data from legacy investment_parties & investment_transactions if any
     try {
       const legacyParties = await db.execute(sql`

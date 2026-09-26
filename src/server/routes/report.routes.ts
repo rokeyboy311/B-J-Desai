@@ -381,10 +381,10 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       SELECT 
         p.id, 
         p.party_name as "partyName",
-        COALESCE(SUM(CASE WHEN t.type = 'INVESTMENT' THEN t.amount ELSE 0 END), 0) as "totalInvestmentKarya",
-        COALESCE(SUM(CASE WHEN t.type = 'CONTRIBUTION' THEN t.amount ELSE 0 END), 0) as "totalContribution",
-        COALESCE(SUM(CASE WHEN t.type = 'UPAD' THEN t.amount ELSE 0 END), 0) as "totalUpad",
-        COALESCE(SUM(CASE WHEN t.type = 'PAYMENT' THEN t.amount ELSE 0 END), 0) as "totalPayment"
+        COALESCE(SUM(CASE WHEN t.type::text = 'INVESTMENT' THEN t.amount ELSE 0 END), 0) as "totalInvestmentKarya",
+        COALESCE(SUM(CASE WHEN t.type::text = 'CONTRIBUTION' THEN t.amount ELSE 0 END), 0) as "totalContribution",
+        COALESCE(SUM(CASE WHEN t.type::text = 'UPAD' THEN t.amount ELSE 0 END), 0) as "totalUpad",
+        COALESCE(SUM(CASE WHEN t.type::text = 'PAYMENT' THEN t.amount ELSE 0 END), 0) as "totalPayment"
       FROM investment_parties p
       LEFT JOIN investment_transactions t ON t.party_id = p.id AND t.is_deleted = 0
       WHERE p.is_deleted = 0 AND p.location_id IN (${sql.raw(idList)})
@@ -761,10 +761,10 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
           `),
           db.execute(sql`
             SELECT 
-              SUM(CASE WHEN t.type = 'INVESTMENT' THEN t.amount ELSE 0 END) as total_invested,
-              SUM(CASE WHEN t.type = 'CONTRIBUTION' THEN t.amount ELSE 0 END) as total_contribution,
-              SUM(CASE WHEN t.type = 'UPAD' THEN t.amount ELSE 0 END) as total_upad,
-              SUM(CASE WHEN t.type = 'PAYMENT' THEN t.amount ELSE 0 END) as total_payment
+              SUM(CASE WHEN t.type::text = 'INVESTMENT' THEN t.amount ELSE 0 END) as total_invested,
+              SUM(CASE WHEN t.type::text = 'CONTRIBUTION' THEN t.amount ELSE 0 END) as total_contribution,
+              SUM(CASE WHEN t.type::text = 'UPAD' THEN t.amount ELSE 0 END) as total_upad,
+              SUM(CASE WHEN t.type::text = 'PAYMENT' THEN t.amount ELSE 0 END) as total_payment
             FROM investment_parties p
             LEFT JOIN investment_transactions t ON t.party_id = p.id AND t.is_deleted = 0
             WHERE p.location_id = ${locId} AND p.is_deleted = 0
