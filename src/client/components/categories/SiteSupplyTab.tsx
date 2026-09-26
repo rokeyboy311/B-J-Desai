@@ -34,7 +34,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
     try {
       const [supplies, mats, labTeams, locs] = await Promise.all([
         apiFetch(`/site-supplies?locationId=${locationId}`).catch(() => []),
-        apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/master/materials`).catch(() => []),
         apiFetch(`/master/teams?locationId=${locationId}`).catch(() => []),
         apiFetch(`/locations`).catch(() => [])
       ]);

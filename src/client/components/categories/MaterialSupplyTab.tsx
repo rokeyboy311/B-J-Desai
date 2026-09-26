@@ -38,7 +38,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
     try {
       const [supplies, mats, parts] = await Promise.all([
         apiFetch(`/materials/supply?locationId=${locationId}`),
-        apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/master/materials`).catch(() => []),
         apiFetch(`/master/parties?locationId=${locationId}`).catch(() => [])
       ]);
       setRecords(supplies || []);
