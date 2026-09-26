@@ -6713,6 +6713,10 @@ materialRouter.get("/:type", async (req, res) => {
     }
     let data;
     if (type === "purchase") {
+      const purchaseConditions = [eq8(materialPurchases.isDeleted, 0)];
+      if (locationId) {
+        purchaseConditions.push(eq8(materialPurchases.locationId, locationId));
+      }
       data = await db.select({
         id: materialPurchases.id,
         userId: materialPurchases.userId,
@@ -6739,11 +6743,12 @@ materialRouter.get("/:type", async (req, res) => {
         createdAt: materialPurchases.createdAt,
         isDeleted: materialPurchases.isDeleted,
         locationName: locations.name
-      }).from(materialPurchases).leftJoin(locations, eq8(materialPurchases.locationId, locations.id)).where(and7(
-        locationId ? eq8(materialPurchases.locationId, locationId) : void 0,
-        eq8(materialPurchases.isDeleted, 0)
-      )).orderBy(desc5(materialPurchases.date), desc5(materialPurchases.id));
+      }).from(materialPurchases).leftJoin(locations, eq8(materialPurchases.locationId, locations.id)).where(and7(...purchaseConditions)).orderBy(desc5(materialPurchases.date), desc5(materialPurchases.id));
     } else if (type === "supply") {
+      const supplyConditions = [eq8(materialSupplies.isDeleted, 0)];
+      if (locationId) {
+        supplyConditions.push(eq8(materialSupplies.locationId, locationId));
+      }
       data = await db.select({
         id: materialSupplies.id,
         userId: materialSupplies.userId,
@@ -6772,11 +6777,12 @@ materialRouter.get("/:type", async (req, res) => {
         createdAt: materialSupplies.createdAt,
         isDeleted: materialSupplies.isDeleted,
         locationName: locations.name
-      }).from(materialSupplies).leftJoin(locations, eq8(materialSupplies.locationId, locations.id)).where(and7(
-        locationId ? eq8(materialSupplies.locationId, locationId) : void 0,
-        eq8(materialSupplies.isDeleted, 0)
-      )).orderBy(desc5(materialSupplies.date), desc5(materialSupplies.id));
+      }).from(materialSupplies).leftJoin(locations, eq8(materialSupplies.locationId, locations.id)).where(and7(...supplyConditions)).orderBy(desc5(materialSupplies.date), desc5(materialSupplies.id));
     } else if (type === "labour-supply") {
+      const siteConditions = [eq8(siteSupplies.isDeleted, 0), eq8(siteSupplyItems.isDeleted, 0)];
+      if (locationId) {
+        siteConditions.push(eq8(siteSupplies.locationId, locationId));
+      }
       const siteRecords = await db.select({
         id: siteSupplyItems.id,
         siteSupplyId: siteSupplies.id,
@@ -6812,11 +6818,11 @@ materialRouter.get("/:type", async (req, res) => {
         isDeleted: siteSupplyItems.isDeleted,
         locationName: locations.name,
         sourceType: sql7`'SITE_SUPPLY'`
-      }).from(siteSupplyItems).innerJoin(siteSupplies, eq8(siteSupplyItems.siteSupplyId, siteSupplies.id)).leftJoin(locations, eq8(siteSupplies.locationId, locations.id)).leftJoin(materials, eq8(siteSupplyItems.materialId, materials.id)).leftJoin(labourTeams, eq8(siteSupplies.teamId, labourTeams.id)).where(and7(
-        locationId ? eq8(siteSupplies.locationId, locationId) : void 0,
-        eq8(siteSupplies.isDeleted, 0),
-        eq8(siteSupplyItems.isDeleted, 0)
-      )).orderBy(desc5(siteSupplies.date), desc5(siteSupplyItems.id));
+      }).from(siteSupplyItems).innerJoin(siteSupplies, eq8(siteSupplyItems.siteSupplyId, siteSupplies.id)).leftJoin(locations, eq8(siteSupplies.locationId, locations.id)).leftJoin(materials, eq8(siteSupplyItems.materialId, materials.id)).leftJoin(labourTeams, eq8(siteSupplies.teamId, labourTeams.id)).where(and7(...siteConditions)).orderBy(desc5(siteSupplies.date), desc5(siteSupplyItems.id));
+      const legacyConditions = [eq8(materialLabourSupplies.isDeleted, 0)];
+      if (locationId) {
+        legacyConditions.push(eq8(materialLabourSupplies.locationId, locationId));
+      }
       const legacyData = await db.select({
         id: materialLabourSupplies.id,
         siteSupplyId: sql7`null`,
@@ -6852,10 +6858,7 @@ materialRouter.get("/:type", async (req, res) => {
         isDeleted: materialLabourSupplies.isDeleted,
         locationName: locations.name,
         sourceType: sql7`'LEGACY_LABOUR_SUPPLY'`
-      }).from(materialLabourSupplies).leftJoin(locations, eq8(materialLabourSupplies.locationId, locations.id)).where(and7(
-        locationId ? eq8(materialLabourSupplies.locationId, locationId) : void 0,
-        eq8(materialLabourSupplies.isDeleted, 0)
-      )).orderBy(desc5(materialLabourSupplies.date), desc5(materialLabourSupplies.id));
+      }).from(materialLabourSupplies).leftJoin(locations, eq8(materialLabourSupplies.locationId, locations.id)).where(and7(...legacyConditions)).orderBy(desc5(materialLabourSupplies.date), desc5(materialLabourSupplies.id));
       data = [...siteRecords, ...legacyData];
     } else if (type === "materials" || type === "master" || type === "items" || type === "stock") {
       data = await db.select().from(materials).where(eq8(materials.isDeleted, 0)).orderBy(materials.name);

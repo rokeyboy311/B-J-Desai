@@ -315,6 +315,11 @@ materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
 
     let data;
     if (type === 'purchase') {
+      const purchaseConditions = [eq(materialPurchases.isDeleted, 0)];
+      if (locationId) {
+        purchaseConditions.push(eq(materialPurchases.locationId, locationId));
+      }
+
       data = await db.select({
         id: materialPurchases.id,
         userId: materialPurchases.userId,
@@ -344,12 +349,14 @@ materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
       })
       .from(materialPurchases)
       .leftJoin(locations, eq(materialPurchases.locationId, locations.id))
-      .where(and(
-        locationId ? eq(materialPurchases.locationId, locationId) : undefined,
-        eq(materialPurchases.isDeleted, 0)
-      ))
+      .where(and(...purchaseConditions))
       .orderBy(desc(materialPurchases.date), desc(materialPurchases.id));
     } else if (type === 'supply') {
+      const supplyConditions = [eq(materialSupplies.isDeleted, 0)];
+      if (locationId) {
+        supplyConditions.push(eq(materialSupplies.locationId, locationId));
+      }
+
       data = await db.select({
         id: materialSupplies.id,
         userId: materialSupplies.userId,
@@ -381,12 +388,14 @@ materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
       })
       .from(materialSupplies)
       .leftJoin(locations, eq(materialSupplies.locationId, locations.id))
-      .where(and(
-        locationId ? eq(materialSupplies.locationId, locationId) : undefined,
-        eq(materialSupplies.isDeleted, 0)
-      ))
+      .where(and(...supplyConditions))
       .orderBy(desc(materialSupplies.date), desc(materialSupplies.id));
     } else if (type === 'labour-supply') {
+      const siteConditions = [eq(siteSupplies.isDeleted, 0), eq(siteSupplyItems.isDeleted, 0)];
+      if (locationId) {
+        siteConditions.push(eq(siteSupplies.locationId, locationId));
+      }
+
       // 1. Fetch from siteSupplies + siteSupplyItems (Team Wise Material Supply = Site Supply)
       const siteRecords = await db.select({
         id: siteSupplyItems.id,
@@ -429,12 +438,13 @@ materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
       .leftJoin(locations, eq(siteSupplies.locationId, locations.id))
       .leftJoin(materials, eq(siteSupplyItems.materialId, materials.id))
       .leftJoin(labourTeams, eq(siteSupplies.teamId, labourTeams.id))
-      .where(and(
-        locationId ? eq(siteSupplies.locationId, locationId) : undefined,
-        eq(siteSupplies.isDeleted, 0),
-        eq(siteSupplyItems.isDeleted, 0)
-      ))
+      .where(and(...siteConditions))
       .orderBy(desc(siteSupplies.date), desc(siteSupplyItems.id));
+
+      const legacyConditions = [eq(materialLabourSupplies.isDeleted, 0)];
+      if (locationId) {
+        legacyConditions.push(eq(materialLabourSupplies.locationId, locationId));
+      }
 
       // 2. Fetch legacy materialLabourSupplies if any exist
       const legacyData = await db.select({
@@ -475,12 +485,8 @@ materialRouter.get('/:type', async (req: AuthRequest, res: Response) => {
       })
       .from(materialLabourSupplies)
       .leftJoin(locations, eq(materialLabourSupplies.locationId, locations.id))
-      .where(and(
-        locationId ? eq(materialLabourSupplies.locationId, locationId) : undefined,
-        eq(materialLabourSupplies.isDeleted, 0)
-      ))
+      .where(and(...legacyConditions))
       .orderBy(desc(materialLabourSupplies.date), desc(materialLabourSupplies.id));
-
       data = [...siteRecords, ...legacyData];
     } else if (type === 'materials' || type === 'master' || type === 'items' || type === 'stock') {
       data = await db.select().from(materials).where(eq(materials.isDeleted, 0)).orderBy(materials.name);
