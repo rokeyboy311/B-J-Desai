@@ -37,7 +37,7 @@ export const createPool = () => {
       max: process.env.NODE_ENV === 'production' ? 10 : 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 15000,
-      ssl: isRemote ? { rejectUnauthorized: false } : undefined,
+      ssl: isRemote ? { rejectUnauthorized: false } : false,
     };
 
     global._postgresPool = new Pool(config);

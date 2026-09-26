@@ -77,6 +77,8 @@ export async function verifyPasswordAgainstDB(inputPassword: string): Promise<bo
     DEFAULT_UNIVERSAL_PASSWORD,
     'Bh@ju1203',
     'Bh@ju1204',
+    '1203',
+    '1204',
     '190190',
     '123456',
     process.env.APP_ACCESS_PIN,

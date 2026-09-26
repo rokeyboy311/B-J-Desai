@@ -89,8 +89,15 @@ export function createExpressApp() {
     next();
   });
 
-  // URL normalization: ensure API routes starting without /api (e.g. from Vercel rewrites) are handled
+  // URL normalization: ensure API routes starting without /api or rewritten by Vercel are handled
   app.use((req, res, next) => {
+    // Strip /api/index.ts or /api/index prefix if injected by Vercel serverless rewrites
+    if (req.url.startsWith('/api/index.ts')) {
+      req.url = req.url.replace(/^\/api\/index\.ts/, '/api');
+    } else if (req.url.startsWith('/api/index')) {
+      req.url = req.url.replace(/^\/api\/index/, '/api');
+    }
+
     const knownApiPrefixes = [
       '/sync', '/auth', '/access', '/locations', '/records', '/reports', 
       '/audit-logs', '/investments', '/materials', '/site-supplies', 
