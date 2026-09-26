@@ -41,75 +41,91 @@ materialRouter.get('/central-stock', async (req: AuthRequest, res: Response) => 
       return true;
     });
 
-    const stockSummary = await Promise.all(
-      uniqueMaterials.map(async (m) => {
-        const inRes = await db.execute(sql`
-          SELECT COALESCE(SUM(CAST(quantity AS numeric)), 0) as total
-          FROM stock_ledger
-          WHERE (material_id = ${m.id} OR material_id IN (
-            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
-          )) AND transaction_type = 'IN' AND is_deleted = 0
-        `);
+    const stockMapRes = await db.execute(sql`
+      SELECT 
+        UPPER(TRIM(m.name)) as clean_name,
+        COALESCE(SUM(CASE WHEN sl.transaction_type = 'IN' THEN CAST(sl.quantity AS numeric) ELSE 0 END), 0) as total_in,
+        COALESCE(SUM(CASE WHEN sl.transaction_type = 'OUT' THEN ABS(CAST(sl.quantity AS numeric)) ELSE 0 END), 0) as total_out
+      FROM stock_ledger sl
+      JOIN materials m ON sl.material_id = m.id
+      WHERE sl.is_deleted = 0
+      GROUP BY UPPER(TRIM(m.name))
+    `);
 
-        const outRes = await db.execute(sql`
-          SELECT COALESCE(SUM(ABS(CAST(quantity AS numeric))), 0) as total
-          FROM stock_ledger
-          WHERE (material_id = ${m.id} OR material_id IN (
-            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
-          )) AND transaction_type = 'OUT' AND is_deleted = 0
-        `);
+    // Fetch latest purchases grouped by clean name
+    const latestPurchasesRes = await db.execute(sql`
+      SELECT DISTINCT ON (UPPER(TRIM(material_name)))
+        UPPER(TRIM(material_name)) as clean_name,
+        unit,
+        rate
+      FROM material_purchases
+      WHERE is_deleted = 0
+      ORDER BY UPPER(TRIM(material_name)), date DESC, id DESC
+    `);
 
-        const totalInward = parseFloat(inRes.rows[0]?.total as string || '0');
-        const totalOutward = parseFloat(outRes.rows[0]?.total as string || '0');
-        const currentBalance = Math.round((totalInward - totalOutward) * 100) / 100;
-        const minStock = parseFloat(m.minStock || '0');
+    const stockMap = new Map<string, { totalIn: number; totalOut: number }>();
+    for (const row of stockMapRes.rows) {
+      const cleanName = String(row.clean_name || '').trim().toUpperCase();
+      stockMap.set(cleanName, {
+        totalIn: parseFloat(row.total_in as string || '0'),
+        totalOut: parseFloat(row.total_out as string || '0')
+      });
+    }
 
-        let status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK';
-        if (currentBalance <= 0) {
-          status = 'OUT_OF_STOCK';
-        } else if (currentBalance <= minStock) {
-          status = 'LOW_STOCK';
-        }
+    const purchaseMap = new Map<string, { unit: string; rate: number }>();
+    for (const row of latestPurchasesRes.rows) {
+      const cleanName = String(row.clean_name || '').trim().toUpperCase();
+      purchaseMap.set(cleanName, {
+        unit: String(row.unit || ''),
+        rate: parseFloat(row.rate as string || '0')
+      });
+    }
 
-        // 1. Authoritative: check latest purchase for this material
-        const latestPurchase = await db.execute(sql`
-          SELECT unit, rate FROM material_purchases 
-          WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
-            AND is_deleted = 0 
-          ORDER BY date DESC, id DESC LIMIT 1
-        `);
+    const stockSummary = [];
+    for (const m of uniqueMaterials) {
+      const cleanName = (m.name || '').trim().toUpperCase();
+      const stockInfo = stockMap.get(cleanName) || { totalIn: 0, totalOut: 0 };
+      const currentBalance = Math.round((stockInfo.totalIn - stockInfo.totalOut) * 100) / 100;
+      const minStock = parseFloat(m.minStock || '0');
 
-        let resolvedUnit = m.defaultUnit || 'Nos';
-        if (latestPurchase.rows[0]?.unit && String(latestPurchase.rows[0].unit).trim().toLowerCase() !== 'unit') {
-          resolvedUnit = String(latestPurchase.rows[0].unit).trim();
-        }
+      let status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK';
+      if (currentBalance <= 0) {
+        status = 'OUT_OF_STOCK';
+      } else if (currentBalance <= minStock) {
+        status = 'LOW_STOCK';
+      }
 
-        let resolvedRate = parseFloat(m.defaultRate || '0');
-        if (latestPurchase.rows[0]?.rate && parseFloat(String(latestPurchase.rows[0].rate)) > 0) {
-          resolvedRate = parseFloat(String(latestPurchase.rows[0].rate));
-        }
+      let resolvedUnit = m.defaultUnit || 'Nos';
+      let resolvedRate = parseFloat(m.defaultRate || '0');
 
-        const stockValue = Math.round(Math.max(0, currentBalance) * resolvedRate * 100) / 100;
+      const purch = purchaseMap.get(cleanName);
+      if (purch?.unit && purch.unit.trim().toLowerCase() !== 'unit') {
+        resolvedUnit = purch.unit.trim();
+      }
+      if (purch?.rate && purch.rate > 0) {
+        resolvedRate = purch.rate;
+      }
 
-        return {
-          id: m.id,
-          name: m.name,
-          category: m.category || 'General',
-          unit: resolvedUnit,
-          rate: resolvedRate,
-          defaultRate: resolvedRate.toString(),
-          minStock,
-          purchasedQty: totalInward,
-          totalInward,
-          suppliedQty: totalOutward,
-          totalOutward,
-          currentStock: currentBalance,
-          currentBalance,
-          stockValue,
-          status
-        };
-      })
-    );
+      const stockValue = Math.round(Math.max(0, currentBalance) * resolvedRate * 100) / 100;
+
+      stockSummary.push({
+        id: m.id,
+        name: m.name,
+        category: m.category || 'General',
+        unit: resolvedUnit,
+        rate: resolvedRate,
+        defaultRate: resolvedRate.toString(),
+        minStock,
+        purchasedQty: stockInfo.totalIn,
+        totalInward: stockInfo.totalIn,
+        suppliedQty: stockInfo.totalOut,
+        totalOutward: stockInfo.totalOut,
+        currentStock: currentBalance,
+        currentBalance,
+        stockValue,
+        status
+      });
+    }
 
     res.json(stockSummary);
   } catch (error: any) {

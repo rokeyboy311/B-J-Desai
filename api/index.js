@@ -6500,66 +6500,81 @@ materialRouter.get("/central-stock", async (req, res) => {
       seenNames.add(clean);
       return true;
     });
-    const stockSummary = await Promise.all(
-      uniqueMaterials.map(async (m) => {
-        const inRes = await db.execute(sql7`
-          SELECT COALESCE(SUM(CAST(quantity AS numeric)), 0) as total
-          FROM stock_ledger
-          WHERE (material_id = ${m.id} OR material_id IN (
-            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
-          )) AND transaction_type = 'IN' AND is_deleted = 0
-        `);
-        const outRes = await db.execute(sql7`
-          SELECT COALESCE(SUM(ABS(CAST(quantity AS numeric))), 0) as total
-          FROM stock_ledger
-          WHERE (material_id = ${m.id} OR material_id IN (
-            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
-          )) AND transaction_type = 'OUT' AND is_deleted = 0
-        `);
-        const totalInward = parseFloat(inRes.rows[0]?.total || "0");
-        const totalOutward = parseFloat(outRes.rows[0]?.total || "0");
-        const currentBalance = Math.round((totalInward - totalOutward) * 100) / 100;
-        const minStock = parseFloat(m.minStock || "0");
-        let status = "IN_STOCK";
-        if (currentBalance <= 0) {
-          status = "OUT_OF_STOCK";
-        } else if (currentBalance <= minStock) {
-          status = "LOW_STOCK";
-        }
-        const latestPurchase = await db.execute(sql7`
-          SELECT unit, rate FROM material_purchases 
-          WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
-            AND is_deleted = 0 
-          ORDER BY date DESC, id DESC LIMIT 1
-        `);
-        let resolvedUnit = m.defaultUnit || "Nos";
-        if (latestPurchase.rows[0]?.unit && String(latestPurchase.rows[0].unit).trim().toLowerCase() !== "unit") {
-          resolvedUnit = String(latestPurchase.rows[0].unit).trim();
-        }
-        let resolvedRate = parseFloat(m.defaultRate || "0");
-        if (latestPurchase.rows[0]?.rate && parseFloat(String(latestPurchase.rows[0].rate)) > 0) {
-          resolvedRate = parseFloat(String(latestPurchase.rows[0].rate));
-        }
-        const stockValue = Math.round(Math.max(0, currentBalance) * resolvedRate * 100) / 100;
-        return {
-          id: m.id,
-          name: m.name,
-          category: m.category || "General",
-          unit: resolvedUnit,
-          rate: resolvedRate,
-          defaultRate: resolvedRate.toString(),
-          minStock,
-          purchasedQty: totalInward,
-          totalInward,
-          suppliedQty: totalOutward,
-          totalOutward,
-          currentStock: currentBalance,
-          currentBalance,
-          stockValue,
-          status
-        };
-      })
-    );
+    const stockMapRes = await db.execute(sql7`
+      SELECT 
+        UPPER(TRIM(m.name)) as clean_name,
+        COALESCE(SUM(CASE WHEN sl.transaction_type = 'IN' THEN CAST(sl.quantity AS numeric) ELSE 0 END), 0) as total_in,
+        COALESCE(SUM(CASE WHEN sl.transaction_type = 'OUT' THEN ABS(CAST(sl.quantity AS numeric)) ELSE 0 END), 0) as total_out
+      FROM stock_ledger sl
+      JOIN materials m ON sl.material_id = m.id
+      WHERE sl.is_deleted = 0
+      GROUP BY UPPER(TRIM(m.name))
+    `);
+    const latestPurchasesRes = await db.execute(sql7`
+      SELECT DISTINCT ON (UPPER(TRIM(material_name)))
+        UPPER(TRIM(material_name)) as clean_name,
+        unit,
+        rate
+      FROM material_purchases
+      WHERE is_deleted = 0
+      ORDER BY UPPER(TRIM(material_name)), date DESC, id DESC
+    `);
+    const stockMap = /* @__PURE__ */ new Map();
+    for (const row of stockMapRes.rows) {
+      const cleanName = String(row.clean_name || "").trim().toUpperCase();
+      stockMap.set(cleanName, {
+        totalIn: parseFloat(row.total_in || "0"),
+        totalOut: parseFloat(row.total_out || "0")
+      });
+    }
+    const purchaseMap = /* @__PURE__ */ new Map();
+    for (const row of latestPurchasesRes.rows) {
+      const cleanName = String(row.clean_name || "").trim().toUpperCase();
+      purchaseMap.set(cleanName, {
+        unit: String(row.unit || ""),
+        rate: parseFloat(row.rate || "0")
+      });
+    }
+    const stockSummary = [];
+    for (const m of uniqueMaterials) {
+      const cleanName = (m.name || "").trim().toUpperCase();
+      const stockInfo = stockMap.get(cleanName) || { totalIn: 0, totalOut: 0 };
+      const currentBalance = Math.round((stockInfo.totalIn - stockInfo.totalOut) * 100) / 100;
+      const minStock = parseFloat(m.minStock || "0");
+      let status = "IN_STOCK";
+      if (currentBalance <= 0) {
+        status = "OUT_OF_STOCK";
+      } else if (currentBalance <= minStock) {
+        status = "LOW_STOCK";
+      }
+      let resolvedUnit = m.defaultUnit || "Nos";
+      let resolvedRate = parseFloat(m.defaultRate || "0");
+      const purch = purchaseMap.get(cleanName);
+      if (purch?.unit && purch.unit.trim().toLowerCase() !== "unit") {
+        resolvedUnit = purch.unit.trim();
+      }
+      if (purch?.rate && purch.rate > 0) {
+        resolvedRate = purch.rate;
+      }
+      const stockValue = Math.round(Math.max(0, currentBalance) * resolvedRate * 100) / 100;
+      stockSummary.push({
+        id: m.id,
+        name: m.name,
+        category: m.category || "General",
+        unit: resolvedUnit,
+        rate: resolvedRate,
+        defaultRate: resolvedRate.toString(),
+        minStock,
+        purchasedQty: stockInfo.totalIn,
+        totalInward: stockInfo.totalIn,
+        suppliedQty: stockInfo.totalOut,
+        totalOutward: stockInfo.totalOut,
+        currentStock: currentBalance,
+        currentBalance,
+        stockValue,
+        status
+      });
+    }
     res.json(stockSummary);
   } catch (error) {
     console.warn("[Central Stock GET Notice] Database fallback:", error?.message || error);
@@ -7958,96 +7973,111 @@ masterRouter.get("/materials", async (req, res) => {
       await assertLocationAccess(userId, locationId);
     }
     const records2 = await db.select().from(materials).where(eq11(materials.isDeleted, 0)).orderBy(materials.name);
-    const enriched = await Promise.all(
-      records2.map(async (m) => {
-        const inRes = await db.execute(sql8`
-          SELECT COALESCE(SUM(CAST(quantity AS numeric)), 0) as total
-          FROM stock_ledger
-          WHERE (material_id = ${m.id} OR material_id IN (
-            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
-          )) AND transaction_type = 'IN' AND is_deleted = 0
-          ${locationId ? sql8`AND location_id = ${locationId}` : sql8``}
-        `);
-        const outRes = await db.execute(sql8`
-          SELECT COALESCE(SUM(ABS(CAST(quantity AS numeric))), 0) as total
-          FROM stock_ledger
-          WHERE (material_id = ${m.id} OR material_id IN (
-            SELECT id FROM materials WHERE UPPER(TRIM(name)) = UPPER(TRIM(${m.name}))
-          )) AND transaction_type = 'OUT' AND is_deleted = 0
-          ${locationId ? sql8`AND location_id = ${locationId}` : sql8``}
-        `);
-        const totalInward = parseFloat(inRes.rows[0]?.total || "0");
-        const totalOutward = parseFloat(outRes.rows[0]?.total || "0");
-        const currentStock = Math.round((totalInward - totalOutward) * 100) / 100;
-        const minStock = parseFloat(m.minStock || "0");
-        let status = "IN_STOCK";
-        if (currentStock <= 0) {
-          status = "OUT_OF_STOCK";
-        } else if (currentStock <= minStock) {
-          status = "LOW_STOCK";
-        }
-        let resolvedUnit = "";
-        let resolvedRate = 0;
-        const latestPurchase = await db.execute(sql8`
-          SELECT unit, rate FROM material_purchases 
-          WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
-            AND is_deleted = 0 
-          ORDER BY date DESC, id DESC LIMIT 1
-        `);
-        if (latestPurchase.rows[0]?.unit && String(latestPurchase.rows[0].unit).trim().toLowerCase() !== "unit") {
-          resolvedUnit = String(latestPurchase.rows[0].unit).trim();
-        } else if (m.defaultUnit && m.defaultUnit.trim() && m.defaultUnit.trim().toLowerCase() !== "unit") {
-          resolvedUnit = m.defaultUnit.trim();
-        } else {
-          const latestSupply = await db.execute(sql8`
-            SELECT unit FROM material_supplies 
-            WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
-              AND is_deleted = 0 
-              AND unit IS NOT NULL AND TRIM(unit) != '' AND LOWER(TRIM(unit)) != 'unit'
-            ORDER BY date DESC, id DESC LIMIT 1
-          `);
-          if (latestSupply.rows[0]?.unit) {
-            resolvedUnit = String(latestSupply.rows[0].unit).trim();
-          }
-        }
-        if (!resolvedUnit) resolvedUnit = "Nos";
-        if (latestPurchase.rows[0]?.rate && parseFloat(String(latestPurchase.rows[0].rate)) > 0) {
-          resolvedRate = parseFloat(String(latestPurchase.rows[0].rate));
-        } else if (m.defaultRate && parseFloat(m.defaultRate) > 0) {
-          resolvedRate = parseFloat(m.defaultRate);
-        } else {
-          const latestSupplyRate = await db.execute(sql8`
-            SELECT rate FROM material_supplies 
-            WHERE (material_id = ${m.id} OR UPPER(TRIM(material_name)) = UPPER(TRIM(${m.name}))) 
-              AND is_deleted = 0 
-              AND rate IS NOT NULL AND CAST(rate AS numeric) > 0
-            ORDER BY date DESC, id DESC LIMIT 1
-          `);
-          if (latestSupplyRate.rows[0]?.rate) {
-            resolvedRate = parseFloat(String(latestSupplyRate.rows[0].rate));
-          }
-        }
-        const shouldUpdateUnit = m.defaultUnit !== resolvedUnit;
-        const shouldUpdateRate = resolvedRate > 0 && (!m.defaultRate || parseFloat(m.defaultRate) === 0 || m.defaultRate !== resolvedRate.toString());
-        if (shouldUpdateUnit || shouldUpdateRate) {
-          await db.update(materials).set({
-            defaultUnit: resolvedUnit,
-            ...resolvedRate > 0 ? { defaultRate: resolvedRate.toString() } : {}
-          }).where(eq11(materials.id, m.id));
-        }
-        return {
-          ...m,
+    const stockMapRes = await db.execute(sql8`
+      SELECT 
+        UPPER(TRIM(m.name)) as clean_name,
+        COALESCE(SUM(CASE WHEN sl.transaction_type = 'IN' THEN CAST(sl.quantity AS numeric) ELSE 0 END), 0) as total_in,
+        COALESCE(SUM(CASE WHEN sl.transaction_type = 'OUT' THEN ABS(CAST(sl.quantity AS numeric)) ELSE 0 END), 0) as total_out
+      FROM stock_ledger sl
+      JOIN materials m ON sl.material_id = m.id
+      WHERE sl.is_deleted = 0
+        ${locationId ? sql8`AND sl.location_id = ${locationId}` : sql8``}
+      GROUP BY UPPER(TRIM(m.name))
+    `);
+    const latestPurchasesRes = await db.execute(sql8`
+      SELECT DISTINCT ON (UPPER(TRIM(material_name)))
+        UPPER(TRIM(material_name)) as clean_name,
+        unit,
+        rate
+      FROM material_purchases
+      WHERE is_deleted = 0
+      ORDER BY UPPER(TRIM(material_name)), date DESC, id DESC
+    `);
+    const latestSuppliesRes = await db.execute(sql8`
+      SELECT DISTINCT ON (UPPER(TRIM(material_name)))
+        UPPER(TRIM(material_name)) as clean_name,
+        unit,
+        rate
+      FROM material_supplies
+      WHERE is_deleted = 0
+      ORDER BY UPPER(TRIM(material_name)), date DESC, id DESC
+    `);
+    const stockMap = /* @__PURE__ */ new Map();
+    for (const row of stockMapRes.rows) {
+      const cleanName = String(row.clean_name || "").trim().toUpperCase();
+      stockMap.set(cleanName, {
+        totalIn: parseFloat(row.total_in || "0"),
+        totalOut: parseFloat(row.total_out || "0")
+      });
+    }
+    const purchaseMap = /* @__PURE__ */ new Map();
+    for (const row of latestPurchasesRes.rows) {
+      const cleanName = String(row.clean_name || "").trim().toUpperCase();
+      purchaseMap.set(cleanName, {
+        unit: String(row.unit || ""),
+        rate: parseFloat(row.rate || "0")
+      });
+    }
+    const supplyMap = /* @__PURE__ */ new Map();
+    for (const row of latestSuppliesRes.rows) {
+      const cleanName = String(row.clean_name || "").trim().toUpperCase();
+      supplyMap.set(cleanName, {
+        unit: String(row.unit || ""),
+        rate: parseFloat(row.rate || "0")
+      });
+    }
+    const enriched = [];
+    for (const m of records2) {
+      const cleanName = (m.name || "").trim().toUpperCase();
+      const stockInfo = stockMap.get(cleanName) || { totalIn: 0, totalOut: 0 };
+      const currentStock = Math.round((stockInfo.totalIn - stockInfo.totalOut) * 100) / 100;
+      const minStock = parseFloat(m.minStock || "0");
+      let status = "IN_STOCK";
+      if (currentStock <= 0) {
+        status = "OUT_OF_STOCK";
+      } else if (currentStock <= minStock) {
+        status = "LOW_STOCK";
+      }
+      let resolvedUnit = "";
+      const purch = purchaseMap.get(cleanName);
+      const suppl = supplyMap.get(cleanName);
+      if (purch?.unit && purch.unit.trim().toLowerCase() !== "unit") {
+        resolvedUnit = purch.unit.trim();
+      } else if (m.defaultUnit && m.defaultUnit.trim() && m.defaultUnit.trim().toLowerCase() !== "unit") {
+        resolvedUnit = m.defaultUnit.trim();
+      } else if (suppl?.unit && suppl.unit.trim().toLowerCase() !== "unit") {
+        resolvedUnit = suppl.unit.trim();
+      }
+      if (!resolvedUnit) resolvedUnit = "Nos";
+      let resolvedRate = 0;
+      if (purch?.rate && purch.rate > 0) {
+        resolvedRate = purch.rate;
+      } else if (m.defaultRate && parseFloat(m.defaultRate) > 0) {
+        resolvedRate = parseFloat(m.defaultRate);
+      } else if (suppl?.rate && suppl.rate > 0) {
+        resolvedRate = suppl.rate;
+      }
+      const shouldUpdateUnit = m.defaultUnit !== resolvedUnit;
+      const shouldUpdateRate = resolvedRate > 0 && (!m.defaultRate || parseFloat(m.defaultRate) === 0 || m.defaultRate !== resolvedRate.toString());
+      if (shouldUpdateUnit || shouldUpdateRate) {
+        db.update(materials).set({
           defaultUnit: resolvedUnit,
-          unit: resolvedUnit,
-          defaultRate: resolvedRate.toString(),
-          rate: resolvedRate,
-          totalInward,
-          totalOutward,
-          currentStock,
-          status
-        };
-      })
-    );
+          ...resolvedRate > 0 ? { defaultRate: resolvedRate.toString() } : {}
+        }).where(eq11(materials.id, m.id)).catch(() => {
+        });
+      }
+      enriched.push({
+        ...m,
+        defaultUnit: resolvedUnit,
+        unit: resolvedUnit,
+        defaultRate: resolvedRate > 0 ? resolvedRate.toString() : m.defaultRate,
+        rate: resolvedRate > 0 ? resolvedRate.toString() : m.defaultRate,
+        totalInward: stockInfo.totalIn,
+        totalOutward: stockInfo.totalOut,
+        currentStock,
+        status
+      });
+    }
     res.json(enriched);
   } catch (err) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
