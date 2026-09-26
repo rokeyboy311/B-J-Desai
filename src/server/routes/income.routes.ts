@@ -1,5 +1,5 @@
-import { Router, Response } from 'express';
-import { requireAuth, requireCategoryAuth, AuthRequest } from '../middleware/auth.ts';
+import { Router, type Response } from 'express';
+import { requireAuth, requireCategoryAuth, type AuthRequest } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { records, auditLogs } from '../../db/schema.ts';
 import { eq, and, desc } from 'drizzle-orm';

@@ -1,5 +1,5 @@
-import { Router, Response } from 'express';
-import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { Router, type Response } from 'express';
+import { requireAuth, type AuthRequest } from '../middleware/auth.ts';
 import { createRecordSchema, updateRecordSchema } from '../validators/record.validator.ts';
 import { getRecords, getAllRecords, getRecordMetrics, createRecord, updateRecord, deleteRecord } from '../../db/records.ts';
 import { assertLocationAccess } from '../lib/locationAuth.ts';

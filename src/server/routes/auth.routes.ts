@@ -1,11 +1,11 @@
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { 
   MASTER_PIN, 
   generatePinToken, 
   generateCategoryPinToken,
   verifyPinToken, 
   requireAuth, 
-  AuthRequest, 
+  type AuthRequest, 
   timingSafeCompare, 
   checkPinRateLimit, 
   recordFailedPinAttempt, 

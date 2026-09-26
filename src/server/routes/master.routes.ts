@@ -2,7 +2,7 @@ import express from 'express';
 import { db } from '../../db/index.ts';
 import { parties, labourTeams, materials, labourMaster } from '../../db/schema.ts';
 import { eq, and, or, sql } from 'drizzle-orm';
-import { requireAuth, AuthRequest } from '../middleware/auth.ts';
+import { requireAuth, type AuthRequest } from '../middleware/auth.ts';
 import { auditLogs } from '../../db/schema.ts';
 import { realtimeSync } from '../lib/realtimeSync.ts';
 import { assertLocationAccess } from '../lib/locationAuth.ts';
