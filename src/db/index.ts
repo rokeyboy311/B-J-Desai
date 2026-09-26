@@ -7,7 +7,7 @@ declare global {
 }
 
 export const NEON_CONNECTION_STRING =
-  'postgresql://neondb_owner:npg_EFhz2LiMmG9c@ep-twilight-hat-b4jrehma-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+  'postgresql://neondb_owner:npg_EFhz2LiMmG9c@ep-twilight-hat-b4jrehma-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 export const getDatabaseUrl = (): string => {
   const envUrl = process.env.DATABASE_URL?.trim();
