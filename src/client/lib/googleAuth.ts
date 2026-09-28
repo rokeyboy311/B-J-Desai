@@ -23,6 +23,28 @@ provider.setCustomParameters({
   prompt: 'select_account'
 });
 
+const CUSTOM_CLIENT_ID_KEY = 'bj_custom_google_client_id';
+
+export function getCustomGoogleClientId(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(CUSTOM_CLIENT_ID_KEY) || '';
+}
+
+export function setCustomGoogleClientId(clientId: string) {
+  if (typeof window === 'undefined') return;
+  if (clientId.trim()) {
+    localStorage.setItem(CUSTOM_CLIENT_ID_KEY, clientId.trim());
+  } else {
+    localStorage.removeItem(CUSTOM_CLIENT_ID_KEY);
+  }
+}
+
+export function getEffectiveGoogleClientId(): string {
+  const custom = getCustomGoogleClientId();
+  if (custom) return custom;
+  return firebaseConfig.oAuthClientId || '513724511848-6vl7etidsp020lbhr6ro7e8od4fg7u7s.apps.googleusercontent.com';
+}
+
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
 let currentGoogleUser: User | any | null = null;
@@ -86,13 +108,12 @@ function loadGisScript(): Promise<void> {
 }
 
 /**
- * Fallback to Google Identity Services Token Client.
- * This runs directly without Firebase domain whitelisting restrictions,
- * allowing instant Google Sheets authentication on any custom domain, Vercel, or PWA environment.
+ * Google Identity Services OAuth Token Client.
+ * Supports custom client ID for Vercel/Custom domains.
  */
 export const signInWithGisOAuth = async (): Promise<{ user: any; accessToken: string }> => {
   await loadGisScript();
-  const clientId = firebaseConfig.oAuthClientId || '513724511848-j9r3ohsufqij32gclt9f3hcei48ra4mt.apps.googleusercontent.com';
+  const clientId = getEffectiveGoogleClientId();
 
   return new Promise((resolve, reject) => {
     try {
@@ -105,7 +126,7 @@ export const signInWithGisOAuth = async (): Promise<{ user: any; accessToken: st
         scope: SCOPES.join(' '),
         callback: async (response: any) => {
           if (response.error) {
-            reject(new Error(response.error_description || response.error || 'Google authentication was cancelled or failed'));
+            reject(new Error(response.error_description || response.error || 'Google authentication failed or was cancelled'));
             return;
           }
           const accessToken = response.access_token;
@@ -151,7 +172,12 @@ export const googleSignIn = async (): Promise<{ user: any; accessToken: string }
   try {
     isSigningIn = true;
     
-    // Attempt Firebase popup first
+    // Attempt GIS OAuth first if custom client ID is set or on third-party domain
+    const customId = getCustomGoogleClientId();
+    if (customId) {
+      return await signInWithGisOAuth();
+    }
+
     try {
       const result = await signInWithPopup(auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -162,13 +188,11 @@ export const googleSignIn = async (): Promise<{ user: any; accessToken: string }
         return { user: result.user, accessToken: cachedAccessToken };
       }
     } catch (popupErr: any) {
-      console.warn('Firebase popup encountered domain error, falling back to Google Identity Services OAuth:', popupErr);
-      // Seamless fallback on Vercel or custom domain environments where Firebase authorized domain is restricted
+      console.warn('Firebase popup encountered domain error, attempting Google Identity Services OAuth:', popupErr);
       const gisResult = await signInWithGisOAuth();
       return gisResult;
     }
 
-    // If no access token in credential, fallback to GIS
     const gisResult = await signInWithGisOAuth();
     return gisResult;
   } catch (error: any) {
@@ -177,6 +201,16 @@ export const googleSignIn = async (): Promise<{ user: any; accessToken: string }
   } finally {
     isSigningIn = false;
   }
+};
+
+export const setManualAccessToken = (token: string, userEmail?: string) => {
+  cachedAccessToken = token;
+  currentGoogleUser = {
+    uid: 'manual-token-user',
+    displayName: userEmail || 'Authorized User',
+    email: userEmail || 'Connected via Access Token'
+  };
+  notifyListeners();
 };
 
 export const getGoogleAccessToken = async (): Promise<string | null> => {
@@ -191,7 +225,7 @@ export const googleLogout = async () => {
   try {
     await signOut(auth);
   } catch (e) {
-    // Ignore signout error if auth session was GIS-only
+    // Ignore signout error if session was GIS/manual
   }
   cachedAccessToken = null;
   currentGoogleUser = null;

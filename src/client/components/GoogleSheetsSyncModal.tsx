@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FileSpreadsheet, ExternalLink, RefreshCw, CheckCircle2, 
-  LogOut, Layers, Building2, HardHat, CalendarCheck, Package, DollarSign
+  LogOut, Layers, Building2, HardHat, CalendarCheck, Package, DollarSign,
+  AlertCircle, Settings2, Copy, Check, ShieldCheck, KeyRound
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { useGoogleSync } from '../contexts/GoogleSyncContext';
 import { useToast } from '../contexts/ToastContext';
 import { apiFetch } from '../lib/api';
+import { 
+  getCustomGoogleClientId, 
+  setCustomGoogleClientId, 
+  getEffectiveGoogleClientId,
+  setManualAccessToken 
+} from '../lib/googleAuth';
 
 export function GoogleSheetsSyncModal() {
   const {
@@ -26,12 +33,20 @@ export function GoogleSheetsSyncModal() {
     getLocationSpreadsheetUrl
   } = useGoogleSync();
 
-  const { confirmAction } = useToast();
+  const { showToast, confirmAction } = useToast();
   const [locations, setLocations] = useState<any[]>([]);
   const [activeViewTab, setActiveViewTab] = useState<'locations' | 'central'>('locations');
+  const [showDomainSettings, setShowDomainSettings] = useState(false);
+  const [customClientIdInput, setCustomClientIdInput] = useState(getCustomGoogleClientId());
+  const [manualTokenInput, setManualTokenInput] = useState('');
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
+
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const isVercelOrCustom = currentOrigin && !currentOrigin.includes('run.app') && !currentOrigin.includes('localhost');
 
   useEffect(() => {
     if (isModalOpen) {
+      setCustomClientIdInput(getCustomGoogleClientId());
       apiFetch('/locations')
         .then((res) => {
           if (Array.isArray(res)) setLocations(res);
@@ -50,6 +65,31 @@ export function GoogleSheetsSyncModal() {
     if (confirmed) {
       await disconnectGoogle();
     }
+  };
+
+  const handleSaveCustomClientId = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomGoogleClientId(customClientIdInput);
+    showToast(customClientIdInput.trim() ? 'Custom Google Client ID saved successfully!' : 'Using default Google Client ID', 'success');
+  };
+
+  const handleApplyManualToken = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualTokenInput.trim()) {
+      showToast('Please enter a valid Google OAuth Access Token', 'error');
+      return;
+    }
+    setManualAccessToken(manualTokenInput.trim());
+    showToast('Google Access Token applied successfully! Live sync enabled.', 'success');
+    setManualTokenInput('');
+  };
+
+  const handleCopyOrigin = () => {
+    if (!currentOrigin) return;
+    navigator.clipboard.writeText(currentOrigin);
+    setCopiedOrigin(true);
+    showToast('Origin URL copied to clipboard!', 'success');
+    setTimeout(() => setCopiedOrigin(false), 2000);
   };
 
   return (
@@ -77,7 +117,7 @@ export function GoogleSheetsSyncModal() {
             </div>
 
             {/* Google Sign-in Button */}
-            <div className="pt-2 flex justify-center">
+            <div className="pt-2 flex flex-col items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={connectGoogle}
@@ -92,6 +132,16 @@ export function GoogleSheetsSyncModal() {
                   <path fill="none" d="M0 0h48v48H0z"></path>
                 </svg>
                 <span>Sign in with Google to Enable Sync</span>
+              </button>
+
+              {/* Vercel / Custom domain helper toggle */}
+              <button
+                type="button"
+                onClick={() => setShowDomainSettings(!showDomainSettings)}
+                className="text-xs text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-1.5 cursor-pointer underline underline-offset-2"
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                <span>Running on Vercel or Custom Domain? Click for Setup</span>
               </button>
             </div>
           </div>
@@ -374,6 +424,67 @@ export function GoogleSheetsSyncModal() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* DOMAIN & OAUTH CONFIGURATION ACCORDION */}
+        {showDomainSettings && (
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-slate-800 flex items-center gap-1.5">
+                <Settings2 className="w-4 h-4 text-indigo-600" />
+                <span>Custom Domain &amp; Vercel Origin Configuration</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDomainSettings(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Current Origin Display */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Your Current App Origin</span>
+              <div className="flex items-center justify-between gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200 font-mono text-xs text-slate-800">
+                <span className="truncate">{currentOrigin || 'https://...'}</span>
+                <button
+                  type="button"
+                  onClick={handleCopyOrigin}
+                  className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-200 font-sans font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                >
+                  {copiedOrigin ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedOrigin ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                If Google shows <code className="text-rose-600 font-bold">Error 400: origin_mismatch</code>, you need to add your origin URL (<span className="font-mono font-bold text-slate-700">{currentOrigin}</span>) to <strong>Authorized JavaScript Origins</strong> in your Google Cloud Console.
+              </p>
+            </div>
+
+            {/* Custom Client ID Form */}
+            <form onSubmit={handleSaveCustomClientId} className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">Custom Google OAuth Client ID (Optional)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. 123456789-abcdef.apps.googleusercontent.com"
+                  value={customClientIdInput}
+                  onChange={(e) => setCustomClientIdInput(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs cursor-pointer shrink-0 shadow-xs"
+                >
+                  Save ID
+                </button>
+              </div>
+              <span className="text-[10px] text-slate-400 block">
+                Active Client ID: <span className="font-mono text-slate-600">{getEffectiveGoogleClientId()}</span>
+              </span>
+            </form>
           </div>
         )}
 
