@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FileSpreadsheet, ExternalLink, RefreshCw, CheckCircle2, 
-  LogOut, ShieldCheck, Database, Sparkles, Layers,
-  ShoppingBag, MapPin, Users, DollarSign, AlertCircle, ArrowUpRight,
-  HardHat, CalendarCheck, Package, Building2, Check
+  LogOut, Layers, Building2, HardHat, CalendarCheck, Package, DollarSign
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { useGoogleSync } from '../contexts/GoogleSyncContext';
@@ -20,23 +18,17 @@ export function GoogleSheetsSyncModal() {
     locationSheets,
     isSyncing,
     activeSyncTarget,
-    autoSyncEnabled,
-    lastSyncedAt,
-    lastCentralStats,
     connectGoogle,
     disconnectGoogle,
     syncCentralSheet,
     syncLocationSheet,
     syncAllSheets,
-    getLocationSpreadsheetUrl,
-    setAutoSyncEnabled,
-    selectedLocationId,
-    setSelectedLocationId
+    getLocationSpreadsheetUrl
   } = useGoogleSync();
 
-  const { confirmAction, showToast } = useToast();
+  const { confirmAction } = useToast();
   const [locations, setLocations] = useState<any[]>([]);
-  const [activeViewTab, setActiveViewTab] = useState<'central' | 'locations'>('locations');
+  const [activeViewTab, setActiveViewTab] = useState<'locations' | 'central'>('locations');
 
   useEffect(() => {
     if (isModalOpen) {
@@ -64,7 +56,7 @@ export function GoogleSheetsSyncModal() {
     <Modal
       isOpen={isModalOpen}
       onClose={() => setIsModalOpen(false)}
-      title="Google Sheets Live Sync (લાઇવ સ્પ્રેડશીટ સિન્ક)"
+      title="Google Sheets Live Synchronization"
       maxWidth="3xl"
     >
       <div className="space-y-5">
@@ -77,14 +69,14 @@ export function GoogleSheetsSyncModal() {
             </div>
             <div>
               <h3 className="text-base font-black text-slate-900">
-                Connect Google Sheets for Real-Time Location-Wise & Central Sync
+                Connect Google Sheets for Live Location-Wise &amp; Central Sync
               </h3>
               <p className="text-xs text-slate-600 max-w-lg mx-auto mt-1.5 leading-relaxed">
-                તમારા તમામ પ્રોજેક્ટ્સ માટે અલગ-અલગ લોકેશન સ્પ્રેડશીટ (Investor Details, Site Supply, અને તમામ Team Tabs with Attendance) તેમજ સેન્ટ્રલ પર્ચેઝ, કસ્ટમર સપ્લાય અને એડમિન કેપિટલની અલગ Google Sheet ઓટોમેટિક અપડેટ થશે.
+                Automatically create and maintain dedicated Google Sheets for all project locations (with Investor Details, Site Supply, and individual Team Attendance tabs) alongside the Central Purchases, Customer Supply, and Capital Ledger spreadsheet.
               </p>
             </div>
 
-            {/* Official Google Sign in Button */}
+            {/* Google Sign-in Button */}
             <div className="pt-2 flex justify-center">
               <button
                 type="button"
@@ -164,7 +156,7 @@ export function GoogleSheetsSyncModal() {
                 }`}
               >
                 <Building2 className="w-4 h-4 text-blue-600" />
-                <span>Location-Wise Sheets (પ્રોજેક્ટ લોકેશન સ્પ્રેડશીટ્સ)</span>
+                <span>Location-Wise Spreadsheets ({locations.length} Sites)</span>
               </button>
 
               <button
@@ -175,7 +167,7 @@ export function GoogleSheetsSyncModal() {
                 }`}
               >
                 <Layers className="w-4 h-4 text-emerald-600" />
-                <span>Central Sheet (Purchases, Stock, Customer, Admin)</span>
+                <span>Central Spreadsheet (Purchases, Stock, Customer, Admin)</span>
               </button>
             </div>
 
@@ -187,7 +179,7 @@ export function GoogleSheetsSyncModal() {
                     Site Location Spreadsheets ({locations.length} Sites)
                   </span>
                   <span className="text-[11px] text-slate-500 font-medium">
-                    Each site includes: Investor Details + Site Supply + Team Attendance Tabs
+                    Includes: Site Overview + Investor Details + Site Supply + Team Attendance Tabs
                   </span>
                 </div>
 
@@ -248,24 +240,51 @@ export function GoogleSheetsSyncModal() {
                                 <button
                                   type="button"
                                   onClick={() => syncLocationSheet(loc.id)}
-                                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                                  disabled={isSyncing}
+                                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
                                 >
-                                  <span>Create & Sync Sheet</span>
-                                  <ArrowUpRight size={13} />
+                                  <span>Create &amp; Sync Sheet</span>
                                 </button>
                               )}
                             </div>
                           </div>
 
-                          {/* Sheet Structure Pill Badges */}
-                          <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap text-[10px]">
-                            <span className="text-slate-400 font-semibold mr-1">Tabs in this sheet:</span>
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium">1. Site Overview</span>
-                            <span className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded-md font-bold">2. Investor Details ({stat?.investorsCount ?? '✓'})</span>
-                            <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-md font-bold">3. Site Supply Record ({stat?.siteSuppliesCount ?? '✓'})</span>
-                            <span className="px-2 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 rounded-md font-bold">4. Team Attendance & Supplies Tabs ({stat?.teamsCount ?? 'Teams'} Tabs)</span>
-                            <span className="px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-200 rounded-md font-medium">5. Site Expenses</span>
-                          </div>
+                          {/* Stats Pills */}
+                          {stat && (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-[11px]">
+                              <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 flex items-center gap-2">
+                                <DollarSign className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <div>
+                                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Allocations</span>
+                                  <span className="font-bold text-slate-800">{stat.investorsCount} records</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 flex items-center gap-2">
+                                <Package className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <div>
+                                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Site Supplies</span>
+                                  <span className="font-bold text-slate-800">{stat.siteSuppliesCount} records</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 flex items-center gap-2">
+                                <HardHat className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <div>
+                                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Team Tabs</span>
+                                  <span className="font-bold text-slate-800">{stat.teamsCount} created</span>
+                                </div>
+                              </div>
+
+                              <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 flex items-center gap-2">
+                                <CalendarCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                <div>
+                                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Attendance</span>
+                                  <span className="font-bold text-slate-800">{stat.attendanceCount} logs</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -274,18 +293,20 @@ export function GoogleSheetsSyncModal() {
               </div>
             )}
 
-            {/* 2. CENTRAL PURCHASES, CUSTOMER & ADMIN SHEET SECTION */}
+            {/* 2. CENTRAL SHEET SECTION */}
             {activeViewTab === 'central' && (
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
-                      <FileSpreadsheet className="w-5 h-5" />
+                    <div className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl">
+                      <Layers className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-slate-900">B J Enterprise - Central Purchases & Admin Ledger</h4>
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        Last Synced: {lastSyncedAt || 'Just now'}
+                      <h4 className="text-sm font-black text-slate-900">
+                        Central Purchases, Stock &amp; Admin Ledger
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Contains 6 tabs: Admin &amp; Capital Overview, Material Purchases, Stock Inventory, Customer Supplies, Global Expenses, and All Locations Summary.
                       </p>
                     </div>
                   </div>
@@ -295,98 +316,64 @@ export function GoogleSheetsSyncModal() {
                       type="button"
                       onClick={() => syncCentralSheet()}
                       disabled={isSyncing}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isSyncing && activeSyncTarget?.includes('Central') ? 'animate-spin text-emerald-600' : ''}`} />
                       <span>Sync Central</span>
                     </button>
 
-                    {centralSpreadsheetUrl && (
+                    {centralSpreadsheetUrl ? (
                       <a
                         href={centralSpreadsheetUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
                       >
-                        <span>Open Central Sheet</span>
+                        <span>Open Central Google Sheet</span>
                         <ExternalLink size={13} />
                       </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => syncCentralSheet()}
+                        disabled={isSyncing}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                      >
+                        <span>Create &amp; Sync Sheet</span>
+                      </button>
                     )}
                   </div>
                 </div>
 
-                {/* Synced Tabs breakdown */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 text-xs">
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-600 font-semibold flex items-center gap-1.5">
-                      <ShieldCheck size={14} className="text-blue-600" />
-                      Admin Capital
-                    </span>
-                    <span className="font-bold text-slate-800">{lastCentralStats?.investorsCount ?? '✓'} Investors</span>
+                {/* Tabs Preview */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs">
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 font-medium text-slate-700 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span>Admin &amp; Capital Overview</span>
                   </div>
-
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-600 font-semibold flex items-center gap-1.5">
-                      <ShoppingBag size={14} className="text-purple-600" />
-                      Purchases
-                    </span>
-                    <span className="font-bold text-slate-800">{lastCentralStats?.purchasesCount ?? '✓'}</span>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 font-medium text-slate-700 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    <span>Material Purchases</span>
                   </div>
-
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-600 font-semibold flex items-center gap-1.5">
-                      <Layers size={14} className="text-emerald-600" />
-                      Stock Items
-                    </span>
-                    <span className="font-bold text-slate-800">{lastCentralStats?.stockCount ?? '✓'}</span>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 font-medium text-slate-700 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <span>Stock Inventory</span>
                   </div>
-
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-600 font-semibold flex items-center gap-1.5">
-                      <Users size={14} className="text-indigo-600" />
-                      Customer Supply
-                    </span>
-                    <span className="font-bold text-slate-800">{lastCentralStats?.customerSuppliesCount ?? '✓'}</span>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 font-medium text-slate-700 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                    <span>Customer Supplies</span>
                   </div>
-
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-600 font-semibold flex items-center gap-1.5">
-                      <DollarSign size={14} className="text-rose-600" />
-                      Global Expenses
-                    </span>
-                    <span className="font-bold text-slate-800">{lastCentralStats?.expensesCount ?? '✓'}</span>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 font-medium text-slate-700 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                    <span>Global Expenses</span>
                   </div>
-
-                  <div className="bg-slate-50 p-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-600 font-semibold flex items-center gap-1.5">
-                      <Building2 size={14} className="text-teal-600" />
-                      Site Locations
-                    </span>
-                    <span className="font-bold text-slate-800">{locations.length} Sites</span>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 font-medium text-slate-700 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
+                    <span>All Locations Summary</span>
                   </div>
                 </div>
               </div>
             )}
-
-            {/* Auto Sync Toggle */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4">
-              <div>
-                <span className="text-xs font-black text-slate-900 block">Automatic Real-Time Sync</span>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  નવો ડેટા (પર્ચેઝ, સાઇટ સપ્લાય, હાજરી કે ઇન્વેસ્ટર ટ્રાન્સફર) ઉમેરાતા જ Google Sheets માં આપોઆપ લાઇવ અપડેટ થશે
-                </span>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={autoSyncEnabled}
-                  onChange={(e) => setAutoSyncEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-              </label>
-            </div>
-
           </div>
         )}
 
