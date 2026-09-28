@@ -25,14 +25,14 @@ provider.setCustomParameters({
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
-let currentGoogleUser: User | null = null;
-const listeners = new Set<(user: User | null, token: string | null) => void>();
+let currentGoogleUser: User | any | null = null;
+const listeners = new Set<(user: any | null, token: string | null) => void>();
 
 function notifyListeners() {
   listeners.forEach(cb => cb(currentGoogleUser, cachedAccessToken));
 }
 
-export const subscribeToGoogleAuth = (callback: (user: User | null, token: string | null) => void) => {
+export const subscribeToGoogleAuth = (callback: (user: any | null, token: string | null) => void) => {
   listeners.add(callback);
   callback(currentGoogleUser, cachedAccessToken);
   return () => {
@@ -41,17 +41,17 @@ export const subscribeToGoogleAuth = (callback: (user: User | null, token: strin
 };
 
 export const initGoogleAuth = (
-  onSuccess?: (user: User, token: string) => void,
+  onSuccess?: (user: any, token: string) => void,
   onFailure?: () => void
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
-    currentGoogleUser = user;
     if (user && cachedAccessToken) {
+      currentGoogleUser = user;
       if (onSuccess) onSuccess(user, cachedAccessToken);
       notifyListeners();
-    } else {
-      if (!isSigningIn) {
-        cachedAccessToken = null;
+    } else if (!isSigningIn) {
+      if (!cachedAccessToken) {
+        currentGoogleUser = null;
         if (onFailure) onFailure();
         notifyListeners();
       }
@@ -59,19 +59,118 @@ export const initGoogleAuth = (
   });
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+function loadGisScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if ((window as any).google?.accounts?.oauth2) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById('google-gsi-client');
+    if (existing) {
+      if ((window as any).google?.accounts?.oauth2) {
+        resolve();
+      } else {
+        existing.addEventListener('load', () => resolve());
+        existing.addEventListener('error', (e) => reject(e));
+      }
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'google-gsi-client';
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = (e) => reject(new Error('Failed to load Google Identity Services SDK'));
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Fallback to Google Identity Services Token Client.
+ * This runs directly without Firebase domain whitelisting restrictions,
+ * allowing instant Google Sheets authentication on any custom domain, Vercel, or PWA environment.
+ */
+export const signInWithGisOAuth = async (): Promise<{ user: any; accessToken: string }> => {
+  await loadGisScript();
+  const clientId = firebaseConfig.oAuthClientId || '513724511848-j9r3ohsufqij32gclt9f3hcei48ra4mt.apps.googleusercontent.com';
+
+  return new Promise((resolve, reject) => {
+    try {
+      if (!(window as any).google?.accounts?.oauth2) {
+        throw new Error('Google Identity Services client is not available');
+      }
+
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: SCOPES.join(' '),
+        callback: async (response: any) => {
+          if (response.error) {
+            reject(new Error(response.error_description || response.error || 'Google authentication was cancelled or failed'));
+            return;
+          }
+          const accessToken = response.access_token;
+          if (!accessToken) {
+            reject(new Error('No access token received from Google'));
+            return;
+          }
+
+          let profile: any = { name: 'Google Account', email: '' };
+          try {
+            const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (userRes.ok) {
+              profile = await userRes.json();
+            }
+          } catch (e) {
+            console.warn('Failed to fetch userinfo from Google', e);
+          }
+
+          const userObj = {
+            uid: profile.sub || 'google-user',
+            displayName: profile.name || profile.email || 'Google User',
+            email: profile.email || '',
+            photoURL: profile.picture || ''
+          };
+
+          cachedAccessToken = accessToken;
+          currentGoogleUser = userObj;
+          notifyListeners();
+          resolve({ user: userObj, accessToken });
+        }
+      });
+
+      client.requestAccessToken({ prompt: 'consent' });
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
+export const googleSignIn = async (): Promise<{ user: any; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Failed to get access token from Google Auth');
+    
+    // Attempt Firebase popup first
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        cachedAccessToken = credential.accessToken;
+        currentGoogleUser = result.user;
+        notifyListeners();
+        return { user: result.user, accessToken: cachedAccessToken };
+      }
+    } catch (popupErr: any) {
+      console.warn('Firebase popup encountered domain error, falling back to Google Identity Services OAuth:', popupErr);
+      // Seamless fallback on Vercel or custom domain environments where Firebase authorized domain is restricted
+      const gisResult = await signInWithGisOAuth();
+      return gisResult;
     }
 
-    cachedAccessToken = credential.accessToken;
-    currentGoogleUser = result.user;
-    notifyListeners();
-    return { user: result.user, accessToken: cachedAccessToken };
+    // If no access token in credential, fallback to GIS
+    const gisResult = await signInWithGisOAuth();
+    return gisResult;
   } catch (error: any) {
     console.error('Google Sign in error:', error);
     throw error;
@@ -84,12 +183,16 @@ export const getGoogleAccessToken = async (): Promise<string | null> => {
   return cachedAccessToken;
 };
 
-export const getGoogleUser = (): User | null => {
+export const getGoogleUser = (): any | null => {
   return currentGoogleUser;
 };
 
 export const googleLogout = async () => {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (e) {
+    // Ignore signout error if auth session was GIS-only
+  }
   cachedAccessToken = null;
   currentGoogleUser = null;
   notifyListeners();

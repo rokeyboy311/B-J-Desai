@@ -26,7 +26,7 @@ import { apiFetch } from '../lib/api';
 
 interface GoogleSyncContextType {
   isConnected: boolean;
-  googleUser: User | null;
+  googleUser: any | null;
   centralSpreadsheetId: string | null;
   centralSpreadsheetUrl: string | null;
   locationSheets: LocationSheetStats[];
