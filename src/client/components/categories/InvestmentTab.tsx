@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
 import {
-  TrendingUp, Pencil, Plus, Trash2, ArrowUpRight, ArrowDownLeft, FileText, Banknote,
+  TrendingUp, Pencil, Edit3, Plus, Trash2, ArrowUpRight, ArrowDownLeft, FileText, Banknote,
   Building2, Calculator, CheckCircle2, Clock, AlertCircle, Package, User,
   Wallet, Layers, Search, Tag, Filter, Check, BarChart3, PieChart, ArrowRight,
   ShoppingCart, Truck, Wrench, Users, HardHat, RefreshCw, AlertTriangle, Receipt,
@@ -22,16 +22,17 @@ const GST_PRESETS = ["0", "5", "12", "18", "28"];
 
 export default function InvestmentTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
-  // 8 Distinct Sub-Tabs:
-  // 1. "analytics" - Executive Category 3-6 Deductions & Capital Analytics Dashboard
-  // 2. "reconciliation" - Capital Flow & Expense Matching Reconciliation Matrix
-  // 3. "investor_capital" - Direct Investment from Investors (Investment Karya from Cat 1)
-  // 4. "bill_investments" - Bill / Asset / Material Invoiced Investments
-  // 5. "refundable_records" - Refundable Record (લેવાના બાકી - Security Deposit & Advances)
-  // 6. "deductions_ledger" - Live Itemized Operational Deductions Passbook (Cat 3 to 6 & Refundables)
-  // 7. "investor_payments" - Returns / Upad paid to Investors
-  // 8. "combined" - Consolidated Investment Ledger & Balance Sheet
-  const [activeSubTab, setActiveSubTab] = useState<"analytics" | "reconciliation" | "investor_capital" | "bill_investments" | "refundable_records" | "deductions_ledger" | "investor_payments" | "combined">("analytics");
+  // 9 Distinct Sub-Tabs:
+  // 1. "notebook_hisab" - Unified Note Book Hisab (ખાતાવહી ચોપડો - Inflows vs Site Expenses Outflows)
+  // 2. "analytics" - Executive Category 3-6 Deductions & Capital Analytics Dashboard
+  // 3. "reconciliation" - Capital Flow & Expense Matching Reconciliation Matrix
+  // 4. "investor_capital" - Direct Investment from Investors (Investment Karya from Cat 1)
+  // 5. "bill_investments" - Bill / Asset / Material Invoiced Investments
+  // 6. "refundable_records" - Refundable Record (લેવાના બાકી - Security Deposit & Advances)
+  // 7. "deductions_ledger" - Live Itemized Operational Deductions Passbook (Cat 3 to 6 & Refundables)
+  // 8. "investor_payments" - Returns / Upad paid to Investors
+  // 9. "combined" - Consolidated Investment Ledger & Balance Sheet
+  const [activeSubTab, setActiveSubTab] = useState<"notebook_hisab" | "analytics" | "reconciliation" | "investor_capital" | "bill_investments" | "refundable_records" | "deductions_ledger" | "investor_payments" | "combined">("notebook_hisab");
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -347,6 +348,133 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       return matchFilter && matchSearch;
     });
   }, [safeRefundableRecords, refundableFilter, refundableSearch]);
+
+  // --- Location Investment Capital Note Book Hisab (ખાતાવહી ચોપડો) ---
+  const [notebookFilter, setNotebookFilter] = useState<"ALL" | "ADDED" | "REMOVED">("ALL");
+  const [notebookCategoryFilter, setNotebookCategoryFilter] = useState<string>("ALL");
+  const [notebookSearch, setNotebookSearch] = useState<string>("");
+
+  const investmentNotebookEntries = useMemo(() => {
+    const items: any[] = [];
+
+    // 1. Capital Inflows from Investors (મૂડી જમા / JAMA)
+    (Array.isArray(capitalInflowTxs) ? capitalInflowTxs : []).forEach(tx => {
+      const amt = parseFloat(String(tx.amount || 0));
+      items.push({
+        id: `tx-${tx.id}`,
+        rawId: tx.id,
+        kind: 'INVESTOR_CAPITAL',
+        date: tx.date,
+        partyName: tx.partyName || 'Investor',
+        categoryKey: 'INVESTOR_CAPITAL',
+        categoryLabel: 'ઇન્વેસ્ટર મૂડી (+ INVESTOR CAPITAL)',
+        type: 'ADDED',
+        particulars: tx.description ? `Investor Capital: ${tx.description}` : 'Direct Investment from Investor Capital',
+        paymentMethod: tx.paymentMethod || 'Bank Transfer',
+        referenceNumber: tx.referenceNumber || '-',
+        jama: amt,
+        udhar: 0,
+        amount: amt
+      });
+    });
+
+    // 2. Bill / Asset Investments (બિલ રોકાણ જમા / JAMA)
+    (Array.isArray(billIncomes) ? billIncomes : []).forEach(b => {
+      const amt = parseFloat(String(b.totalAmount || b.amount || 0));
+      items.push({
+        id: `bill-${b.id}`,
+        rawId: b.id,
+        kind: 'BILL_INVESTMENT',
+        date: b.date,
+        partyName: b.partyName || 'Party',
+        categoryKey: 'BILL_INVESTMENT',
+        categoryLabel: 'બિલ રોકાણ (+ BILL INVOICE)',
+        type: 'ADDED',
+        particulars: b.materialName ? `Bill: ${b.materialName} (${b.quantity} ${b.unit || ''})` : (b.notes || 'Material / Asset Invoiced Capital'),
+        paymentMethod: b.paymentMethod || 'Bank Transfer',
+        referenceNumber: b.referenceNumber || '-',
+        jama: amt,
+        udhar: 0,
+        amount: amt
+      });
+    });
+
+    // 3. Operational Site Deductions (સાઇટ ખર્ચ ઉધાર / UDHAR)
+    const rawDeductions: any[] = projectUtilization?.itemizedDeductions || [];
+    rawDeductions.forEach(d => {
+      const amt = parseFloat(String(d.amount || d.paidAmount || 0));
+      const catKey = d.categoryKey || 'OPERATIONAL';
+      items.push({
+        id: `ded-${d.id}-${d.categoryKey}`,
+        rawId: d.id,
+        kind: 'DEDUCTION',
+        date: d.date,
+        partyName: d.partyName || 'Site Expense',
+        categoryKey: catKey,
+        categoryLabel: d.categoryName || 'સાઇટ ખર્ચ (- EXPENSE)',
+        type: 'REMOVED',
+        particulars: d.description || d.particulars || 'Site operational expense',
+        paymentMethod: d.paymentMethod || 'Site Account',
+        referenceNumber: d.referenceNumber || '-',
+        jama: 0,
+        udhar: amt,
+        amount: amt
+      });
+    });
+
+    // 4. Investor Upad / Returns (ઇન્વેસ્ટર ઉપાડ ઉધાર / UDHAR)
+    (Array.isArray(investorPaymentTxs) ? investorPaymentTxs : []).forEach(tx => {
+      const amt = parseFloat(String(tx.amount || 0));
+      items.push({
+        id: `upad-${tx.id}`,
+        rawId: tx.id,
+        kind: 'UPAD',
+        date: tx.date,
+        partyName: tx.partyName || 'Investor',
+        categoryKey: 'INVESTOR_UPAD',
+        categoryLabel: 'ઇન્વેસ્ટર ઉપાડ (- UPAD RETURN)',
+        type: 'REMOVED',
+        particulars: tx.description ? `Upad / Return: ${tx.description}` : 'Capital return to investor',
+        paymentMethod: tx.paymentMethod || 'Bank Transfer',
+        referenceNumber: tx.referenceNumber || '-',
+        jama: 0,
+        udhar: amt,
+        amount: amt
+      });
+    });
+
+    // Chronological sorting
+    items.sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return (a.rawId || 0) - (b.rawId || 0);
+    });
+
+    let running = 0;
+    const withBal = items.map(entry => {
+      running = running + entry.jama - entry.udhar;
+      return {
+        ...entry,
+        runningBalance: Math.round(running * 100) / 100
+      };
+    });
+
+    return withBal.reverse();
+  }, [capitalInflowTxs, billIncomes, projectUtilization, investorPaymentTxs]);
+
+  const filteredInvestmentNotebook = useMemo(() => {
+    return investmentNotebookEntries.filter(e => {
+      const matchType = notebookFilter === "ALL" || e.type === notebookFilter;
+      const matchCat = notebookCategoryFilter === "ALL" || e.categoryKey === notebookCategoryFilter;
+      const q = notebookSearch.toLowerCase().trim();
+      const matchSearch = !q ||
+        (e.partyName && e.partyName.toLowerCase().includes(q)) ||
+        (e.particulars && e.particulars.toLowerCase().includes(q)) ||
+        (e.categoryLabel && e.categoryLabel.toLowerCase().includes(q)) ||
+        (e.referenceNumber && e.referenceNumber.toLowerCase().includes(q)) ||
+        (e.paymentMethod && e.paymentMethod.toLowerCase().includes(q));
+      return matchType && matchCat && matchSearch;
+    });
+  }, [investmentNotebookEntries, notebookFilter, notebookCategoryFilter, notebookSearch]);
 
   // Handle Save Refundable Record
   const handleSaveRefundable = async (e: React.FormEvent) => {
@@ -867,8 +995,23 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       </div>
 
-      {/* 8 Distinct Sub-Tabs Navigation */}
+      {/* 9 Distinct Sub-Tabs Navigation */}
       <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1.5 overflow-x-auto">
+        <button
+          onClick={() => setActiveSubTab("notebook_hisab")}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+            activeSubTab === "notebook_hisab"
+              ? "bg-[#0B1D3A] text-white shadow-sm ring-2 ring-amber-400/50"
+              : "text-slate-600 hover:text-slate-900 bg-amber-50/60 border border-amber-200"
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4 text-amber-500" />
+          <span>ખાતાવહી ચોપડો (Note Book Hisab)</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-900">
+            {investmentNotebookEntries.length}
+          </span>
+        </button>
+
         <button
           onClick={() => setActiveSubTab("analytics")}
           className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
@@ -975,6 +1118,404 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           Consolidated Ledger
         </button>
       </div>
+
+      {/* SUBTAB: NOTE BOOK HISAB (ખાતાવહી ચોપડો - LOCATION INVESTMENT CAPITAL LEDGER) */}
+      {activeSubTab === "notebook_hisab" && (
+        <div className="space-y-6">
+          {/* Notebook Header Card with Traditional Bahi-Khata Aesthetic */}
+          <div className="bg-[#0B1D3A] rounded-3xl p-6 text-white shadow-xl relative overflow-hidden border border-amber-500/20">
+            {/* Background notebook watermark styling */}
+            <div className="absolute right-0 top-0 bottom-0 w-80 bg-gradient-to-l from-amber-500/10 to-transparent pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-amber-400 text-slate-900 border border-amber-300">
+                    ખાતાવહી ચોપડો &bull; LIVE PASSBOOK
+                  </span>
+                  <span className="text-xs text-amber-200/90 font-medium">
+                    (Location Investment Capital Book)
+                  </span>
+                </div>
+                <h3 className="text-2xl font-black text-white flex items-center gap-2.5">
+                  <FileSpreadsheet className="w-6 h-6 text-amber-400" />
+                  ઇન્વેસ્ટમેન્ટ મૂડી ખાતાવહી ચોપડો (Note Book Hisab)
+                </h3>
+                <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                  આ ચોપડામાં ઇન્વેસ્ટર પાસેથી આવેલી મૂડી (જમા), બિલ રોકાણ (જમા), સાઇટ સપ્લાય &amp; મજૂરી-અન્ય ખર્ચ કપાત (ઉધાર) અને ઇન્વેસ્ટર ઉપાડ (ઉધાર) ની તારીખવાર ચોખ્ખી નોંધણી દર્શાવવામાં આવી છે.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTxId(null);
+                    setCapitalFormData({
+                      partyId: parties[0]?.id?.toString() || "",
+                      amount: "",
+                      type: "INVESTMENT",
+                      date: new Date().toISOString().split("T")[0],
+                      paymentMethod: "Bank Transfer",
+                      referenceNumber: "",
+                      description: "",
+                    });
+                    setIsCapitalModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5" /> + ઇન્વેસ્ટમેન્ટ મૂડી જમા
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetBillForm();
+                    setIsBillModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" /> + બિલ રોકાણ જમા
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTxId(null);
+                    setPaymentFormData({
+                      partyId: parties[0]?.id?.toString() || "",
+                      amount: "",
+                      date: new Date().toISOString().split("T")[0],
+                      paymentMethod: "Bank Transfer",
+                      referenceNumber: "",
+                      description: "",
+                    });
+                    setIsPaymentModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <ArrowDownLeft className="w-3.5 h-3.5" /> + ઇન્વેસ્ટર ઉપાડ ઉધાર
+                </button>
+              </div>
+            </div>
+
+            {/* Live Financial Balance Indicator inside Notebook Header */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-5 border-t border-white/10">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <span className="text-[11px] font-bold text-emerald-300 block uppercase tracking-wider">
+                  કુલ જમા રકમ (Total Jama / Inflow)
+                </span>
+                <span className="text-xl font-black text-white mt-1 block">
+                  +₹{fullCapital.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-emerald-200/70 mt-0.5 block">
+                  ઇન્વેસ્ટર મૂડી (₹{investmentFromInvestorsCapital.toLocaleString()}) + બિલ (₹{totalBillInvestments.toLocaleString()})
+                </span>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <span className="text-[11px] font-bold text-rose-300 block uppercase tracking-wider">
+                  કુલ ઉધાર રકમ (Total Udhar / Deductions)
+                </span>
+                <span className="text-xl font-black text-white mt-1 block">
+                  -₹{(totalDeductions + totalInvestorPayments).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-rose-200/70 mt-0.5 block">
+                  સાઇટ ખર્ચ (₹{totalDeductions.toLocaleString()}) + ઇન્વેસ્ટર ઉપાડ (₹{totalInvestorPayments.toLocaleString()})
+                </span>
+              </div>
+
+              <div className="bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-400/40 rounded-2xl p-3.5">
+                <span className="text-[11px] font-black text-amber-300 block uppercase tracking-wider">
+                  નેટ બાકી સિલક (Net Remaining Balance)
+                </span>
+                <span className={`text-xl font-black mt-1 block ${netRemainingCapital >= 0 ? "text-amber-300" : "text-rose-400"}`}>
+                  ₹{netRemainingCapital.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-amber-200/80 mt-0.5 block">
+                  {netRemainingCapital >= 0 ? "✓ સિલક ઉપલબ્ધ (Surplus)" : "⚠ ખાધ (Deficit)"} &bull; {capitalUtilizationRate}% ખર્ચ થયો
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar & Search */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Filter Tabs: All / Jama / Udhar */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setNotebookFilter("ALL")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    notebookFilter === "ALL"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  બધી નોંધ (All Hisab) ({investmentNotebookEntries.length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotebookFilter("ADDED")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    notebookFilter === "ADDED"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-emerald-700"
+                  }`}
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  જમા વિગત (+ JAMA)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotebookFilter("REMOVED")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    notebookFilter === "REMOVED"
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-rose-700"
+                  }`}
+                >
+                  <ArrowDownLeft className="w-3.5 h-3.5" />
+                  ઉધાર કપાત (- UDHAR)
+                </button>
+              </div>
+
+              {/* Category Dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-semibold hidden sm:inline">કેટેગરી:</span>
+                <select
+                  value={notebookCategoryFilter}
+                  onChange={(e) => setNotebookCategoryFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20"
+                >
+                  <option value="ALL">બધી કેટેગરી (All Categories)</option>
+                  <option value="INVESTOR_CAPITAL">ઇન્વેસ્ટર મૂડી (Investor Capital)</option>
+                  <option value="BILL_INVESTMENT">બિલ રોકાણ (Bill Invoices)</option>
+                  <option value="CAT5_SITE">Cat 5: સાઇટ સપ્લાય (Site Supplies)</option>
+                  <option value="CAT6_LABOUR">Cat 6: મજૂરી &amp; અન્ય ખર્ચ (Labour &amp; Kharch)</option>
+                  <option value="CAT_REFUNDABLE">ડિપોઝિટ / લેવાના બાકી (Refundable)</option>
+                  <option value="INVESTOR_UPAD">ઇન્વેસ્ટર ઉપાડ (Investor Upad)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={notebookSearch}
+                onChange={(e) => setNotebookSearch(e.target.value)}
+                placeholder="ઇન્વેસ્ટર, પાર્ટી, વિગત, રેફરન્સ નંબર અથવા ચુકવણી પદ્ધતિ દ્વારા ચોપડો શોધો..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/20"
+              />
+            </div>
+          </div>
+
+          {/* Traditional Bahi-Khata Ledger Table with Red Notebook Binding Margin */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden relative">
+            {/* Red left-edge ledger margin line to resemble real accounting chopdo */}
+            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500" />
+
+            <div className="overflow-x-auto pl-1.5">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                    <th className="py-3.5 px-3">#</th>
+                    <th className="py-3.5 px-3">તારીખ (Date)</th>
+                    <th className="py-3.5 px-3">પ્રકાર (Type)</th>
+                    <th className="py-3.5 px-3">શ્રેણી (Category)</th>
+                    <th className="py-3.5 px-3">પાર્ટી &amp; વિગત (Particulars)</th>
+                    <th className="py-3.5 px-3">પેમેન્ટ / રેફરન્સ</th>
+                    <th className="py-3.5 px-3 text-right text-emerald-800 bg-emerald-50/40">જમા (Jama + ₹)</th>
+                    <th className="py-3.5 px-3 text-right text-rose-800 bg-rose-50/40">ઉધાર (Udhar - ₹)</th>
+                    <th className="py-3.5 px-3 text-right text-slate-900 bg-amber-50/40">સિલક (Balance ₹)</th>
+                    <th className="py-3.5 px-3 text-center">એક્શન</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {filteredInvestmentNotebook.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                        <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-slate-300 opacity-60" />
+                        <p className="font-semibold">ખાતાવહી ચોપડામાં કોઈ નોંધણી મળી નથી</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">No ledger hisab entries found matching criteria</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredInvestmentNotebook.map((entry: any, index: number) => {
+                      const isJama = entry.type === "ADDED";
+                      return (
+                        <tr
+                          key={entry.id || index}
+                          className={`hover:bg-slate-50/80 transition-colors ${
+                            isJama ? "bg-emerald-50/15" : "bg-rose-50/15"
+                          }`}
+                        >
+                          {/* Row Number */}
+                          <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">
+                            {filteredInvestmentNotebook.length - index}
+                          </td>
+
+                          {/* Date */}
+                          <td className="py-3 px-3 whitespace-nowrap font-medium text-slate-800">
+                            {entry.date}
+                          </td>
+
+                          {/* Type Badge */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            {isJama ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <ArrowUpRight className="w-3 h-3 text-emerald-700" />
+                                જમા (JAMA)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                                <ArrowDownLeft className="w-3 h-3 text-rose-700" />
+                                ઉધાર (UDHAR)
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Category Badge */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                              entry.kind === "INVESTOR_CAPITAL" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                              entry.kind === "BILL_INVESTMENT" ? "bg-cyan-100 text-cyan-900 border border-cyan-200" :
+                              entry.kind === "UPAD" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                              entry.categoryKey === "CAT5_SITE" ? "bg-teal-100 text-teal-900 border border-teal-200" :
+                              entry.categoryKey === "CAT6_LABOUR" ? "bg-purple-100 text-purple-900 border border-purple-200" :
+                              "bg-slate-100 text-slate-800 border border-slate-200"
+                            }`}>
+                              {entry.categoryLabel || entry.categoryKey}
+                            </span>
+                          </td>
+
+                          {/* Particulars & Party */}
+                          <td className="py-3 px-3 max-w-xs">
+                            <div className="font-bold text-slate-900 truncate">
+                              {entry.partyName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate" title={entry.particulars}>
+                              {entry.particulars}
+                            </div>
+                          </td>
+
+                          {/* Payment Method & Ref */}
+                          <td className="py-3 px-3 whitespace-nowrap text-slate-600">
+                            <div className="font-medium text-[11px]">{entry.paymentMethod || "Bank Transfer"}</div>
+                            {entry.referenceNumber && entry.referenceNumber !== "-" && (
+                              <div className="text-[10px] text-slate-400 font-mono">Ref: {entry.referenceNumber}</div>
+                            )}
+                          </td>
+
+                          {/* Jama Amount */}
+                          <td className="py-3 px-3 text-right font-black text-emerald-700 bg-emerald-50/20 font-mono">
+                            {entry.jama > 0 ? `+₹${entry.jama.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : "-"}
+                          </td>
+
+                          {/* Udhar Amount */}
+                          <td className="py-3 px-3 text-right font-black text-rose-700 bg-rose-50/20 font-mono">
+                            {entry.udhar > 0 ? `-₹${entry.udhar.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : "-"}
+                          </td>
+
+                          {/* Running Balance */}
+                          <td className={`py-3 px-3 text-right font-black font-mono bg-amber-50/20 ${
+                            entry.runningBalance >= 0 ? "text-slate-900" : "text-rose-700"
+                          }`}>
+                            ₹{entry.runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            {entry.kind === "INVESTOR_CAPITAL" && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTx(entry.rawId)}
+                                className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Delete Investment Transaction"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {entry.kind === "BILL_INVESTMENT" && (
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const b = billIncomes.find((i: any) => i.id === entry.rawId);
+                                    if (b) openEditBill(b);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                                  title="Edit Bill"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBill(entry.rawId)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                  title="Delete Bill"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+
+                            {entry.kind === "UPAD" && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTx(entry.rawId)}
+                                className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Delete Investor Payment / Upad"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {entry.kind === "DEDUCTION" && (
+                              <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 rounded bg-slate-100">
+                                સાઇટ ખર્ચ
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                {/* Ledger Footer Summary Row */}
+                {filteredInvestmentNotebook.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-slate-100/90 border-t-2 border-slate-300 font-black text-slate-900">
+                      <td colSpan={6} className="py-3 px-3 text-right uppercase tracking-wider text-[11px]">
+                        ચોપડાનો કુલ સરવાળો (Ledger Totals):
+                      </td>
+                      <td className="py-3 px-3 text-right text-emerald-800 bg-emerald-100/50 font-mono text-sm">
+                        +₹{fullCapital.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-3 text-right text-rose-800 bg-rose-100/50 font-mono text-sm">
+                        -₹{(totalDeductions + totalInvestorPayments).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className={`py-3 px-3 text-right font-mono text-sm bg-amber-100/50 ${
+                        netRemainingCapital >= 0 ? "text-slate-900" : "text-rose-700"
+                      }`}>
+                        ₹{netRemainingCapital.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-3" />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SUBTAB 0: ANALYTICS & DEDUCTIONS DASHBOARD */}
       {activeSubTab === "analytics" && (
@@ -1910,6 +2451,305 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   <span>₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUBTAB 1: NOTE BOOK HISAB (ખાતાવહી ચોપડો - રોકાણ મૂડી અને સાઇટ ખર્ચ ચોપડો) */}
+      {activeSubTab === "notebook_hisab" && (
+        <div className="space-y-4">
+          {/* Notebook Header */}
+          <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 p-6 rounded-3xl text-white shadow-xl border border-amber-800/40">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+                  <span>રોકાણ ખાતાવહી ચોપડો &bull; Investment Capital & Site Expenses Passbook</span>
+                </div>
+                <h3 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                  <span>ખાતાવહી ચોપડો (Note Book Hisab)</span>
+                </h3>
+                <p className="text-xs text-amber-200/80 mt-1 max-w-2xl font-medium">
+                  રોકાણ મૂડી જમા (+ ઇન્વેસ્ટર & બિલ મૂડી) અને સાઇટ ખર્ચ ઉધાર (- સાઇટ સપ્લાય, મજૂરી, અન્ય ખર્ચ, સિક્યોરિટી ડિપોઝિટ, ઉપાડ) નો પાકો હિસાબ.
+                </p>
+              </div>
+
+              {/* Action Buttons in Notebook */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTxId(null);
+                    setCapitalFormData({
+                      partyId: parties[0]?.id?.toString() || "",
+                      amount: "",
+                      type: "INVESTMENT",
+                      date: new Date().toISOString().split("T")[0],
+                      paymentMethod: "Bank Transfer",
+                      referenceNumber: "",
+                      description: "",
+                    });
+                    setIsCapitalModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ ઇન્વેસ્ટર મૂડી જમા</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetBillForm();
+                    setIsBillModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>+ બિલ રોકાણ</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTxId(null);
+                    setPaymentFormData({
+                      partyId: parties[0]?.id?.toString() || "",
+                      amount: "",
+                      date: new Date().toISOString().split("T")[0],
+                      paymentMethod: "Bank Transfer",
+                      referenceNumber: "",
+                      description: "",
+                    });
+                    setIsPaymentModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowDownLeft className="w-4 h-4" />
+                  <span>- ઉપાડ ચૂકવણી</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics in Notebook */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-5 border-t border-white/10">
+              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
+                <span className="text-[10px] uppercase font-bold text-emerald-300 block">કુલ રોકાણ મૂડી જમા (Total Inflows)</span>
+                <span className="text-xl font-black text-emerald-400 tabular-nums">
+                  +₹{fullCapital.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[10px] text-white/60 block mt-0.5">ઇન્વેસ્ટર મૂડી + બિલ રોકાણ આવક</span>
+              </div>
+
+              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
+                <span className="text-[10px] uppercase font-bold text-rose-300 block">કુલ સાઇટ ખર્ચ ઉધાર (Total Outflows)</span>
+                <span className="text-xl font-black text-rose-300 tabular-nums">
+                  -₹{(totalDeductions + totalInvestorPayments).toLocaleString("en-IN")}
+                </span>
+                <span className="text-[10px] text-white/60 block mt-0.5">સાઇટ સપ્લાય, મજૂરી, અન્ય ખર્ચ & ઉપાડ</span>
+              </div>
+
+              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
+                <span className="text-[10px] uppercase font-bold text-cyan-300 block">ચોખ્ખી બાકી રોકાણ મૂડી (Net Balance)</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={`text-xl font-black tabular-nums ${netRemainingCapital < 0 ? "text-rose-400" : "text-white"}`}>
+                    ₹{netRemainingCapital.toLocaleString("en-IN")}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                    netRemainingCapital >= 0 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/30 text-rose-200 border border-rose-500/50"
+                  }`}>
+                    {netRemainingCapital >= 0 ? "Surplus" : "Deficit"}
+                  </span>
+                </div>
+                <span className="text-[10px] text-white/60 block mt-0.5">ખર્ચ બાદ કરતા હાજર બાકી કેપિટલ</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notebook Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+              <button
+                type="button"
+                onClick={() => setNotebookFilter("ALL")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  notebookFilter === "ALL"
+                    ? "bg-[#0B1D3A] text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                તમામ નોંધ ({investmentNotebookEntries.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotebookFilter("ADDED")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  notebookFilter === "ADDED"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                }`}
+              >
+                <span>મૂડી જમા (+ INFLOWS)</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+                  {investmentNotebookEntries.filter(e => e.type === "ADDED").length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotebookFilter("REMOVED")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  notebookFilter === "REMOVED"
+                    ? "bg-rose-600 text-white shadow-xs"
+                    : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
+                }`}
+              >
+                <span>સાઇટ ખર્ચ ઉધાર (- EXPENSES)</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+                  {investmentNotebookEntries.filter(e => e.type === "REMOVED").length}
+                </span>
+              </button>
+
+              {/* Category Filter */}
+              <select
+                value={notebookCategoryFilter}
+                onChange={(e) => setNotebookCategoryFilter(e.target.value)}
+                className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none"
+              >
+                <option value="ALL">All Categories (તમામ પ્રકાર)</option>
+                <option value="INVESTOR_CAPITAL">ઇન્વેસ્ટર મૂડી (Investor Capital)</option>
+                <option value="BILL_INVESTMENT">બિલ રોકાણ (Bill Invoices)</option>
+                <option value="CAT5_SUPPLY">સાઇટ સપ્લાય (Site Supplies)</option>
+                <option value="CAT6_LABOUR">મજૂરી & અન્ય ખર્ચ (Labour & Other Kharch)</option>
+                <option value="CAT_REFUNDABLE">સિક્યોરિટી ડિપોઝિટ (Refundables)</option>
+                <option value="INVESTOR_UPAD">ઇન્વેસ્ટર ઉપાડ (Investor Upad)</option>
+              </select>
+            </div>
+
+            <div className="relative w-full md:w-72">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search by party, expense, other kharch, ref..."
+                value={notebookSearch}
+                onChange={(e) => setNotebookSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+              />
+            </div>
+          </div>
+
+          {/* Traditional Notebook Paper Table */}
+          <div className="bg-amber-50/20 rounded-2xl border-2 border-amber-200/90 shadow-sm overflow-hidden">
+            <div className="p-3 bg-amber-100/70 border-b border-amber-200/80 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span className="font-black text-amber-950 uppercase tracking-wider">રોકડમેળ &bull; ખાતાવહી નોંધ (Investment Capital & Site Operations Ledger)</span>
+              </div>
+              <span className="text-amber-900 font-bold">{filteredInvestmentNotebook.length} Records</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-amber-50 text-amber-900 font-bold border-b border-amber-200">
+                  <tr>
+                    <th className="p-3.5 whitespace-nowrap">તારીખ (Date)</th>
+                    <th className="p-3.5">કેટેગરી (Category)</th>
+                    <th className="p-3.5">પાર્ટી / ટીમ / વિગત (Party / Team / Particulars)</th>
+                    <th className="p-3.5 text-center">પેમેન્ટ & Ref</th>
+                    <th className="p-3.5 text-right font-black text-emerald-800">મૂડી જમા (+ JAMA)</th>
+                    <th className="p-3.5 text-right font-black text-rose-800">સાઇટ ખર્ચ ઉધાર (- UDHAR)</th>
+                    <th className="p-3.5 text-right font-black text-slate-900">બાકી રોકાણ મૂડી</th>
+                    <th className="p-3.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100 bg-white">
+                  {filteredInvestmentNotebook.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-10 text-center text-slate-400">
+                        {notebookSearch ? "કોઈ મેળ ખાતી નોંધ મળી નથી (No matching entries)." : "હજુ સુધી કોઈ વ્યવહાર નોંધાયો નથી (No investment entries found)."}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredInvestmentNotebook.map((entry) => {
+                      const isOtherKharch = (entry.categoryLabel || "").toLowerCase().includes("other kharch") || (entry.particulars || "").toLowerCase().includes("kharch");
+
+                      return (
+                        <tr key={entry.id} className="hover:bg-amber-50/40 transition-colors">
+                          <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">
+                            {entry.date}
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-flex items-center gap-1 ${
+                              entry.kind === 'INVESTOR_CAPITAL'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : entry.kind === 'BILL_INVESTMENT'
+                                ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                : entry.kind === 'UPAD'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : isOtherKharch
+                                ? 'bg-rose-100 text-rose-900 border border-rose-300 font-extrabold'
+                                : 'bg-slate-100 text-slate-700 border border-slate-300'
+                            }`}>
+                              {isOtherKharch && <span>☕</span>}
+                              {entry.categoryLabel}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-slate-800 max-w-sm">
+                            <div className="font-bold text-slate-900">{entry.partyName}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">{entry.particulars}</div>
+                          </td>
+                          <td className="p-3.5 text-center whitespace-nowrap">
+                            <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
+                              {entry.paymentMethod}
+                            </span>
+                            {entry.referenceNumber && entry.referenceNumber !== '-' && (
+                              <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                                #{entry.referenceNumber}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-right font-black text-emerald-700 tabular-nums text-sm">
+                            {entry.jama > 0 ? `+₹${entry.jama.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                          </td>
+                          <td className="p-3.5 text-right font-black text-rose-700 tabular-nums text-sm">
+                            {entry.udhar > 0 ? `-₹${entry.udhar.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                          </td>
+                          <td className={`p-3.5 text-right font-black tabular-nums text-sm bg-amber-50/30 ${
+                            entry.runningBalance < 0 ? "text-rose-700" : "text-slate-900"
+                          }`}>
+                            ₹{entry.runningBalance.toLocaleString("en-IN")}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            {entry.kind === 'INVESTOR_CAPITAL' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTx(entry.rawId)}
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Delete Investment Transaction"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : entry.kind === 'BILL_INVESTMENT' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBill(entry.rawId)}
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Delete Bill Investment"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span className="text-slate-300 text-[10px]">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ import InvestorCapitalTab from "../components/categories/InvestorCapitalTab";
 import InvestmentTab from "../components/categories/InvestmentTab";
 import SiteSupplyTab from "../components/categories/SiteSupplyTab";
 import LabourAttendanceTab from "../components/categories/LabourAttendanceTab";
+import OtherKharchTab from "../components/categories/OtherKharchTab";
 import ContractorCostTab from "../components/categories/ContractorCostTab";
 import SupervisorCostTab from "../components/categories/SupervisorCostTab";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
@@ -31,7 +32,7 @@ export default function LocationDetailsPage() {
   } = useGoogleSync();
 
   const [activeCategory, setActiveCategory] = useState<
-    "investor_capital" | "investment_capital" | "site_supply" | "labour_attendance" | "contractor_cost" | "supervisor_cost"
+    "investor_capital" | "investment_capital" | "site_supply" | "labour_attendance" | "other_kharch" | "contractor_cost" | "supervisor_cost"
   >("investor_capital");
   
   const [locationName, setLocationName] = useState("Loading...");
@@ -312,6 +313,18 @@ export default function LocationDetailsPage() {
 
         <button
           type="button"
+          onClick={() => setActiveCategory("other_kharch")}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeCategory === "other_kharch"
+              ? "bg-[#0B1D3A] text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Other Kharch (અન્ય ખર્ચ)
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveCategory("contractor_cost")}
           className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeCategory === "contractor_cost"
@@ -352,6 +365,9 @@ export default function LocationDetailsPage() {
         )}
         {activeCategory === "labour_attendance" && (
           <LabourAttendanceTab locationId={Number(locationId)} />
+        )}
+        {activeCategory === "other_kharch" && (
+          <OtherKharchTab locationId={Number(locationId)} />
         )}
         {activeCategory === "contractor_cost" && (
           <ContractorCostTab locationId={Number(locationId)} />

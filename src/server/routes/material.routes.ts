@@ -554,7 +554,7 @@ materialRouter.post('/:type', async (req: AuthRequest, res: Response) => {
       const rate = parseFloat(String(data.rate)) || 0;
       const discount = parseFloat(String(data.discount || 0)) || 0;
       const taxPercentage = parseFloat(String(data.taxPercentage || 0)) || 0;
-      const transportCost = parseFloat(String(data.transportCost || data.transport || 0)) || 0;
+      const transportCost = parseFloat(String(data.transportCost || data.transportationFee || data.transport || 0)) || 0;
 
       const subtotal = Math.round(qty * rate * 100) / 100;
       const taxableAmount = Math.max(0, subtotal - discount);
@@ -774,7 +774,7 @@ materialRouter.put('/:type/:id', async (req: AuthRequest, res: Response) => {
       const rate = parseFloat(String(data.rate)) || 0;
       const discount = parseFloat(String(data.discount || 0)) || 0;
       const taxPercentage = parseFloat(String(data.taxPercentage || 0)) || 0;
-      const transportCost = parseFloat(String(data.transportCost || data.transport || 0)) || 0;
+      const transportCost = parseFloat(String(data.transportCost || data.transportationFee || data.transport || 0)) || 0;
 
       const subtotal = Math.round(qty * rate * 100) / 100;
       const taxableAmount = Math.max(0, subtotal - discount);

@@ -4,7 +4,8 @@ import { Modal } from "../ui/Modal";
 import {
   Landmark, Plus, Trash2, Search, ArrowRight,
   CheckCircle2, AlertCircle, RefreshCw,
-  TrendingUp, Download, Eye, ExternalLink
+  TrendingUp, Download, Eye, ExternalLink,
+  FileSpreadsheet, User, ArrowUpRight, ArrowDownLeft
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
@@ -56,10 +57,16 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
   // State
   const [allocations, setAllocations] = useState<AllocationRecord[]>([]);
   const [locationParties, setLocationParties] = useState<any[]>([]);
+  const [locationTxs, setLocationTxs] = useState<any[]>([]);
   const [adminSummary, setAdminSummary] = useState<AdminCapitalSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedInvestorFilter, setSelectedInvestorFilter] = useState<string>("ALL");
+
+  // Tab View Mode: "notebook" (ખાતાવહી ચોપડો), "cards" (ઇન્વેસ્ટર સારાંશ), "allocations" (એલોકેશન રજિસ્ટર)
+  const [activeTabMode, setActiveTabMode] = useState<"notebook" | "cards" | "allocations">("notebook");
+  const [notebookFilter, setNotebookFilter] = useState<"ALL" | "ADDED" | "REMOVED">("ALL");
+  const [notebookSearch, setNotebookSearch] = useState("");
 
   // Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -77,10 +84,11 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [allocRes, adminRes, partiesRes] = await Promise.all([
+      const [allocRes, adminRes, partiesRes, txsRes] = await Promise.all([
         apiFetch(`/investments/location-allocations?locationId=${locationId}`).catch(() => []),
         apiFetch("/investments/admin-capital-summary").catch(() => null),
-        apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => [])
+        apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/investments/transactions?locationId=${locationId}`).catch(() => [])
       ]);
 
       if (Array.isArray(allocRes)) {
@@ -91,6 +99,9 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       }
       if (Array.isArray(partiesRes)) {
         setLocationParties(partiesRes);
+      }
+      if (Array.isArray(txsRes)) {
+        setLocationTxs(txsRes);
       }
     } catch (err: any) {
       console.error("Failed to load Investor Capital data", err);
@@ -134,6 +145,88 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
   const totalAvailableAmount = useMemo(() => {
     return Math.max(0, (totalAllocatedAmount || 0) - (totalDeployedAmount || 0));
   }, [totalAllocatedAmount, totalDeployedAmount]);
+
+  // --- Location Investor Capital Note Book Hisab (ખાતાવહી ચોપડો) ---
+  const locationInvestorNotebook = useMemo(() => {
+    const items: any[] = [];
+
+    // 1. Inflows: Allocations from Admin Capital to this Location (મૂડી જમા / JAMA)
+    (Array.isArray(allocations) ? allocations : []).forEach(a => {
+      const amt = parseFloat(String(a.amount || 0));
+      items.push({
+        id: `alloc-${a.id}`,
+        rawId: a.id,
+        kind: 'ALLOCATION',
+        date: a.date,
+        investorId: a.investorId,
+        investorName: a.investorName,
+        type: 'ADDED',
+        typeLabel: 'ફાળવણી જમા (+ ALLOCATION)',
+        category: 'ADMIN_ALLOCATION',
+        particulars: a.notes ? `Allocated from Admin Capital: ${a.notes}` : 'Allocated from Admin Capital Pool',
+        paymentMethod: a.paymentMethod || 'Bank Transfer',
+        referenceNumber: a.referenceNumber || '-',
+        jama: amt,
+        udhar: 0,
+        amount: amt
+      });
+    });
+
+    // 2. Outflows: Deployed into Category 1 Investment Capital (રોકાણમાં વપરાશ / UDHAR)
+    (Array.isArray(locationTxs) ? locationTxs : [])
+      .filter(t => t.type === 'INVESTMENT')
+      .forEach(t => {
+        const amt = parseFloat(String(t.amount || 0));
+        items.push({
+          id: `tx-${t.id}`,
+          rawId: t.id,
+          kind: 'TRANSACTION',
+          date: t.date,
+          investorId: t.partyId,
+          investorName: t.partyName || 'Investor',
+          type: 'REMOVED',
+          typeLabel: 'રોકાણમાં વપરાશ (- DEPLOYED)',
+          category: 'INVESTMENT_DEPLOYMENT',
+          particulars: t.description ? `Deployed to Cat 1 Investment: ${t.description}` : 'Transferred to Project Investment Capital (Cat 1)',
+          paymentMethod: t.paymentMethod || 'Bank Transfer',
+          referenceNumber: t.referenceNumber || '-',
+          jama: 0,
+          udhar: amt,
+          amount: amt
+        });
+      });
+
+    // Chronological sort
+    items.sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return (a.rawId || 0) - (b.rawId || 0);
+    });
+
+    let running = 0;
+    const withBal = items.map(entry => {
+      running = running + entry.jama - entry.udhar;
+      return {
+        ...entry,
+        runningBalance: Math.round(running * 100) / 100
+      };
+    });
+
+    return withBal.reverse();
+  }, [allocations, locationTxs]);
+
+  // Filtered Location Notebook Entries
+  const filteredLocationNotebook = useMemo(() => {
+    return locationInvestorNotebook.filter(e => {
+      const matchType = notebookFilter === "ALL" || e.type === notebookFilter;
+      const q = notebookSearch.toLowerCase().trim();
+      const matchSearch = !q ||
+        (e.investorName && e.investorName.toLowerCase().includes(q)) ||
+        (e.particulars && e.particulars.toLowerCase().includes(q)) ||
+        (e.referenceNumber && e.referenceNumber.toLowerCase().includes(q)) ||
+        (e.paymentMethod && e.paymentMethod.toLowerCase().includes(q));
+      return matchType && matchSearch;
+    });
+  }, [locationInvestorNotebook, notebookFilter, notebookSearch]);
 
   // Investor-wise Breakdown at this Location
   const investorBreakdown = useMemo(() => {
@@ -288,6 +381,25 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     }
   };
 
+  const handleDeleteTx = async (txId: number) => {
+    const confirmed = await confirmAction({
+      title: "Delete Investment Deployment",
+      message: "Are you sure you want to revert this investment deployment? The amount will return to available Investor Capital.",
+      confirmLabel: "Revert & Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/investments/transactions/${txId}?locationId=${locationId}`, { method: "DELETE" });
+      triggerSync("investments");
+      triggerSync("reports");
+      showToast("Transaction reverted successfully", "success");
+      loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to revert transaction", "error");
+    }
+  };
+
   const handleOpenAddForInvestor = (invId: number) => {
     setFormData({
       investorId: String(invId),
@@ -424,8 +536,287 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         </div>
       </div>
 
-      {/* Investor-wise Breakdown Cards (if any exist) */}
-      {investorBreakdown.length > 0 && (
+      {/* View Mode Navigation Tabs */}
+      <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTabMode("notebook")}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTabMode === "notebook"
+              ? "bg-[#0B1D3A] text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+          <span>ખાતાવહી ચોપડો (Note Book Hisab)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-200">
+            {locationInvestorNotebook.length} Entries
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTabMode("cards")}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTabMode === "cards"
+              ? "bg-[#0B1D3A] text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <User className="w-4 h-4" />
+          <span>ઇન્વેસ્ટર સારાંશ (Investor Summary Cards)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-200">
+            {investorBreakdown.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTabMode("allocations")}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTabMode === "allocations"
+              ? "bg-[#0B1D3A] text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Landmark className="w-4 h-4" />
+          <span>એલોકેશન રજિસ્ટર (Admin Allocations)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-200">
+            {allocations.length}
+          </span>
+        </button>
+      </div>
+
+      {/* VIEW MODE 1: Note Book Hisab (ખાતાવહી ચોપડો) */}
+      {activeTabMode === "notebook" && (
+        <div className="space-y-4">
+          {/* Notebook Header */}
+          <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 p-6 rounded-3xl text-white shadow-xl border border-amber-800/40">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+                  <span>સાઇટ ઇન્વેસ્ટર કેપિટલ ચોપડો &bull; Location Investor Passbook</span>
+                </div>
+                <h3 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                  <span>ખાતાવહી ચોપડો (Note Book Hisab)</span>
+                </h3>
+                <p className="text-xs text-amber-200/80 mt-1 max-w-2xl font-medium">
+                  {locationName} માટે Admin Capital માંથી ફાળવણી (જમા) અને Category 1 રોકાણમાં વપરાશ (ઉધાર) નો નોટબુક હિસાબ.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    investorId: "",
+                    amount: "",
+                    date: new Date().toISOString().split("T")[0],
+                    paymentMethod: "Bank Transfer",
+                    referenceNumber: "",
+                    notes: ""
+                  });
+                  setIsAddModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Add More from Admin Capital</span>
+              </button>
+            </div>
+
+            {/* Quick Metrics in Notebook */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-5 border-t border-white/10">
+              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
+                <span className="text-[10px] uppercase font-bold text-emerald-300 block">કુલ ફાળવેલ મૂડી જમા (Total Inflows)</span>
+                <span className="text-xl font-black text-emerald-400 tabular-nums">
+                  +₹{totalAllocatedAmount.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Admin Capital માંથી આ સાઇટ પર આવેલ</span>
+              </div>
+
+              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
+                <span className="text-[10px] uppercase font-bold text-purple-300 block">રોકાણમાં વપરાશ ઉધાર (Total Deployed)</span>
+                <span className="text-xl font-black text-purple-300 tabular-nums">
+                  -₹{totalDeployedAmount.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Cat 1 ઇન્વેસ્ટમેન્ટ મૂડીમાં ટ્રાન્સફર થયેલ</span>
+              </div>
+
+              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
+                <span className="text-[10px] uppercase font-bold text-cyan-300 block">હાજર ઉપલબ્ધ ઇન્વેસ્ટર મૂડી (Available)</span>
+                <span className="text-xl font-black text-white tabular-nums">
+                  ₹{totalAvailableAmount.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Cat 1 માં આગળ વાપરવા માટે બાકી મૂડી</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notebook Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+              <button
+                type="button"
+                onClick={() => setNotebookFilter("ALL")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  notebookFilter === "ALL"
+                    ? "bg-[#0B1D3A] text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                તમામ નોંધ ({locationInvestorNotebook.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotebookFilter("ADDED")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  notebookFilter === "ADDED"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                }`}
+              >
+                <span>મૂડી જમા (+ ALLOCATION)</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+                  {locationInvestorNotebook.filter(e => e.type === "ADDED").length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotebookFilter("REMOVED")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  notebookFilter === "REMOVED"
+                    ? "bg-purple-600 text-white shadow-xs"
+                    : "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200"
+                }`}
+              >
+                <span>રોકાણ વપરાશ (- DEPLOYED)</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+                  {locationInvestorNotebook.filter(e => e.type === "REMOVED").length}
+                </span>
+              </button>
+            </div>
+
+            <div className="relative w-full md:w-72">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search notebook by investor, particulars, ref..."
+                value={notebookSearch}
+                onChange={(e) => setNotebookSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+              />
+            </div>
+          </div>
+
+          {/* Traditional Notebook Table */}
+          <div className="bg-amber-50/20 rounded-2xl border-2 border-amber-200/90 shadow-sm overflow-hidden">
+            <div className="p-3 bg-amber-100/70 border-b border-amber-200/80 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span className="font-black text-amber-950 uppercase tracking-wider">રોકડમેળ &bull; ખાતાવહી નોંધ (Location Investor Capital Ledger)</span>
+              </div>
+              <span className="text-amber-900 font-bold">{filteredLocationNotebook.length} Records</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-amber-50 text-amber-900 font-bold border-b border-amber-200">
+                  <tr>
+                    <th className="p-3.5 whitespace-nowrap">તારીખ (Date)</th>
+                    <th className="p-3.5">ઇન્વેસ્ટર (Investor)</th>
+                    <th className="p-3.5">પ્રકાર (Entry Type)</th>
+                    <th className="p-3.5">વિગત / હેતુ (Particulars / Destination)</th>
+                    <th className="p-3.5 text-center">પેમેન્ટ & Ref</th>
+                    <th className="p-3.5 text-right font-black text-emerald-800">મૂડી જમા (+ JAMA)</th>
+                    <th className="p-3.5 text-right font-black text-purple-800">રોકાણ વપરાશ (- UDHAR)</th>
+                    <th className="p-3.5 text-right font-black text-slate-900">બાકી ઇન્વેસ્ટર મૂડી</th>
+                    <th className="p-3.5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100 bg-white">
+                  {filteredLocationNotebook.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-10 text-center text-slate-400">
+                        {notebookSearch ? "કોઈ મેળ ખાતી નોંધ મળી નથી (No matching entries)." : "હજુ સુધી કોઈ વ્યવહાર નોંધાયો નથી (No investor capital entries found)."}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLocationNotebook.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-amber-50/40 transition-colors">
+                        <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">
+                          {entry.date}
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-900">
+                          {entry.investorName}
+                        </td>
+                        <td className="p-3.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-flex items-center gap-1 ${
+                            entry.type === 'ADDED'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-purple-100 text-purple-800 border border-purple-300'
+                          }`}>
+                            {entry.typeLabel}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-slate-700 max-w-xs">
+                          <div className="font-semibold">{entry.particulars}</div>
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
+                            {entry.paymentMethod}
+                          </span>
+                          {entry.referenceNumber && entry.referenceNumber !== '-' && (
+                            <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                              #{entry.referenceNumber}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3.5 text-right font-black text-emerald-700 tabular-nums text-sm">
+                          {entry.jama > 0 ? `+₹${entry.jama.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                        </td>
+                        <td className="p-3.5 text-right font-black text-purple-700 tabular-nums text-sm">
+                          {entry.udhar > 0 ? `-₹${entry.udhar.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                        </td>
+                        <td className="p-3.5 text-right font-black text-slate-900 tabular-nums text-sm bg-amber-50/30">
+                          ₹{entry.runningBalance.toLocaleString("en-IN")}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          {entry.kind === 'ALLOCATION' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAllocation({ id: entry.rawId, investorName: entry.investorName, amount: entry.amount } as any)}
+                              className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                              title="Delete Allocation and return to Admin Capital"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTx(entry.rawId)}
+                              className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                              title="Revert deployment back to Investor Capital"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW MODE 2: Investor-wise Breakdown Cards */}
+      {activeTabMode === "cards" && (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -496,7 +887,8 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         </div>
       )}
 
-      {/* Allocation History Ledger Table */}
+      {/* VIEW MODE 3: Allocation History Ledger Table */}
+      {activeTabMode === "allocations" && (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
         {/* Table Filter Bar */}
         <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row items-center justify-between gap-3">
@@ -597,6 +989,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           </table>
         </div>
       </div>
+      )}
 
       {/* MODAL: Add Investor Capital from Admin Capital */}
       <Modal

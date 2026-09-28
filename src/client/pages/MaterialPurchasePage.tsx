@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { 
   Package, Plus, Search, Building2, Trash2, Edit3, DollarSign, Wallet, CheckCircle2, AlertCircle, 
   ArrowRight, BarChart2, Eye, MapPin, Users, ShoppingBag, Layers, ArrowUpRight, ArrowDownRight,
-  TrendingUp, Calendar, Info, X
+  TrendingUp, Calendar, Info, X, Truck
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
@@ -41,6 +41,7 @@ export default function MaterialPurchasePage() {
     quantity: "",
     unit: "Nos",
     rate: "",
+    transportationFee: "",
     taxPercentage: "18",
     paymentStatus: "Paid",
     notes: ""
@@ -81,6 +82,7 @@ export default function MaterialPurchasePage() {
   const totalPurchaseVal = purchases.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0);
   const totalPurchaseQty = purchases.reduce((acc, p) => acc + Number(p.quantity || 0), 0);
   const totalPurchaseGST = purchases.reduce((acc, p) => acc + Number(p.tax || 0), 0);
+  const totalTransportFee = purchases.reduce((acc, p) => acc + Number(p.transportCost || 0), 0);
   const stockAddedVal = centralStock.reduce((acc, s) => acc + Number(s.stockValue || 0), 0);
   const pendingPayments = purchases.filter(p => (p.paymentStatus || "").toUpperCase() !== "PAID").reduce((acc, p) => acc + Number(p.totalAmount || 0), 0);
 
@@ -97,9 +99,10 @@ export default function MaterialPurchasePage() {
       const qty = parseFloat(formData.quantity) || 0;
       const rate = parseFloat(formData.rate) || 0;
       const taxPct = parseFloat(formData.taxPercentage) || 0;
+      const transportFee = parseFloat(formData.transportationFee) || 0;
       const subtotal = qty * rate;
       const tax = subtotal * (taxPct / 100);
-      const totalAmount = subtotal + tax;
+      const totalAmount = subtotal + tax + transportFee;
 
       const payload = {
         date: formData.date,
@@ -109,6 +112,8 @@ export default function MaterialPurchasePage() {
         quantity: qty,
         unit: formData.unit,
         rate: rate,
+        transportCost: transportFee,
+        transportationFee: transportFee,
         taxPercentage: taxPct,
         tax: tax,
         subtotal: subtotal,
@@ -127,6 +132,18 @@ export default function MaterialPurchasePage() {
       triggerSync("stock");
       showToast("Material purchase recorded in Central Inventory for all sites!", "success");
       setIsModalOpen(false);
+      setFormData({
+        date: new Date().toISOString().split("T")[0],
+        supplierName: "",
+        materialName: "",
+        quantity: "",
+        unit: "Nos",
+        rate: "",
+        transportationFee: "",
+        taxPercentage: "18",
+        paymentStatus: "Paid",
+        notes: ""
+      });
       loadData(true);
     } catch (err: any) {
       showToast(err.message || "Failed to save purchase", "error");
@@ -351,6 +368,7 @@ export default function MaterialPurchasePage() {
                 quantity: "",
                 unit: "Nos",
                 rate: "",
+                transportationFee: "0",
                 taxPercentage: "18",
                 paymentStatus: "Paid",
                 notes: ""
@@ -367,7 +385,7 @@ export default function MaterialPurchasePage() {
 
       {/* KPI Cards: PURCHASE VIEW */}
       {activeTab === "purchase" ? (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
             <div className="p-2.5 bg-[#0B1D3A] text-white rounded-xl">
               <DollarSign className="w-4 h-4" />
@@ -405,6 +423,18 @@ export default function MaterialPurchasePage() {
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Truck className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Transport Fee</span>
+              <span className="text-sm font-bold text-indigo-700 tabular-nums">
+                ₹{totalTransportFee.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
             <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
               <CheckCircle2 className="w-4 h-4" />
             </div>
@@ -416,7 +446,7 @@ export default function MaterialPurchasePage() {
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 col-span-2 lg:col-span-1">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 col-span-2 sm:col-span-1">
             <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
               <AlertCircle className="w-4 h-4" />
             </div>
@@ -536,6 +566,7 @@ export default function MaterialPurchasePage() {
                   <th className="p-3.5 text-right">Qty</th>
                   <th className="p-3.5 text-right">Rate</th>
                   <th className="p-3.5 text-center">GST %</th>
+                  <th className="p-3.5 text-right">Transport Fee</th>
                   <th className="p-3.5 text-right font-black">Grand Total</th>
                   <th className="p-3.5 text-center">Payment</th>
                   <th className="p-3.5 text-center">Actions</th>
@@ -544,13 +575,14 @@ export default function MaterialPurchasePage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredPurchases.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-8 text-center text-slate-400">
+                    <td colSpan={10} className="p-8 text-center text-slate-400">
                       {searchQuery ? "No matching purchase records found." : "No purchase records found."}
                     </td>
                   </tr>
                 ) : (
                   filteredPurchases.map((p) => {
                     const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
+                    const transportAmt = Number(p.transportCost || 0);
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
@@ -579,8 +611,18 @@ export default function MaterialPurchasePage() {
                         <td className="p-3.5 text-center font-semibold text-slate-600">
                           {p.taxPercentage || 18}%
                         </td>
+                        <td className="p-3.5 text-right font-bold tabular-nums">
+                          {transportAmt > 0 ? (
+                            <span className="text-indigo-700 font-bold">₹{transportAmt.toLocaleString("en-IN")}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">₹0</span>
+                          )}
+                        </td>
                         <td className="p-3.5 text-right font-black text-slate-900 tabular-nums">
-                          ₹{Number(p.totalAmount || 0).toLocaleString("en-IN")}
+                          <div>₹{Number(p.totalAmount || 0).toLocaleString("en-IN")}</div>
+                          {transportAmt > 0 && (
+                            <div className="text-[10px] text-indigo-600 font-normal">incl. ₹{transportAmt.toLocaleString("en-IN")} transport</div>
+                          )}
                         </td>
                         <td className="p-3.5 text-center">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
@@ -822,7 +864,7 @@ export default function MaterialPurchasePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GST Tax (%)</label>
               <select
@@ -836,6 +878,22 @@ export default function MaterialPurchasePage() {
                 <option value="18">18% (Standard)</option>
                 <option value="28">28%</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                <span>Transportation Fee (₹)</span>
+                <span className="text-[10px] text-blue-600 font-semibold ml-1">(વાહન ભાડું)</span>
+              </label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                placeholder="0"
+                value={formData.transportationFee}
+                onChange={(e) => setFormData({ ...formData, transportationFee: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
+              />
             </div>
 
             <div>
@@ -862,14 +920,36 @@ export default function MaterialPurchasePage() {
             />
           </div>
 
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-600">Grand Total (Subtotal + GST):</span>
-            <span className="text-base font-black text-slate-900 tabular-nums">
-              ₹{(
-                ((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * 
-                (1 + (parseFloat(formData.taxPercentage) || 0) / 100)
-              ).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-            </span>
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>Subtotal (Qty &times; Rate):</span>
+              <span className="font-semibold tabular-nums">
+                ₹{((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>GST ({formData.taxPercentage}%):</span>
+              <span className="font-semibold tabular-nums">
+                ₹{(((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * ((parseFloat(formData.taxPercentage) || 0) / 100)).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            {(parseFloat(formData.transportationFee) || 0) > 0 && (
+              <div className="flex items-center justify-between text-xs text-blue-700">
+                <span>Transportation Fee (વાહન ભાડું):</span>
+                <span className="font-bold tabular-nums">
+                  + ₹{(parseFloat(formData.transportationFee) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+            <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 uppercase">Grand Total (કુલ રકમ):</span>
+              <span className="text-base font-black text-slate-900 tabular-nums">
+                ₹{(
+                  ((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * (1 + (parseFloat(formData.taxPercentage) || 0) / 100) +
+                  (parseFloat(formData.transportationFee) || 0)
+                ).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -1190,7 +1270,12 @@ export default function MaterialPurchasePage() {
                                 <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{p.quantity} {p.unit}</td>
                                 <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{Number(p.rate || 0).toLocaleString("en-IN")}</td>
                                 <td className="p-2.5 text-center text-slate-600">{p.taxPercentage || 18}%</td>
-                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{Number(p.totalAmount || 0).toLocaleString("en-IN")}</td>
+                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">
+                                  <div>₹{Number(p.totalAmount || 0).toLocaleString("en-IN")}</div>
+                                  {Number(p.transportCost || 0) > 0 && (
+                                    <div className="text-[9px] text-indigo-600 font-normal">+₹{Number(p.transportCost).toLocaleString("en-IN")} transport</div>
+                                  )}
+                                </td>
                                 <td className="p-2.5 text-center">
                                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
                                     isPaid ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
