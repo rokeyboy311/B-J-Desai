@@ -556,6 +556,7 @@ investmentRouter.get('/location-allocations', async (req: AuthRequest, res: Resp
 /**
  * POST /api/investments/location-allocations
  * Category 1 Part 1: Allocate capital from global investor to a location
+ * Atomic transaction: Verifies Admin Capital & unallocated Investor balance inside transaction.
  */
 investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Response) => {
   try {
@@ -577,80 +578,85 @@ investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Res
 
     await assertLocationAccess(userId, locId);
 
-    // Verify investor exists in global investors table or investmentParties table
-    let invName = 'Investor';
-    const globalInv = await db.select().from(investors).where(
-      and(eq(investors.id, invId), eq(investors.isDeleted, 0))
-    ).limit(1);
-
-    if (globalInv.length > 0) {
-      invName = globalInv[0].name;
-    } else {
-      const partyInv = await db.select().from(investmentParties).where(
-        and(eq(investmentParties.id, invId), eq(investmentParties.isDeleted, 0))
+    const result = await db.transaction(async (tx) => {
+      // 1. Verify investor exists
+      let invName = 'Investor';
+      const globalInv = await tx.select().from(investors).where(
+        and(eq(investors.id, invId), eq(investors.isDeleted, 0))
       ).limit(1);
-      if (partyInv.length > 0) {
-        invName = partyInv[0].partyName;
+
+      if (globalInv.length > 0) {
+        invName = globalInv[0].name;
       } else {
-        return res.status(404).json({ error: 'Investor not found' });
+        const partyInv = await tx.select().from(investmentParties).where(
+          and(eq(investmentParties.id, invId), eq(investmentParties.isDeleted, 0))
+        ).limit(1);
+        if (partyInv.length > 0) {
+          invName = partyInv[0].partyName;
+        } else {
+          throw new Error('Investor not found');
+        }
       }
-    }
 
-    // 3-Tier Capital Validation: Check available Admin Capital & Investor's unallocated capital
-    const adminSummary = await getAdminCapitalSummary(db, userId);
-    if (allocAmount > adminSummary.availableAdminCapital) {
-      return res.status(400).json({ 
-        error: `Cannot transfer ₹${allocAmount.toLocaleString('en-IN')}: Exceeds available Admin Capital (₹${adminSummary.availableAdminCapital.toLocaleString('en-IN')}).` 
-      });
-    }
+      // 2. 3-Tier Capital Validation inside transaction: Check available Admin Capital & Investor unallocated capital
+      const adminSummary = await getAdminCapitalSummary(tx, userId);
+      if (allocAmount > adminSummary.availableAdminCapital) {
+        throw new Error(
+          `Cannot transfer ₹${allocAmount.toLocaleString('en-IN')}: Exceeds available Admin Capital (₹${adminSummary.availableAdminCapital.toLocaleString('en-IN')}).`
+        );
+      }
 
-    const invSummary = adminSummary.investors.find(i => i.id === invId);
-    if (!invSummary || allocAmount > invSummary.availableCapital) {
+      const invSummary = adminSummary.investors.find(i => i.id === invId);
       const avail = invSummary ? invSummary.availableCapital : 0;
-      return res.status(400).json({ 
-        error: `Cannot transfer ₹${allocAmount.toLocaleString('en-IN')}: Selected investor ${invName} has only ₹${avail.toLocaleString('en-IN')} unallocated Admin Capital available.` 
-      });
-    }
+      if (!invSummary || allocAmount > avail) {
+        throw new Error(
+          `Cannot transfer ₹${allocAmount.toLocaleString('en-IN')}: Selected investor ${invName} has only ₹${avail.toLocaleString('en-IN')} unallocated Admin Capital available.`
+        );
+      }
 
-    const inserted = await db.insert(investorLocationAllocations).values({
-      investorId: invId,
-      locationId: locId,
-      userId,
-      amount: String(allocAmount),
-      date: date || new Date().toISOString().split('T')[0],
-      paymentMethod: paymentMethod || 'Bank Transfer',
-      referenceNumber: referenceNumber || null,
-      notes: notes || null,
-      isDeleted: 0
-    }).returning();
-
-    // Auto-sync into Category 1 Location Investment Parties (for selection in Add Investment Capital)
-    let existingParty = await db.select().from(investmentParties).where(
-      and(
-        eq(investmentParties.userId, userId),
-        eq(investmentParties.locationId, locId),
-        sql`UPPER(${investmentParties.partyName}) = ${invName.toUpperCase()}`,
-        eq(investmentParties.isDeleted, 0)
-      )
-    ).limit(1);
-
-    if (existingParty.length === 0) {
-      await db.insert(investmentParties).values({
-        userId,
+      // 3. Insert allocation record
+      const inserted = await tx.insert(investorLocationAllocations).values({
+        investorId: invId,
         locationId: locId,
-        partyName: invName.toUpperCase(),
-      });
-    }
+        userId,
+        amount: String(allocAmount),
+        date: date || new Date().toISOString().split('T')[0],
+        paymentMethod: paymentMethod || 'Bank Transfer',
+        referenceNumber: referenceNumber || null,
+        notes: notes || null,
+        isDeleted: 0
+      }).returning();
 
-    await db.insert(auditLogs).values({
-      userId,
-      action: 'ALLOCATE_INVESTOR_CAPITAL',
-      entityType: 'INVESTMENT',
-      entityId: inserted[0].id,
-      metadata: JSON.stringify({ investorId: invId, locationId: locId, amount: allocAmount })
+      // 4. Auto-sync into Category 1 Location Investment Parties (for selection in Add Investment Capital)
+      const existingParty = await tx.select().from(investmentParties).where(
+        and(
+          eq(investmentParties.locationId, locId),
+          sql`UPPER(${investmentParties.partyName}) = ${invName.toUpperCase()}`,
+          eq(investmentParties.isDeleted, 0)
+        )
+      ).limit(1);
+
+      if (existingParty.length === 0) {
+        await tx.insert(investmentParties).values({
+          userId,
+          locationId: locId,
+          partyName: invName.toUpperCase(),
+        });
+      }
+
+      // 5. Audit log
+      await tx.insert(auditLogs).values({
+        userId,
+        action: 'ALLOCATE_INVESTOR_CAPITAL',
+        entityType: 'INVESTMENT',
+        entityId: inserted[0].id,
+        metadata: JSON.stringify({ investorId: invId, locationId: locId, amount: allocAmount })
+      });
+
+      return inserted[0];
     });
 
-    res.status(201).json(inserted[0]);
+    res.status(201).json(result);
   } catch (error: any) {
     console.error('[Location Allocation POST Error]', error);
     res.status(400).json({ error: error?.message || 'Failed to allocate capital' });
@@ -659,6 +665,8 @@ investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Res
 
 /**
  * DELETE /api/investments/location-allocations/:id
+ * Atomic rollback & integrity check:
+ * Prevents deleting allocation if capital has already been deployed into Location Investment Capital.
  */
 investmentRouter.delete('/location-allocations/:id', async (req: AuthRequest, res: Response) => {
   try {
@@ -668,26 +676,72 @@ investmentRouter.delete('/location-allocations/:id', async (req: AuthRequest, re
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Valid ID required' });
 
-    const existing = await db.select().from(investorLocationAllocations)
-      .where(and(eq(investorLocationAllocations.id, id), eq(investorLocationAllocations.isDeleted, 0)))
-      .limit(1);
-    if (!existing.length) return res.status(404).json({ error: 'Allocation record not found' });
+    await db.transaction(async (tx) => {
+      const existing = await tx.select().from(investorLocationAllocations)
+        .where(and(eq(investorLocationAllocations.id, id), eq(investorLocationAllocations.isDeleted, 0)))
+        .limit(1);
+      if (!existing.length) throw new Error('Allocation record not found');
 
-    if (existing[0].locationId && existing[0].locationId > 0) {
-      try {
-        await assertLocationAccess(userId, existing[0].locationId);
-      } catch (e) {
-        console.warn('Location check ignored during location allocation deletion:', e);
+      const alloc = existing[0];
+      if (alloc.locationId && alloc.locationId > 0) {
+        await assertLocationAccess(userId, alloc.locationId);
       }
-    }
 
-    await db.update(investorLocationAllocations).set({ isDeleted: 1 })
-      .where(eq(investorLocationAllocations.id, id));
+      // Verify that deleting this allocation will not cause negative investor capital at this location
+      const invRow = await tx.select({ name: investors.name }).from(investors).where(eq(investors.id, alloc.investorId)).limit(1);
+      const investorName = invRow[0]?.name ? invRow[0].name.trim().toUpperCase() : '';
 
-    res.json({ success: true });
+      if (investorName && alloc.locationId) {
+        // Query total allocations for this investor at this location
+        const allocQuery = await tx.select({
+          total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
+        }).from(investorLocationAllocations)
+          .where(and(
+            eq(investorLocationAllocations.locationId, alloc.locationId),
+            eq(investorLocationAllocations.investorId, alloc.investorId),
+            eq(investorLocationAllocations.isDeleted, 0)
+          ));
+        const totalAllocated = parseFloat(allocQuery[0]?.total || '0');
+
+        // Query total already deployed into project investment capital
+        const deployedQuery = await tx.select({
+          total: sql<string>`COALESCE(SUM(CAST(${investmentTransactions.amount} AS numeric)), 0)`
+        }).from(investmentTransactions)
+          .innerJoin(investmentParties, eq(investmentTransactions.partyId, investmentParties.id))
+          .where(and(
+            eq(investmentParties.locationId, alloc.locationId),
+            sql`UPPER(${investmentParties.partyName}) = ${investorName}`,
+            eq(investmentTransactions.type, 'INVESTMENT'),
+            eq(investmentTransactions.isDeleted, 0),
+            eq(investmentParties.isDeleted, 0)
+          ));
+        const alreadyInvested = parseFloat(deployedQuery[0]?.total || '0');
+
+        const allocAmt = parseFloat(String(alloc.amount || 0));
+        const remainingIfDeleted = Math.round((totalAllocated - allocAmt) * 100) / 100;
+        if (remainingIfDeleted < alreadyInvested) {
+          throw new Error(
+            `Cannot delete allocation of ₹${allocAmt.toLocaleString('en-IN')}: ₹${alreadyInvested.toLocaleString('en-IN')} has already been invested into project investment capital. Please reverse/delete the project investment first.`
+          );
+        }
+      }
+
+      await tx.update(investorLocationAllocations).set({ isDeleted: 1 })
+        .where(eq(investorLocationAllocations.id, id));
+
+      await tx.insert(auditLogs).values({
+        userId,
+        action: 'DELETE_LOCATION_ALLOCATION',
+        entityType: 'INVESTMENT',
+        entityId: id,
+        metadata: JSON.stringify({ allocationId: id, amount: alloc.amount, locationId: alloc.locationId })
+      });
+    });
+
+    res.json({ success: true, message: 'Allocation deleted successfully' });
   } catch (error: any) {
     console.error('[Location Allocation DELETE Error]', error);
-    res.status(500).json({ error: 'Failed to delete allocation' });
+    res.status(400).json({ error: error?.message || 'Failed to delete allocation' });
   }
 });
 
@@ -697,11 +751,10 @@ investmentRouter.delete('/location-allocations/:id', async (req: AuthRequest, re
  * Workflow:
  * Location -> Investment Capital -> Add Investment Capital From Investors
  * -> Select Investor -> Enter Amount
- * -> Check selected investor's available Investor Capital at this location
- * -> Investor Capital decreases
- * -> Location Investment Capital increases
- * -> Save atomic transaction
- * -> Realtime sync
+ * -> Atomically verifies available Investor Capital at this location inside transaction
+ * -> Decreases available Investor Capital
+ * -> Increases Location Investment Capital
+ * -> Realtime sync & audit log
  */
 investmentRouter.post('/transfer-to-investment-capital', async (req: AuthRequest, res: Response) => {
   try {
@@ -721,111 +774,119 @@ investmentRouter.post('/transfer-to-investment-capital', async (req: AuthRequest
 
     await assertLocationAccess(userId, locId);
 
-    // Resolve partyId from partyId or investorId
-    let pId = partyId ? parseInt(String(partyId), 10) : null;
-    let resolvedParty: any;
+    const result = await db.transaction(async (tx) => {
+      // 1. Resolve partyId from partyId or investorId
+      let pId = partyId ? parseInt(String(partyId), 10) : null;
+      let resolvedParty: any;
 
-    if (pId && !isNaN(pId)) {
-      const parties = await db.select().from(investmentParties).where(
-        and(eq(investmentParties.id, pId), eq(investmentParties.isDeleted, 0))
-      ).limit(1);
-      if (parties.length > 0) resolvedParty = parties[0];
-    } else if (investorId) {
-      const invId = parseInt(String(investorId), 10);
-      const inv = await db.select().from(investors).where(
-        and(eq(investors.id, invId), eq(investors.isDeleted, 0))
-      ).limit(1);
-      if (inv.length > 0) {
-        // Find or create matching party at this location
-        const existingParty = await db.select().from(investmentParties).where(
-          and(
-            eq(investmentParties.locationId, locId),
-            sql`UPPER(${investmentParties.partyName}) = ${inv[0].name.trim().toUpperCase()}`,
-            eq(investmentParties.isDeleted, 0)
-          )
+      if (pId && !isNaN(pId)) {
+        const parties = await tx.select().from(investmentParties).where(
+          and(eq(investmentParties.id, pId), eq(investmentParties.isDeleted, 0))
         ).limit(1);
-        if (existingParty.length > 0) {
-          resolvedParty = existingParty[0];
-          pId = existingParty[0].id;
-        } else {
-          const created = await db.insert(investmentParties).values({
-            userId,
-            locationId: locId,
-            partyName: inv[0].name.trim().toUpperCase()
-          }).returning();
-          resolvedParty = created[0];
-          pId = created[0].id;
+        if (parties.length > 0) resolvedParty = parties[0];
+      } else if (investorId) {
+        const invId = parseInt(String(investorId), 10);
+        const inv = await tx.select().from(investors).where(
+          and(eq(investors.id, invId), eq(investors.isDeleted, 0))
+        ).limit(1);
+        if (inv.length > 0) {
+          const cleanName = inv[0].name.trim().toUpperCase();
+          const existingParty = await tx.select().from(investmentParties).where(
+            and(
+              eq(investmentParties.locationId, locId),
+              sql`UPPER(${investmentParties.partyName}) = ${cleanName}`,
+              eq(investmentParties.isDeleted, 0)
+            )
+          ).limit(1);
+          if (existingParty.length > 0) {
+            resolvedParty = existingParty[0];
+            pId = existingParty[0].id;
+          } else {
+            const created = await tx.insert(investmentParties).values({
+              userId,
+              locationId: locId,
+              partyName: cleanName
+            }).returning();
+            resolvedParty = created[0];
+            pId = created[0].id;
+          }
         }
       }
-    }
 
-    if (!resolvedParty || !pId) {
-      return res.status(404).json({ error: 'Investor / Party not found for this location' });
-    }
+      if (!resolvedParty || !pId) {
+        throw new Error('Investor / Party not found for this location');
+      }
 
-    // Check investor's uninvested Category 7 balance at this location
-    const cleanName = resolvedParty.partyName.trim().toUpperCase();
-    const allocRows = await db.select({
-      total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
-    })
-    .from(investorLocationAllocations)
-    .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
-    .where(and(
-      eq(investorLocationAllocations.locationId, locId),
-      eq(investorLocationAllocations.isDeleted, 0),
-      sql`UPPER(${investors.name}) = ${cleanName}`
-    ));
-    const cat7Allocated = parseFloat(allocRows[0]?.total || '0') || 0;
-
-    const txRows = await db.select({
-      total: sql<string>`COALESCE(SUM(CAST(${investmentTransactions.amount} AS numeric)), 0)`
-    })
-    .from(investmentTransactions)
-    .where(and(
-      eq(investmentTransactions.partyId, pId),
-      eq(investmentTransactions.type, 'INVESTMENT'),
-      eq(investmentTransactions.isDeleted, 0)
-    ));
-    const alreadyInvested = parseFloat(txRows[0]?.total || '0') || 0;
-
-    const availableInvestorCapital = Math.max(0, Math.round((cat7Allocated - alreadyInvested) * 100) / 100);
-
-    if (transferAmount > availableInvestorCapital) {
-      return res.status(400).json({
-        error: `Cannot transfer ₹${transferAmount.toLocaleString('en-IN')}: Selected investor ${resolvedParty.partyName} has only ₹${availableInvestorCapital.toLocaleString('en-IN')} available Category 7 Investor Capital at this location.`
-      });
-    }
-
-    // Execute transfer atomically
-    const insertedTx = await db.insert(investmentTransactions).values({
-      partyId: pId,
-      userId,
-      type: 'INVESTMENT',
-      amount: String(transferAmount),
-      date: date || new Date().toISOString().split('T')[0],
-      paymentMethod: paymentMethod || 'Bank Transfer',
-      referenceNumber: referenceNumber || null,
-      description: notes ? `Investment into Project: ${notes}` : `Investment into Project (from ${resolvedParty.partyName})`,
-      isDeleted: 0
-    }).returning();
-
-    await db.insert(auditLogs).values({
-      userId,
-      action: 'INVESTOR_TO_INVESTMENT_TRANSFER',
-      entityType: 'INVESTMENT',
-      entityId: insertedTx[0].id,
-      metadata: JSON.stringify({
-        partyId: pId,
-        locationId: locId,
-        amount: transferAmount,
-        investorName: resolvedParty.partyName
+      // 2. Check investor's uninvested Investor Capital balance at this location
+      const cleanName = resolvedParty.partyName.trim().toUpperCase();
+      const allocRows = await tx.select({
+        total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
       })
+      .from(investorLocationAllocations)
+      .innerJoin(investors, eq(investorLocationAllocations.investorId, investors.id))
+      .where(and(
+        eq(investorLocationAllocations.locationId, locId),
+        eq(investorLocationAllocations.isDeleted, 0),
+        sql`UPPER(${investors.name}) = ${cleanName}`
+      ));
+      const cat7Allocated = parseFloat(allocRows[0]?.total || '0') || 0;
+
+      const txRows = await tx.select({
+        total: sql<string>`COALESCE(SUM(CAST(${investmentTransactions.amount} AS numeric)), 0)`
+      })
+      .from(investmentTransactions)
+      .where(and(
+        eq(investmentTransactions.partyId, pId),
+        eq(investmentTransactions.type, 'INVESTMENT'),
+        eq(investmentTransactions.isDeleted, 0)
+      ));
+      const alreadyInvested = parseFloat(txRows[0]?.total || '0') || 0;
+
+      const availableInvestorCapital = Math.max(0, Math.round((cat7Allocated - alreadyInvested) * 100) / 100);
+
+      if (transferAmount > availableInvestorCapital) {
+        throw new Error(
+          `Cannot transfer ₹${transferAmount.toLocaleString('en-IN')}: Selected investor ${resolvedParty.partyName} has only ₹${availableInvestorCapital.toLocaleString('en-IN')} available Investor Capital at this location.`
+        );
+      }
+
+      // 3. Execute transfer atomically
+      const insertedTx = await tx.insert(investmentTransactions).values({
+        partyId: pId,
+        userId,
+        type: 'INVESTMENT',
+        amount: String(transferAmount),
+        date: date || new Date().toISOString().split('T')[0],
+        paymentMethod: paymentMethod || 'Bank Transfer',
+        referenceNumber: referenceNumber || null,
+        description: notes ? `Investment into Project: ${notes}` : `Investment into Project (from ${resolvedParty.partyName})`,
+        isDeleted: 0
+      }).returning();
+
+      // 4. Audit log
+      await tx.insert(auditLogs).values({
+        userId,
+        action: 'INVESTOR_TO_INVESTMENT_TRANSFER',
+        entityType: 'INVESTMENT',
+        entityId: insertedTx[0].id,
+        metadata: JSON.stringify({
+          partyId: pId,
+          locationId: locId,
+          amount: transferAmount,
+          investorName: resolvedParty.partyName
+        })
+      });
+
+      return {
+        transaction: insertedTx[0],
+        remainingInvestorCapital: Math.round((availableInvestorCapital - transferAmount) * 100) / 100
+      };
     });
 
     res.status(201).json({
       success: true,
-      transaction: insertedTx[0],
-      remainingInvestorCapital: Math.round((availableInvestorCapital - transferAmount) * 100) / 100
+      transaction: result.transaction,
+      remainingInvestorCapital: result.remainingInvestorCapital
     });
   } catch (error: any) {
     console.error('[Transfer to Investment Capital POST Error]', error);

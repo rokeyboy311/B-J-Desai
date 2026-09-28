@@ -234,17 +234,17 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
 
     const records = await db.select().from(materials).where(eq(materials.isDeleted, 0)).orderBy(materials.name);
 
-    // Calculate live stock from stock_ledger for all materials using a single GROUP BY query
+    // Calculate live available stock from stock_ledger for all materials
     const stockMapRes = await db.execute(sql`
       SELECT 
+        sl.material_id,
         UPPER(TRIM(m.name)) as clean_name,
         COALESCE(SUM(CASE WHEN sl.transaction_type = 'IN' THEN CAST(sl.quantity AS numeric) ELSE 0 END), 0) as total_in,
         COALESCE(SUM(CASE WHEN sl.transaction_type = 'OUT' THEN ABS(CAST(sl.quantity AS numeric)) ELSE 0 END), 0) as total_out
       FROM stock_ledger sl
       JOIN materials m ON sl.material_id = m.id
       WHERE sl.is_deleted = 0
-        ${locationId ? sql`AND sl.location_id = ${locationId}` : sql``}
-      GROUP BY UPPER(TRIM(m.name))
+      GROUP BY sl.material_id, UPPER(TRIM(m.name))
     `);
 
     // Fetch latest purchases grouped by clean name
@@ -270,12 +270,27 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
     `);
 
     const stockMap = new Map<string, { totalIn: number; totalOut: number }>();
+    const stockByIdMap = new Map<number, { totalIn: number; totalOut: number }>();
     for (const row of stockMapRes.rows) {
       const cleanName = String(row.clean_name || '').trim().toUpperCase();
-      stockMap.set(cleanName, {
-        totalIn: parseFloat(row.total_in as string || '0'),
-        totalOut: parseFloat(row.total_out as string || '0')
-      });
+      const inVal = parseFloat(row.total_in as string || '0');
+      const outVal = parseFloat(row.total_out as string || '0');
+      const matId = row.material_id ? parseInt(String(row.material_id), 10) : null;
+
+      if (cleanName) {
+        const existing = stockMap.get(cleanName) || { totalIn: 0, totalOut: 0 };
+        stockMap.set(cleanName, {
+          totalIn: existing.totalIn + inVal,
+          totalOut: existing.totalOut + outVal
+        });
+      }
+      if (matId && !isNaN(matId)) {
+        const existing = stockByIdMap.get(matId) || { totalIn: 0, totalOut: 0 };
+        stockByIdMap.set(matId, {
+          totalIn: existing.totalIn + inVal,
+          totalOut: existing.totalOut + outVal
+        });
+      }
     }
 
     const purchaseMap = new Map<string, { unit: string; rate: number }>();
@@ -300,7 +315,7 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
     for (const m of records) {
       const cleanName = (m.name || '').trim().toUpperCase();
       
-      const stockInfo = stockMap.get(cleanName) || { totalIn: 0, totalOut: 0 };
+      const stockInfo = stockByIdMap.get(m.id) || stockMap.get(cleanName) || { totalIn: 0, totalOut: 0 };
       const currentStock = Math.round((stockInfo.totalIn - stockInfo.totalOut) * 100) / 100;
       const minStock = parseFloat(m.minStock || '0');
 
@@ -352,6 +367,7 @@ masterRouter.get('/materials', async (req: AuthRequest, res) => {
         totalInward: stockInfo.totalIn,
         totalOutward: stockInfo.totalOut,
         currentStock,
+        availableStock: currentStock,
         status
       });
     }

@@ -49,7 +49,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
     try {
       const [purchases, mats, stock] = await Promise.all([
         apiFetch(`/materials/purchase?locationId=${locationId}`),
-        apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/master/materials`).catch(() => []),
         apiFetch(`/reports/stock?locationId=${locationId}`).catch(() => [])
       ]);
       setRecords(purchases || []);

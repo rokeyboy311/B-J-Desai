@@ -27,6 +27,8 @@ export default function AdminPage() {
 
   // Modals State
   const [isAddInvestorOpen, setIsAddInvestorOpen] = useState(false);
+  const [isEditInvestorOpen, setIsEditInvestorOpen] = useState(false);
+  const [editingInvestorId, setEditingInvestorId] = useState<number | null>(null);
   const [isAllocationOpen, setIsAllocationOpen] = useState(false);
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isUpadOpen, setIsUpadOpen] = useState(false);
@@ -34,6 +36,13 @@ export default function AdminPage() {
   const [isPassbookOpen, setIsPassbookOpen] = useState(false);
 
   // Forms
+  const [editInvestorForm, setEditInvestorForm] = useState({
+    name: "",
+    mobile: "",
+    email: "",
+    address: "",
+    notes: ""
+  });
   const [newInvestorForm, setNewInvestorForm] = useState({
     name: "",
     mobile: "",
@@ -303,6 +312,85 @@ export default function AdminPage() {
     }
   };
 
+  const handleOpenEditInvestor = (inv: any) => {
+    setEditingInvestorId(inv.id);
+    setEditInvestorForm({
+      name: inv.name || "",
+      mobile: inv.mobile || "",
+      email: inv.email || "",
+      address: inv.address || "",
+      notes: inv.notes || ""
+    });
+    setIsEditInvestorOpen(true);
+  };
+
+  const handleUpdateInvestor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editInvestorForm.name.trim()) {
+      showToast("Investor name is required", "error");
+      return;
+    }
+    try {
+      await apiFetch(`/investments/global-investors/${editingInvestorId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: editInvestorForm.name.trim(),
+          mobile: editInvestorForm.mobile.trim() || null,
+          email: editInvestorForm.email.trim() || null,
+          address: editInvestorForm.address.trim() || null,
+          notes: editInvestorForm.notes.trim() || null
+        })
+      });
+      showToast("Investor details updated successfully", "success");
+      setIsEditInvestorOpen(false);
+      setEditingInvestorId(null);
+      triggerGlobalSync();
+      triggerSync("global_investors");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to update investor", "error");
+    }
+  };
+
+  const handleDeleteTransaction = async (txId: number) => {
+    const confirmed = await confirmAction({
+      title: "Delete Transaction",
+      message: "Are you sure you want to delete this investor transaction?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/investments/global-transactions/${txId}`, { method: "DELETE" });
+      showToast("Transaction deleted successfully", "success");
+      triggerGlobalSync();
+      triggerSync("global_investors");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete transaction", "error");
+    }
+  };
+
+  const handleDeleteAllocation = async (allocId: number) => {
+    const confirmed = await confirmAction({
+      title: "Delete Project Allocation",
+      message: "Are you sure you want to delete this project allocation?",
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/investments/location-allocations/${allocId}`, { method: "DELETE" });
+      showToast("Allocation deleted successfully", "success");
+      triggerGlobalSync();
+      triggerSync("global_investors");
+      triggerSync("location_allocations");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete allocation", "error");
+    }
+  };
+
   // Filtered Investors list
   const filteredInvestors = useMemo(() => {
     return investors.filter(inv => {
@@ -316,11 +404,12 @@ export default function AdminPage() {
     });
   }, [investors, searchTerm]);
 
-  // Metrics calculation
+  // Section 9.A: Authoritative 5 Metrics calculation
   const totalAdminCap = adminSummary?.totalContributed || 0;
+  const totalUpad = adminSummary?.totalWithdrawn || 0;
   const totalAllocated = adminSummary?.totalAllocated || 0;
   const totalPurchasesCost = adminSummary?.totalPurchases || 0;
-  const remainingAdminCap = adminSummary?.availableAdminCapital ?? (totalAdminCap - totalAllocated - totalPurchasesCost);
+  const remainingAdminCap = adminSummary?.availableAdminCapital ?? (totalAdminCap - totalUpad - totalAllocated - totalPurchasesCost);
 
   return (
     <CategoryPinGate categoryName="Admin Control & Capital" categoryNumber={1}>
@@ -369,54 +458,71 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Top 4 KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Section 9.A: Authoritative Admin Capital Summary (5 Core Metrics) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="p-3 bg-[#0B1D3A] text-white rounded-xl">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-3 bg-[#0B1D3A] text-white rounded-xl shrink-0">
               <Wallet className="w-5 h-5" />
             </div>
-            <div>
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Total Admin Capital</span>
-              <span className="text-xl font-black text-slate-900 tabular-nums">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Investor Capital</span>
+              <span className="text-lg font-black text-slate-900 tabular-nums block">
                 ₹{totalAdminCap.toLocaleString("en-IN")}
               </span>
+              <span className="text-[10px] text-slate-400 font-medium">All Contributions</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="p-3 bg-[#10B981] text-white rounded-xl">
-              <CheckCircle2 className="w-5 h-5" />
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-3 bg-amber-500 text-white rounded-xl shrink-0">
+              <ArrowUpRight className="w-5 h-5" />
             </div>
-            <div>
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Allocated Capital</span>
-              <span className="text-xl font-black text-slate-900 tabular-nums">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Total Upad / Withdrawals</span>
+              <span className="text-lg font-black text-amber-700 tabular-nums block">
+                ₹{totalUpad.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">Investor Returns</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-3 bg-blue-600 text-white rounded-xl shrink-0">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Allocated to Locations</span>
+              <span className="text-lg font-black text-blue-700 tabular-nums block">
                 ₹{totalAllocated.toLocaleString("en-IN")}
               </span>
+              <span className="text-[10px] text-slate-400 font-medium">Project Sites</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="p-3 bg-purple-600 text-white rounded-xl">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-3 bg-purple-600 text-white rounded-xl shrink-0">
               <ShoppingCart className="w-5 h-5" />
             </div>
-            <div>
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Material Purchase Cost</span>
-              <span className="text-xl font-black text-purple-900 tabular-nums">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Material Purchase</span>
+              <span className="text-lg font-black text-purple-900 tabular-nums block">
                 ₹{totalPurchasesCost.toLocaleString("en-IN")}
               </span>
+              <span className="text-[10px] text-slate-400 font-medium">Central Supply Cost</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="p-3 bg-[#F59E0B] text-white rounded-xl">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-3 bg-emerald-600 text-white rounded-xl shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <div>
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Remaining Capital</span>
-              <span className="text-xl font-black text-slate-900 tabular-nums">
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Available Admin Capital</span>
+              <span className="text-lg font-black text-emerald-700 tabular-nums block">
                 ₹{remainingAdminCap.toLocaleString("en-IN")}
               </span>
+              <span className="text-[10px] text-slate-400 font-medium">Remaining Pool</span>
             </div>
           </div>
 
@@ -559,6 +665,15 @@ export default function AdminPage() {
                             >
                               <ArrowRight className="w-3 h-3 text-blue-600" />
                               <span>Transfer</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditInvestor(inv)}
+                              className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Investor Profile"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
                             </button>
 
                             <button
@@ -744,6 +859,95 @@ export default function AdminPage() {
                 className="px-4 py-2 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-sm"
               >
                 Save Investor
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Modal: Edit Investor */}
+        <Modal
+          isOpen={isEditInvestorOpen}
+          onClose={() => {
+            setIsEditInvestorOpen(false);
+            setEditingInvestorId(null);
+          }}
+          title="Edit Investor Profile (ઇન્વેસ્ટર વિગત સુધારો)"
+        >
+          <form onSubmit={handleUpdateInvestor} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Investor Name (ઇન્વેસ્ટરનું નામ) *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Ramesh Patel"
+                value={editInvestorForm.name}
+                onChange={(e) => setEditInvestorForm({ ...editInvestorForm, name: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Mobile No</label>
+                <input
+                  type="text"
+                  placeholder="9876543210"
+                  value={editInvestorForm.mobile}
+                  onChange={(e) => setEditInvestorForm({ ...editInvestorForm, mobile: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email</label>
+                <input
+                  type="email"
+                  placeholder="investor@example.com"
+                  value={editInvestorForm.email}
+                  onChange={(e) => setEditInvestorForm({ ...editInvestorForm, email: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Address / City</label>
+              <input
+                type="text"
+                placeholder="City, State"
+                value={editInvestorForm.address}
+                onChange={(e) => setEditInvestorForm({ ...editInvestorForm, address: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Notes</label>
+              <textarea
+                rows={2}
+                placeholder="Additional investor remarks..."
+                value={editInvestorForm.notes}
+                onChange={(e) => setEditInvestorForm({ ...editInvestorForm, notes: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditInvestorOpen(false);
+                  setEditingInvestorId(null);
+                }}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-sm"
+              >
+                Update Profile
               </button>
             </div>
           </form>
@@ -1184,12 +1388,13 @@ export default function AdminPage() {
                         <th className="p-2.5 text-right">Amount</th>
                         <th className="p-2.5">Payment Method</th>
                         <th className="p-2.5">Description</th>
+                        <th className="p-2.5 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {(!selectedInvestor.transactions || selectedInvestor.transactions.length === 0) ? (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center text-slate-400">No deposits or withdrawals recorded yet.</td>
+                          <td colSpan={6} className="p-4 text-center text-slate-400">No deposits or withdrawals recorded yet.</td>
                         </tr>
                       ) : (
                         selectedInvestor.transactions.map((t: any) => {
@@ -1211,6 +1416,16 @@ export default function AdminPage() {
                               </td>
                               <td className="p-2.5 text-slate-600">{t.paymentMethod || 'Bank Transfer'}</td>
                               <td className="p-2.5 text-slate-500">{t.description || t.notes || '-'}</td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTransaction(t.id)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Transaction"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })
@@ -1229,12 +1444,13 @@ export default function AdminPage() {
                         <th className="p-2.5 text-right">Allocated Amount</th>
                         <th className="p-2.5">Payment Method</th>
                         <th className="p-2.5">Notes</th>
+                        <th className="p-2.5 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {(!selectedInvestor.allocations || selectedInvestor.allocations.length === 0) ? (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center text-slate-400">No project allocations recorded yet.</td>
+                          <td colSpan={6} className="p-4 text-center text-slate-400">No project allocations recorded yet.</td>
                         </tr>
                       ) : (
                         selectedInvestor.allocations.map((a: any) => (
@@ -1246,6 +1462,16 @@ export default function AdminPage() {
                             </td>
                             <td className="p-2.5 text-slate-600">{a.paymentMethod || 'Bank Transfer'}</td>
                             <td className="p-2.5 text-slate-500">{a.notes || '-'}</td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAllocation(a.id)}
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Delete Allocation"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}

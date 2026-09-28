@@ -76,7 +76,7 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
       const [custRes, siteRes, matRes, teamRes, partyRes, locsRes] = await Promise.all([
         apiFetch(`/materials/supply?locationId=${locationId}`).catch(() => []),
         apiFetch(`/site-supplies?locationId=${locationId}`).catch(() => []),
-        apiFetch(`/master/materials?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/master/materials`).catch(() => []),
         apiFetch(`/master/teams?locationId=${locationId}`).catch(() => []),
         apiFetch(`/master/parties?locationId=${locationId}`).catch(() => []),
         apiFetch(`/locations`).catch(() => [])
@@ -1414,21 +1414,29 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                           className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-500"
                         >
                           <option value="">- Select Material (મટીરીયલ) -</option>
-                          {materials.map(m => (
-                            <option key={m.id} value={m.id}>
-                              {m.name} (Stock: {m.currentStock ?? 0} {m.defaultUnit || m.unit || 'Nos'})
-                            </option>
-                          ))}
+                          {materials.map(m => {
+                            const r = parseFloat(m.defaultRate || m.rate || '0');
+                            const stock = m.currentStock ?? m.availableStock ?? 0;
+                            return (
+                              <option key={m.id} value={m.id}>
+                                {m.name} (Stock: {stock} {m.defaultUnit || m.unit || 'Nos'}{r > 0 ? ` • ₹${r}/${m.defaultUnit || m.unit || 'Nos'}` : ''})
+                              </option>
+                            );
+                          })}
                         </select>
                         {item.materialId && (
-                          <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-teal-700 bg-teal-50/70 px-2 py-0.5 rounded border border-teal-100">
+                          <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                             {(() => {
                               const selMat = materials.find(m => m.id.toString() === item.materialId);
                               const detUnit = (selMat ? (selMat.defaultUnit || selMat.unit) : '') || item.unit || 'Nos';
+                              const stock = selMat?.currentStock ?? selMat?.availableStock ?? 0;
+                              const r = parseFloat(selMat?.defaultRate || selMat?.rate || '0');
                               return (
                                 <>
-                                  <span>Stock: {selMat?.currentStock ?? 0} {detUnit}</span>
-                                  <span className="text-slate-500 font-medium">Unit: {detUnit}</span>
+                                  <span className={stock > 0 ? "text-emerald-700 font-extrabold" : "text-rose-600 font-extrabold"}>
+                                    📦 Available Stock: {stock} {detUnit}
+                                  </span>
+                                  <span className="text-teal-900 font-semibold">🏷️ Rate: ₹{r} / {detUnit}</span>
                                 </>
                               );
                             })()}

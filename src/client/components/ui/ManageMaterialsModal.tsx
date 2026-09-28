@@ -45,10 +45,9 @@ export function ManageMaterialsModal({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadMaterials = async () => {
-    if (!locationId) return;
     try {
       setLoading(true);
-      const res = await apiFetch(`/master/materials?locationId=${locationId}`);
+      const res = await apiFetch(`/master/materials`);
       setMaterials(res || []);
     } catch (err) {
       console.error("Failed to load materials", err);

@@ -846,6 +846,17 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
         const expectedContractorCost = Math.round((siteSupplies + attendanceWages) * 100) / 100;
         const contractorVariance = Math.round((recordedContractorCost - expectedContractorCost) * 100) / 100;
 
+        // 8. Supervisor Costs
+        const scRes = await db.execute(sql`
+          SELECT 
+            COALESCE(SUM(amount), 0) as total,
+            COUNT(id) as count
+          FROM supervisor_costs
+          WHERE location_id = ${locId} AND is_deleted = 0
+        `);
+        const supervisorCost = parseFloat(scRes.rows[0]?.total as string || '0');
+        const supervisorCount = parseInt(scRes.rows[0]?.count as string || '0', 10);
+
         // Location 7 Categories Calculations:
         // Cat 2: Investment Capital (પ્રોજેક્ટ મૂડી & કપાત - Net Project Capital)
         const fullProjectCapital = Math.round((totalInvestorCapital + billInvestment) * 100) / 100;
@@ -995,7 +1006,9 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
             expected: expectedContractorCost,
             variance: contractorVariance,
             status: Math.abs(contractorVariance) <= 0.01 ? 'MATCHED' : (contractorVariance > 0 ? 'SURPLUS' : 'DEFICIT')
-          }
+          },
+          supervisorCost,
+          supervisorCount
         };
       })
     );
