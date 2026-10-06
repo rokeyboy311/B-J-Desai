@@ -129,7 +129,7 @@ function TeamSelectInput({
             className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 ${ringClass} focus:outline-hidden`}
           >
             <option value="">-- Choose Team ({availableTeams.length}) --</option>
-            {allowGeneral && <option value="Site General">Site General (સામાન્ય ખર્ચ)</option>}
+            {allowGeneral && <option value="Site General">Site General</option>}
             {availableTeams.map((teamName, idx) => (
               <option key={idx} value={teamName}>
                 {teamName}
@@ -652,7 +652,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                   Category 5
                 </span>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                  Labour Attendance & Team Upad (લેબર હાજરી & ઉપાડ)
+                  Labour Attendance & Team Advances
                 </h2>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -713,7 +713,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
             </p>
           </div>
           <p className="text-[11px] text-slate-300 mt-2 pt-2 border-t border-slate-800">
-            કુલ હાજરી મજૂરી - ટીમ ઉપાડ (Attendance - Upad)
+            Net Wages (Attendance Wages - Team Advances)
           </p>
         </div>
       </div>

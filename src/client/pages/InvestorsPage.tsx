@@ -64,7 +64,7 @@ export default function InvestorsPage() {
                 </span>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <Users className="w-6 h-6 text-emerald-600" />
-                  Main Investor Capital Pool (મુખ્ય ઇન્વેસ્ટર ખાતા)
+                  Main Investor Capital Accounts
                 </h1>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-1">

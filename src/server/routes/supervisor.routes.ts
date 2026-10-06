@@ -49,7 +49,7 @@ supervisorRouter.post('/', async (req: AuthRequest, res: Response) => {
     
     const locId = Number(locationId);
     if (!locId || isNaN(locId)) {
-      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+      return res.status(400).json({ error: 'Please select a project location' });
     }
     await assertLocationAccess(userId, locId);
 

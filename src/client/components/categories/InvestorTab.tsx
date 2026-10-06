@@ -264,7 +264,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
   const handleSaveAllocation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!allocationForm.investorId || !allocationForm.locationId || !allocationForm.amount) {
-      showToast("મહેરબાની કરીને ઇન્વેસ્ટર, લોકેશન અને રકમ દાખલ કરો.", "error");
+      showToast("Please select an investor, location, and valid amount.", "error");
       return;
     }
     const amt = parseFloat(allocationForm.amount);
@@ -299,7 +299,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
         referenceNumber: "",
         notes: ""
       });
-      showToast("મુખ્ય ઇન્વેસ્ટર મૂડીમાંથી રકમ કટ કરી ને સફળતાપૂર્વક લોકેશન ના સેન્ટ્રલ કેપિટલ માં ટ્રાન્સફર થઈ ગઈ છે!", "success");
+      showToast("Capital successfully allocated from Main Investor Capital to location!", "success");
       loadData();
     } catch (err: any) {
       showToast(err.message || "Failed to allocate capital.", "error");
@@ -307,12 +307,12 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
   };
 
   const handleDeleteAllocation = async (id: number) => {
-    if (!confirmAction("શું તમે આ સેન્ટ્રલ લોકેશન સ્થાનાંતર રદ કરવા માંગો છો? રકમ ફરીથી મુખ્ય ઇન્વેસ્ટર કેપિટલ માં ઉમેરાઈ જશે.")) return;
+    if (!confirmAction("Are you sure you want to revert this capital transfer? The amount will return to the Main Investor balance.")) return;
     try {
       await apiFetch(`/investments/location-allocations/${id}`, { method: "DELETE" });
       triggerSync("location_allocations");
       triggerSync("global_investors");
-      showToast("સ્થાનાંતર રદ થયું. રકમ મુખ્ય ઇન્વેસ્ટર માં પરત જમા થઈ ગઈ.", "info");
+      showToast("Transfer reverted. Amount credited back to Main Investor.", "info");
       loadData();
     } catch (err: any) {
       showToast(err.message || "Failed to delete allocation.", "error");
@@ -371,7 +371,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
         setIsPartyModalOpen(false);
 
         if (res?.isExisting) {
-          showToast(`મુખ્ય ઇન્વેસ્ટર "${upperName}" પહેલેથી જ અસ્તિત્વમાં છે! રકમ તેમના ખાતામાં જમા કરવામાં આવી.`, "info");
+          showToast(`Investor "${upperName}" already exists! Amount was credited to their account.`, "info");
         } else {
           showToast(editingPartyId ? "Main Investor updated" : "Main Investor added to Company Capital Pool", "success");
         }
@@ -394,7 +394,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
         setIsPartyModalOpen(false);
 
         if (res?.isExisting) {
-          showToast(`લોકેશન ઇન્વેસ્ટર "${upperName}" પહેલેથી જ અસ્તિત્વમાં છે!`, "info");
+          showToast(`Location investor "${upperName}" already exists!`, "info");
         } else {
           showToast(editingPartyId ? "Location Investor updated" : "Location Investor created for Central Pool", "success");
         }
@@ -818,7 +818,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-emerald-800">₹{totalContributed.toLocaleString()}</div>
-            <p className="text-[11px] text-emerald-600 mt-0.5 font-medium">કુલ મુખ્ય ઇન્વેસ્ટર મૂડી (Main Capital Deposited)</p>
+            <p className="text-[11px] text-emerald-600 mt-0.5 font-medium">Total Main Capital Deposited</p>
           </div>
         </div>
 
@@ -832,7 +832,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-indigo-800">-₹{totalAllocatedToLocations.toLocaleString()}</div>
-            <p className="text-[11px] text-indigo-600 mt-0.5 font-medium">સેન્ટ્રલ સ્થાનાંતર (Deducted & allocated to locations)</p>
+            <p className="text-[11px] text-indigo-600 mt-0.5 font-medium">Allocated to Project Locations</p>
           </div>
         </div>
 
@@ -846,7 +846,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-amber-800">-₹{totalPaidOut.toLocaleString()}</div>
-            <p className="text-[11px] text-amber-600 mt-0.5 font-medium">કુલ ઉપાડ (Personal drawings & payouts)</p>
+            <p className="text-[11px] text-amber-600 mt-0.5 font-medium">Total Personal Withdrawals</p>
           </div>
         </div>
 
@@ -860,7 +860,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-white">₹{netBalance.toLocaleString()}</div>
-            <p className="text-[11px] text-indigo-300 mt-0.5 font-medium">મુખ્ય ઇન્વેસ્ટર ઉપલબ્ધ બેલેન્સ (Main Capital - Transferred - Upad)</p>
+            <p className="text-[11px] text-indigo-300 mt-0.5 font-medium">Main Investor Available Balance</p>
           </div>
         </div>
       </div>
@@ -1213,7 +1213,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             <div>
               <h3 className="font-black text-indigo-900 text-sm flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-indigo-700" />
-                Central Location Capital Allocations Register (સેન્ટ્રલ સ્થાનાંતર રેકોર્ડ)
+                Central Location Capital Allocations Register
               </h3>
               <p className="text-xs text-indigo-700">
                 Capital transferred from Main Investor Pool to specific project locations. Deducted from Main Available Balance and credited to the Location's Central Capital & Category 1 Investment.
@@ -1224,7 +1224,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
               onClick={() => handleOpenAllocationModal(selectedInvestor ? selectedInvestor.id.toString() : undefined)}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow hover:bg-indigo-700 transition-colors shrink-0 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> + Transfer to Location (સેન્ટ્રલ સ્થાનાંતર)
+              <Plus className="w-3.5 h-3.5" /> + Transfer to Location
             </button>
           </div>
 
@@ -1280,7 +1280,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                   {allocations.length === 0 && (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-500">
-                        કોઈ સેન્ટ્રલ લોકેશન સ્થાનાંતર રેકોર્ડ મળ્યો નથી. / No location allocations recorded yet.
+                        No location allocations recorded yet.
                       </td>
                     </tr>
                   )}
@@ -1642,7 +1642,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
               placeholder="e.g. RAJESH PATEL, SHRI HARI DEVELOPERS"
             />
             <p className="text-[11px] text-slate-500 mt-1">
-              💡 *નોંધ:* ઇન્વેસ્ટરનું નામ આપમેળે **UPPERCASE** કન્વર્ટ થશે. જો સમાન નામનો ઇન્વેસ્ટર અસ્તિત્વમાં હશે, તો સિસ્ટમ ડુપ્લિકેટ બનાવવાને બદલે રકમ જૂના એકાઉન્ટમાં ઉમેરી દેશે.
+              Note: If an investor already exists, the contribution will be credited directly to their existing account balance.
             </p>
           </div>
 
@@ -2002,7 +2002,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
         </form>
       </Modal>
 
-      {/* MODAL 5: Transfer / Allocate Capital to Location (સેન્ટ્રલ ઇન્વેસ્ટર સ્થાનાંતર) */}
+      {/* MODAL 5: Transfer / Allocate Capital to Location */}
       <Modal
         isOpen={isAllocationModalOpen}
         onClose={() => setIsAllocationModalOpen(false)}
@@ -2013,7 +2013,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-black text-slate-900 text-base">Transfer Capital to Location (સેન્ટ્રલ સ્થાનાંતર)</span>
+              <span className="font-black text-slate-900 text-base">Transfer Capital to Location</span>
               <p className="text-xs text-slate-500 font-normal">Deducts from Main Investor Pool and credits to Location Central Capital</p>
             </div>
           </div>
@@ -2037,7 +2037,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </select>
             {mainInvestors.length === 0 && (
               <p className="text-[11px] text-amber-600 font-semibold mt-1">
-                ⚠️ કોઈ મુખ્ય ઇન્વેસ્ટર મળ્યા નથી. કૃપા કરીને પહેલા Main Investors Menu માં ઇન્વેસ્ટર ઉમેરો.
+                No main investors found. Please add an investor profile first.
               </p>
             )}
           </div>
@@ -2123,13 +2123,13 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-200 text-[11px] text-indigo-900 font-medium space-y-1">
             <p className="font-bold flex items-center gap-1 text-indigo-800">
-              ℹ️ સ્થાનાંતર પ્રોસેસ (Multi-Step Transfer Flow):
+              Capital Transfer Workflow:
             </p>
             <p className="text-slate-700">
-              1. આ રકમ **મેઇન ઇન્વેસ્ટર કેપિટલ માંથી કટ** (Deduct) થશે.
+              1. Amount is deducted from Main Investor Capital balance.
             </p>
             <p className="text-slate-700">
-              2. પસંદ કરેલ **પ્રોજેક્ટ લોકેશન ના સેન્ટ્રલ કેપિટલ** અને **ઇન્વેસ્ટમેન્ટ કેટેગરી** માં ઉમેરાઈ જશે.
+              2. Amount is credited to the selected project location capital pool.
             </p>
           </div>
 
@@ -2137,7 +2137,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             type="submit"
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition-colors text-sm shadow-md cursor-pointer"
           >
-            કટ કરી ને લોકેશન સેન્ટ્રલ કેપિટલ માં સ્થાનાંતર કરો (Transfer Capital)
+            Transfer Capital to Location
           </button>
         </form>
       </Modal>

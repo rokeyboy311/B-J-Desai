@@ -135,7 +135,7 @@ siteSupplyRouter.post('/', async (req: AuthRequest, res: Response) => {
     const rawLoc = locationId || req.body.siteLocationId;
     const locId = rawLoc ? parseInt(String(rawLoc), 10) : NaN;
     if (isNaN(locId) || locId <= 0) {
-      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+      return res.status(400).json({ error: 'Please select a project location' });
     }
     if (!date || !items || !items.length) {
       return res.status(400).json({ error: 'Missing required fields (Date, Items)' });

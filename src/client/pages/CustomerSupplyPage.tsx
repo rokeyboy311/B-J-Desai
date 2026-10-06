@@ -410,7 +410,7 @@ export default function CustomerSupplyPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Material (મટીરીયલ) *</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Material *</label>
               <select
                 required
                 value={formData.materialId}
@@ -440,7 +440,7 @@ export default function CustomerSupplyPage() {
                 }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">-- Select Material (મટીરીયલ પસંદ કરો) --</option>
+                <option value="">-- Select Material --</option>
                 {materials.map((m) => {
                   const r = parseFloat(m.defaultRate || m.rate || '0');
                   return (
@@ -487,7 +487,7 @@ export default function CustomerSupplyPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700 uppercase">Unit (એકમ)</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase">Unit</label>
                 <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200">
                   Auto
                 </span>
@@ -498,13 +498,13 @@ export default function CustomerSupplyPage() {
                 tabIndex={-1}
                 value={formData.unit}
                 className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold text-slate-700 cursor-not-allowed select-none"
-                title="Stock measurement parthi automatic detect thay che (Auto-detected from stock)"
+                title="Auto-detected from stock inventory"
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700 uppercase">Rate (ભાવ ₹) *</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase">Rate (₹) *</label>
                 <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
                   Auto
                 </span>

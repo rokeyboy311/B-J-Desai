@@ -651,7 +651,7 @@ export async function syncLocationDataToGoogleSheets(
       ['Total Attendance (Days)', totalDays, 'Total Wages / Gross (₹)', totalWagePaid, '', '', '', '', '', ''],
       ['Total Upad / Advance (₹)', totalUpad, 'Total Material Supplied (₹)', totalTeamSupplyVal, '', '', '', '', '', ''],
       ['', '', '', '', '', '', '', '', '', ''],
-      ['--- SECTION 1: ATTENDANCE & SALARY RECORDS (હાજરી અને મજૂરી વિગત) ---', '', '', '', '', '', '', '', '', ''],
+      ['--- SECTION 1: ATTENDANCE & SALARY RECORDS ---', '', '', '', '', '', '', '', '', ''],
       ['Date', 'Worker / Mason Name', 'Attendance Type', 'Days / Qty', 'Daily Rate (₹)', 'Gross Salary (₹)', 'Upad (₹)', 'Payment Method', 'Ref No', 'Notes / Remarks']
     ];
 
@@ -675,7 +675,7 @@ export async function syncLocationDataToGoogleSheets(
     }
 
     teamTabValues.push(['', '', '', '', '', '', '', '', '', '']);
-    teamTabValues.push(['--- SECTION 2: MATERIAL SUPPLIED TO THIS TEAM (આ ટીમને આપેલ સામાનનો રેકોર્ડ) ---', '', '', '', '', '', '', '', '', '']);
+    teamTabValues.push(['--- SECTION 2: MATERIAL SUPPLIED TO THIS TEAM ---', '', '', '', '', '', '', '', '', '']);
     teamTabValues.push(['Date', 'Material Name', 'Quantity', 'Unit', 'Rate (₹)', 'Total Amount (₹)', 'Work Description / Usage', '', '', '']);
 
     if (teamSupplies.length === 0) {

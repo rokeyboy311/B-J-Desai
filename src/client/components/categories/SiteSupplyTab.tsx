@@ -408,7 +408,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                     onClick={() => handleDelete(r.id)}
                     className="flex-1 min-h-[42px] px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-rose-200 transition-colors cursor-pointer active:scale-95"
                   >
-                    <Trash2 className="w-4 h-4 text-rose-600" /> Delete (ડિલીટ)
+                    <Trash2 className="w-4 h-4 text-rose-600" /> Delete
                   </button>
                 </div>
               </div>
@@ -511,15 +511,15 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       </div>
 
       {/* Modal with Full GST Calculation */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Site Supply (સાઇટ સપ્લાય સુધારો)" : "Add Site Supply with GST (નવી સાઇટ સપ્લાય & જીએસટી)"} maxWidth="2xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Site Supply" : "Add Site Supply with GST"} maxWidth="2xl">
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[82vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date (તારીખ) *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
               <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 font-medium" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Site Location (સાઇટ લોકેશન) *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Site Location *</label>
               <select required value={formData.siteLocationId} onChange={e => setFormData({...formData, siteLocationId: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 font-medium">
                 <option value="">-- Select Site --</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -529,7 +529,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
           
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700">Labour Team (લેબર ટીમ / જવાબદાર)</label>
+              <label className="block text-xs font-bold text-slate-700">Labour Team / Recipient</label>
               <button
                 type="button"
                 onClick={() => setIsManageTeamOpen(true)}
@@ -548,7 +548,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
           <div className="border border-slate-200 rounded-xl overflow-hidden mt-4">
             <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">MATERIAL LIST WITH GST (મટીરીયલ લિસ્ટ & જીએસટી)</span>
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">MATERIAL LIST WITH GST</span>
               </div>
               <button
                 type="button"
@@ -589,14 +589,14 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                      
                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                        <div className="sm:col-span-5">
-                         <label className="block text-[11px] font-bold text-slate-600 mb-1">Material (મટીરીયલ) *</label>
+                         <label className="block text-[11px] font-bold text-slate-600 mb-1">Material *</label>
                          <select 
                            required 
                            value={item.materialId} 
                            onChange={e => updateItem(index, 'materialId', e.target.value)} 
                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-teal-500"
                          >
-                           <option value="">- Select Material (મટીરીયલ) -</option>
+                           <option value="">- Select Material -</option>
                            {materials.map(m => {
                              const r = parseFloat(m.defaultRate || m.rate || '0');
                              return (
@@ -615,12 +615,12 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                        </div>
                        <div className="grid grid-cols-4 sm:col-span-7 gap-2">
                          <div>
-                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Qty (જથ્થો) *</label>
+                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Qty *</label>
                            <input type="number" step="any" inputMode="decimal" required placeholder="0.00" value={item.quantity} onChange={e => updateItem(index, 'quantity', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-teal-800" />
                          </div>
                          <div>
                            <div className="flex items-center justify-between mb-1">
-                             <label className="block text-[11px] font-bold text-slate-600">Unit (એકમ)</label>
+                             <label className="block text-[11px] font-bold text-slate-600">Unit</label>
                              <span className="text-[9px] font-semibold text-teal-700 bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
                                Auto
                              </span>
@@ -637,7 +637,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                          </div>
                          <div>
                            <div className="flex items-center justify-between mb-1">
-                             <label className="block text-[11px] font-bold text-slate-600">Rate (ભાવ ₹)</label>
+                             <label className="block text-[11px] font-bold text-slate-600">Rate (₹)</label>
                              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
                                Auto
                              </span>
@@ -695,7 +695,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
           </div>
           
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Remarks (વિગત / શરતો)</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Remarks</label>
             <input type="text" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Optional remarks or delivery details" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500" />
           </div>
 

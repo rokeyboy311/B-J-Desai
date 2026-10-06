@@ -389,7 +389,7 @@ export default function AdminInvestorsListRecord({
                 Admin Registry
               </span>
               <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                Admin Investors List Record (એડમિન ઇન્વેસ્ટર્સ લિસ્ટ રેકોર્ડ)
+                Admin Investors List Record
               </h2>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -439,7 +439,7 @@ export default function AdminInvestorsListRecord({
         {/* Total Contributed */}
         <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">1. Total Inflow (ફાળો)</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">1. Total Inflows</span>
             <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-black text-emerald-700">₹{summaries.totalContributed.toLocaleString("en-IN")}</p>
@@ -449,7 +449,7 @@ export default function AdminInvestorsListRecord({
         {/* Total Upad */}
         <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800">2. Total Upad (ઉપાડ)</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800">2. Total Withdrawals</span>
             <ArrowUpRight className="w-4 h-4 text-rose-600" />
           </div>
           <p className="text-2xl font-black text-rose-700">₹{summaries.totalUpad.toLocaleString("en-IN")}</p>
@@ -616,8 +616,8 @@ export default function AdminInvestorsListRecord({
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                       <th className="p-3.5 pl-5">Investor Name & Contact</th>
-                      <th className="p-3.5 text-right text-emerald-800">Total Inflow (ફાળો)</th>
-                      <th className="p-3.5 text-right text-rose-800">Total Upad (ઉપાડ)</th>
+                      <th className="p-3.5 text-right text-emerald-800">Total Inflows</th>
+                      <th className="p-3.5 text-right text-rose-800">Total Withdrawals</th>
                       <th className="p-3.5 text-right text-blue-800">Allocated to Sites</th>
                       <th className="p-3.5 text-right">Available Balance</th>
                       <th className="p-3.5 text-center">Actions & Ledger</th>
@@ -707,7 +707,7 @@ export default function AdminInvestorsListRecord({
                                   setIsContributionModalOpen(true);
                                 }}
                                 className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all border border-emerald-200 cursor-pointer"
-                                title="+ Add Inflow (ફાળો)"
+                                title="+ Add Capital Inflow"
                               >
                                 <Plus className="w-3.5 h-3.5 text-emerald-700" />
                               </button>
@@ -729,7 +729,7 @@ export default function AdminInvestorsListRecord({
                                   setIsWithdrawalModalOpen(true);
                                 }}
                                 className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition-all border border-rose-200 cursor-pointer"
-                                title="- Add Upad (ઉપાડ)"
+                                title="- Add Capital Withdrawal"
                               >
                                 <ArrowUpRight className="w-3.5 h-3.5 text-rose-700" />
                               </button>
@@ -857,7 +857,7 @@ export default function AdminInvestorsListRecord({
                             {isInflow && <ArrowDownLeft className="w-3 h-3" />}
                             {isUpad && <ArrowUpRight className="w-3 h-3" />}
                             {isAlloc && <Building2 className="w-3 h-3" />}
-                            {isInflow ? "Capital Inflow (ફાળો)" : isUpad ? "Capital Upad (ઉપાડ)" : "Site Allocation"}
+                            {isInflow ? "Capital Inflow" : isUpad ? "Capital Upad" : "Site Allocation"}
                           </span>
                         </td>
                         <td className="p-3 text-slate-600">
@@ -964,7 +964,7 @@ export default function AdminInvestorsListRecord({
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                 isInflow ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
                               }`}>
-                                {isInflow ? "Inflow (ફાળો)" : "Upad (ઉપાડ)"}
+                                {isInflow ? "Inflow" : "Upad"}
                               </span>
                             </td>
                             <td className="p-2.5 text-slate-600 text-[11px]">
@@ -1088,7 +1088,7 @@ export default function AdminInvestorsListRecord({
           </div>
 
           <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3">
-            <span className="text-xs font-bold text-emerald-900 uppercase block">Optional Initial Inflow (પ્રારંભિક ફાળો)</span>
+            <span className="text-xs font-bold text-emerald-900 uppercase block">Optional Initial Inflow</span>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">Initial Amount (₹)</label>

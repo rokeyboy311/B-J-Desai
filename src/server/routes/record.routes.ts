@@ -74,7 +74,7 @@ recordRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const locId = req.body.locationId ? parseInt(String(req.body.locationId), 10) : NaN;
     if (isNaN(locId) || locId <= 0) {
-      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+      return res.status(400).json({ error: 'Please select a project location' });
     }
     const data = createRecordSchema.parse(req.body);
     await assertLocationAccess(req.dbUser!.id, data.locationId);

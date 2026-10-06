@@ -63,7 +63,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedInvestorFilter, setSelectedInvestorFilter] = useState<string>("ALL");
 
-  // Tab View Mode: "notebook" (ખાતાવહી ચોપડો), "cards" (ઇન્વેસ્ટર સારાંશ), "allocations" (એલોકેશન રજિસ્ટર)
+  // Tab View Mode: "notebook" (Passbook Ledger), "cards" (Investor Summary), "allocations" (Allocations Register)
   const [activeTabMode, setActiveTabMode] = useState<"notebook" | "cards" | "allocations">("notebook");
   const [notebookFilter, setNotebookFilter] = useState<"ALL" | "ADDED" | "REMOVED">("ALL");
   const [notebookSearch, setNotebookSearch] = useState("");
@@ -146,11 +146,11 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     return Math.max(0, (totalAllocatedAmount || 0) - (totalDeployedAmount || 0));
   }, [totalAllocatedAmount, totalDeployedAmount]);
 
-  // --- Location Investor Capital Note Book Hisab (ખાતાવહી ચોપડો) ---
+  // --- Location Investor Capital Passbook Ledger ---
   const locationInvestorNotebook = useMemo(() => {
     const items: any[] = [];
 
-    // 1. Inflows: Allocations from Admin Capital to this Location (મૂડી જમા / JAMA)
+    // 1. Inflows: Allocations from Admin Capital to this Location (Inflows)
     (Array.isArray(allocations) ? allocations : []).forEach(a => {
       const amt = parseFloat(String(a.amount || 0));
       items.push({
@@ -161,7 +161,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         investorId: a.investorId,
         investorName: a.investorName,
         type: 'ADDED',
-        typeLabel: 'ફાળવણી જમા (+ ALLOCATION)',
+        typeLabel: 'Capital Allocation (+ INFLOW)',
         category: 'ADMIN_ALLOCATION',
         particulars: a.notes ? `Allocated from Admin Capital: ${a.notes}` : 'Allocated from Admin Capital Pool',
         paymentMethod: a.paymentMethod || 'Bank Transfer',
@@ -172,7 +172,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       });
     });
 
-    // 2. Outflows: Deployed into Category 1 Investment Capital (રોકાણમાં વપરાશ / UDHAR)
+    // 2. Outflows: Deployed into Category 1 Investment Capital (Outflows)
     (Array.isArray(locationTxs) ? locationTxs : [])
       .filter(t => t.type === 'INVESTMENT')
       .forEach(t => {
@@ -185,7 +185,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           investorId: t.partyId,
           investorName: t.partyName || 'Investor',
           type: 'REMOVED',
-          typeLabel: 'રોકાણમાં વપરાશ (- DEPLOYED)',
+          typeLabel: 'Investment Deployed (- DEPLOYED)',
           category: 'INVESTMENT_DEPLOYMENT',
           particulars: t.description ? `Deployed to Cat 1 Investment: ${t.description}` : 'Transferred to Project Investment Capital (Cat 1)',
           paymentMethod: t.paymentMethod || 'Bank Transfer',
@@ -299,12 +299,12 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     const amt = parseFloat(formData.amount);
 
     if (!formData.investorId) {
-      showToast("Please select an investor (ઇન્વેસ્ટર પસંદ કરો)", "error");
+      showToast("Please select an investor", "error");
       return;
     }
 
     if (!amt || isNaN(amt) || amt <= 0) {
-      showToast("Please enter a valid allocation amount (માન્ય રકમ દાખલ કરો)", "error");
+      showToast("Please enter a valid allocation amount", "error");
       return;
     }
 
@@ -419,11 +419,11 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-2">
             <Landmark className="w-3.5 h-3.5" />
-            <span>Category 7 &bull; Location Investor Capital (ઇન્વેસ્ટર કેપિટલ)</span>
+            <span>Location Investor Capital</span>
           </div>
-          <h2 className="text-2xl font-black text-white">7. Investor Capital (ઇન્વેસ્ટર કેપિટલ)</h2>
+          <h2 className="text-2xl font-black text-white">Investor Capital</h2>
           <p className="text-xs text-slate-300 mt-1">
-            <strong>Admin Capital (Tier 1) &rarr; Location Investor Capital (Tier 2)</strong> &bull; ફાળવેલ ઇન્વેસ્ટર મૂડીનું સંચાલન
+            <strong>Admin Capital (Tier 1) &rarr; Location Investor Capital (Tier 2)</strong> &bull; Allocated project capital management
           </p>
         </div>
 
@@ -483,7 +483,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             ₹{Number(totalAllocatedAmount || 0).toLocaleString("en-IN")}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            કુલ ફાળવેલ ઇન્વેસ્ટર મૂડી ({allocations.length} ફાળવણીઓ)
+            Total allocated capital ({allocations.length} allocations)
           </div>
         </div>
 
@@ -499,7 +499,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             ₹{Number(totalDeployedAmount || 0).toLocaleString("en-IN")}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            ઇન્વેસ્ટમેન્ટ મૂડી (Cat 1) માં ટ્રાન્સફર થયેલ
+            Transferred to project investment capital
           </div>
         </div>
 
@@ -515,7 +515,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             ₹{Number(totalAvailableAmount || 0).toLocaleString("en-IN")}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            બાકી ઉપલબ્ધ (Cat 1 માં ઉમેરવા યોગ્ય)
+            Available for Cat 1 project deployment
           </div>
         </div>
 
@@ -531,7 +531,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             ₹{adminSummary ? Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN") : "0"}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Tier 1 સેન્ટ્રલ પૂલ ઉપલબ્ધ બેલેન્સ
+            Tier 1 central available balance
           </div>
         </div>
       </div>
@@ -548,7 +548,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           }`}
         >
           <FileSpreadsheet className="w-4 h-4 text-amber-400" />
-          <span>ખાતાવહી ચોપડો (Note Book Hisab)</span>
+          <span>Capital Passbook Ledger</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-200">
             {locationInvestorNotebook.length} Entries
           </span>
@@ -564,7 +564,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           }`}
         >
           <User className="w-4 h-4" />
-          <span>ઇન્વેસ્ટર સારાંશ (Investor Summary Cards)</span>
+          <span>Investor Summary Cards</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-200">
             {investorBreakdown.length}
           </span>
@@ -580,14 +580,14 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           }`}
         >
           <Landmark className="w-4 h-4" />
-          <span>એલોકેશન રજિસ્ટર (Admin Allocations)</span>
+          <span>Admin Allocations</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-200">
             {allocations.length}
           </span>
         </button>
       </div>
 
-      {/* VIEW MODE 1: Note Book Hisab (ખાતાવહી ચોપડો) */}
+      {/* VIEW MODE 1: Note Book Hisab (Passbook Ledger) */}
       {activeTabMode === "notebook" && (
         <div className="space-y-4">
           {/* Notebook Header */}
@@ -596,13 +596,13 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2">
                   <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
-                  <span>સાઇટ ઇન્વેસ્ટર કેપિટલ ચોપડો &bull; Location Investor Passbook</span>
+                  <span>Location Investor Passbook</span>
                 </div>
                 <h3 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                  <span>ખાતાવહી ચોપડો (Note Book Hisab)</span>
+                  <span>Capital Passbook Ledger</span>
                 </h3>
                 <p className="text-xs text-amber-200/80 mt-1 max-w-2xl font-medium">
-                  {locationName} માટે Admin Capital માંથી ફાળવણી (જમા) અને Category 1 રોકાણમાં વપરાશ (ઉધાર) નો નોટબુક હિસાબ.
+                  Ledger of Admin Capital allocations (inflows) and project investment deployments (outflows) for {locationName}.
                 </p>
               </div>
 
@@ -629,27 +629,27 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             {/* Quick Metrics in Notebook */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-5 border-t border-white/10">
               <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-emerald-300 block">કુલ ફાળવેલ મૂડી જમા (Total Inflows)</span>
+                <span className="text-[10px] uppercase font-bold text-emerald-300 block">Total Inflows (Allocations)</span>
                 <span className="text-xl font-black text-emerald-400 tabular-nums">
                   +₹{totalAllocatedAmount.toLocaleString("en-IN")}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Admin Capital માંથી આ સાઇટ પર આવેલ</span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Received from central Admin Capital</span>
               </div>
 
               <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-purple-300 block">રોકાણમાં વપરાશ ઉધાર (Total Deployed)</span>
+                <span className="text-[10px] uppercase font-bold text-purple-300 block">Total Deployed (Outflows)</span>
                 <span className="text-xl font-black text-purple-300 tabular-nums">
                   -₹{totalDeployedAmount.toLocaleString("en-IN")}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Cat 1 ઇન્વેસ્ટમેન્ટ મૂડીમાં ટ્રાન્સફર થયેલ</span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Transferred to Cat 1 investment</span>
               </div>
 
               <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-cyan-300 block">હાજર ઉપલબ્ધ ઇન્વેસ્ટર મૂડી (Available)</span>
+                <span className="text-[10px] uppercase font-bold text-cyan-300 block">Available Capital</span>
                 <span className="text-xl font-black text-white tabular-nums">
                   ₹{totalAvailableAmount.toLocaleString("en-IN")}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Cat 1 માં આગળ વાપરવા માટે બાકી મૂડી</span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Remaining available for project deployment</span>
               </div>
             </div>
           </div>
@@ -666,7 +666,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                તમામ નોંધ ({locationInvestorNotebook.length})
+                All Entries ({locationInvestorNotebook.length})
               </button>
 
               <button
@@ -678,7 +678,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                     : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
                 }`}
               >
-                <span>મૂડી જમા (+ ALLOCATION)</span>
+                <span>Allocations (+ INFLOW)</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
                   {locationInvestorNotebook.filter(e => e.type === "ADDED").length}
                 </span>
@@ -693,7 +693,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                     : "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200"
                 }`}
               >
-                <span>રોકાણ વપરાશ (- DEPLOYED)</span>
+                <span>Deployed (- OUTFLOW)</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
                   {locationInvestorNotebook.filter(e => e.type === "REMOVED").length}
                 </span>
@@ -717,7 +717,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             <div className="p-3 bg-amber-100/70 border-b border-amber-200/80 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                <span className="font-black text-amber-950 uppercase tracking-wider">રોકડમેળ &bull; ખાતાવહી નોંધ (Location Investor Capital Ledger)</span>
+                <span className="font-black text-amber-950 uppercase tracking-wider">Location Investor Capital Ledger</span>
               </div>
               <span className="text-amber-900 font-bold">{filteredLocationNotebook.length} Records</span>
             </div>
@@ -726,14 +726,14 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-amber-50 text-amber-900 font-bold border-b border-amber-200">
                   <tr>
-                    <th className="p-3.5 whitespace-nowrap">તારીખ (Date)</th>
-                    <th className="p-3.5">ઇન્વેસ્ટર (Investor)</th>
-                    <th className="p-3.5">પ્રકાર (Entry Type)</th>
-                    <th className="p-3.5">વિગત / હેતુ (Particulars / Destination)</th>
-                    <th className="p-3.5 text-center">પેમેન્ટ & Ref</th>
-                    <th className="p-3.5 text-right font-black text-emerald-800">મૂડી જમા (+ JAMA)</th>
-                    <th className="p-3.5 text-right font-black text-purple-800">રોકાણ વપરાશ (- UDHAR)</th>
-                    <th className="p-3.5 text-right font-black text-slate-900">બાકી ઇન્વેસ્ટર મૂડી</th>
+                    <th className="p-3.5 whitespace-nowrap">Date</th>
+                    <th className="p-3.5">Investor</th>
+                    <th className="p-3.5">Entry Type</th>
+                    <th className="p-3.5">Particulars / Destination</th>
+                    <th className="p-3.5 text-center">Payment & Ref</th>
+                    <th className="p-3.5 text-right font-black text-emerald-800">Inflow (+ ALLOCATION)</th>
+                    <th className="p-3.5 text-right font-black text-purple-800">Outflow (- DEPLOYED)</th>
+                    <th className="p-3.5 text-right font-black text-slate-900">Balance Capital</th>
                     <th className="p-3.5 text-center">Action</th>
                   </tr>
                 </thead>
@@ -741,7 +741,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                   {filteredLocationNotebook.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-10 text-center text-slate-400">
-                        {notebookSearch ? "કોઈ મેળ ખાતી નોંધ મળી નથી (No matching entries)." : "હજુ સુધી કોઈ વ્યવહાર નોંધાયો નથી (No investor capital entries found)."}
+                        {notebookSearch ? "No matching entries found." : "No investor capital entries found."}
                       </td>
                     </tr>
                   ) : (
@@ -821,7 +821,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
               <Landmark className="w-4 h-4 text-emerald-600" />
-              <span>Investor-wise Capital at this Location (ઇન્વેસ્ટર મુજબ રકમ)</span>
+              <span>Investor-wise Capital at this Location</span>
             </h3>
             <span className="text-xs font-semibold text-slate-500">
               {investorBreakdown.length} Investors
@@ -995,7 +995,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Add Investor Capital from Admin Capital (એડમિન કેપિટલમાંથી ઇન્વેસ્ટર કેપિટલ ઉમેરો)"
+        title="Add Investor Capital from Admin Capital"
       >
         <form onSubmit={handleAddAllocation} className="space-y-4">
           {/* Header Info Box */}
@@ -1015,7 +1015,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           {/* Select Investor */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Select Investor (સોર્સ ઇન્વેસ્ટર) *
+              Select Investor *
             </label>
             <select
               required
@@ -1056,7 +1056,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700">
-                Allocation Amount (₹ રકમ) *
+                Allocation Amount (₹) *
               </label>
               {maxAllocatable > 0 && (
                 <button
@@ -1089,7 +1089,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Date (તારીખ) *
+                Date *
               </label>
               <input
                 type="date"
@@ -1102,7 +1102,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Payment Method (ચુકવણી પદ્ધતિ)
+                Payment Method
               </label>
               <select
                 value={formData.paymentMethod}
@@ -1110,9 +1110,9 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                 className="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
                 <option value="Bank Transfer">Bank Transfer (NEFT/RTGS)</option>
-                <option value="Cheque">Cheque (ચેક)</option>
+                <option value="Cheque">Cheque</option>
                 <option value="UPI">UPI / Net Banking</option>
-                <option value="Cash">Cash (રોકડ)</option>
+                <option value="Cash">Cash</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -1135,7 +1135,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           {/* Notes / Purpose */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Notes / Allocation Purpose (વિગત / હેતુ)
+              Notes / Allocation Purpose
             </label>
             <textarea
               rows={2}

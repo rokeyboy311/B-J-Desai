@@ -21,15 +21,15 @@ const EXPENSE_CATEGORIES = [
   "Site Sundries & Misc"
 ];
 
-const EXPENSE_GUJARATI_LABELS: Record<string, string> = {
-  "Tea & Refreshments": "ચા-પાણી અને નાસ્તો",
-  "Food & Bhattha": "જમવાનું & ભથ્થું",
-  "Travel & Transport": "મુસાફરી & ટ્રાન્સપોર્ટ",
-  "Tools & Maintenance": "સાધનો & રીપેરીંગ",
-  "Safety Equipment": "સેફ્ટી સાધનો",
-  "Medical & First Aid": "મેડિકલ & પ્રાથમિક સારવાર",
-  "Fuel & Generator": "ડીઝલ / પેટ્રોલ & જનરેટર",
-  "Site Sundries & Misc": "પરચૂરણ સાઇટ ખર્ચ"
+const EXPENSE_SUBTITLES: Record<string, string> = {
+  "Tea & Refreshments": "Beverages & refreshments",
+  "Food & Bhattha": "Daily food & allowance",
+  "Travel & Transport": "Site travel & transit",
+  "Tools & Maintenance": "Tools & site maintenance",
+  "Safety Equipment": "Safety & protective gear",
+  "Medical & First Aid": "Medical & first aid",
+  "Fuel & Generator": "Fuel & generator power",
+  "Site Sundries & Misc": "Incidental site expenses"
 };
 
 const PAYMENT_METHODS = [
@@ -156,7 +156,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
     e.preventDefault();
     const amt = parseFloat(form.amount);
     if (isNaN(amt) || amt <= 0) {
-      showToast("મહેરબાની કરીને માન્ય રકમ દાખલ કરો / Please enter a valid positive amount", "error");
+      showToast("Please enter a valid positive amount", "error");
       return;
     }
 
@@ -193,7 +193,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         referenceNumber: "",
         notes: ""
       });
-      showToast("અન્ય ખર્ચ સફળતાપૂર્વક ઉમેરાઈ ગયો અને Category 2 મૂડીમાંથી કપાશે / Other expense recorded and deducted from Investment Capital", "success");
+      showToast("Other expense recorded and deducted from Investment Capital", "success");
       loadData();
     } catch (err: any) {
       showToast(err.message || "Failed to save other kharch", "error");
@@ -220,7 +220,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
     if (!editingRecord) return;
     const amt = parseFloat(editForm.amount);
     if (isNaN(amt) || amt <= 0) {
-      showToast("મહેરબાની કરીને માન્ય રકમ દાખલ કરો / Please enter a valid positive amount", "error");
+      showToast("Please enter a valid positive amount", "error");
       return;
     }
 
@@ -288,7 +288,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
               <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-200 uppercase tracking-wider">
                 Category 6
               </span>
-              <h2 className="text-xl font-black text-slate-900">Other Kharch (સાઇટ અન્ય ખર્ચ & પરચૂરણ)</h2>
+              <h2 className="text-xl font-black text-slate-900">Other Expenses (Site Incidentals & Sundries)</h2>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               Site Operations Miscellaneous Expenses &bull; Tea, Food, Travel, Tools, Fuel & Sundries
@@ -321,8 +321,8 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
         <div className="text-xs text-amber-900 leading-relaxed">
-          <span className="font-black text-amber-950">સ્પષ્ટ નિયમ (Direct Capital Deduction): </span>
-          અહીં નોંધાયેલ તમામ અન્ય સાઇટ ખર્ચ (ચા-પાણી, નાસ્તો, ભથ્થું, ટૂલ્સ, ડીઝલ) સીધા <strong>Category 2: Investment Capital (પ્રોજેક્ટ મૂડી)</strong> માંથી કપાશે. આનો લેબર હાજરી કે ટીમ ઉપાડ (Category 5) સાથે કોઈ સંબંધ નથી.
+          <span className="font-black text-amber-950">Direct Capital Deduction: </span>
+          All recorded other site expenses (tea, refreshments, transit, tools, fuel) are automatically deducted from <strong>Category 2: Investment Capital (Project Capital)</strong>.
         </div>
       </div>
 
@@ -331,7 +331,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         {/* Total Other Kharch */}
         <div className="bg-white border border-rose-100 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-rose-700">
-            <span className="text-xs font-bold uppercase tracking-wider">કુલ અન્ય ખર્ચ (Total Kharch)</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Total Other Expenses</span>
             <div className="p-2 bg-rose-50 rounded-xl">
               <IndianRupee className="w-4 h-4" />
             </div>
@@ -341,7 +341,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
               ₹{summary.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
-              Category 2 મૂડીમાંથી સંપૂર્ણ કપાત થયેલ
+              Fully deducted from Category 2 capital
             </p>
           </div>
         </div>
@@ -349,7 +349,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         {/* Total Entries Count */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-700">
-            <span className="text-xs font-bold uppercase tracking-wider">કુલ એન્ટ્રીઓ (Total Records)</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Total Records</span>
             <div className="p-2 bg-slate-100 rounded-xl">
               <Receipt className="w-4 h-4 text-slate-600" />
             </div>
@@ -359,7 +359,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
               {summary.count}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
-              સાઇટ પર થયેલા પરચૂરણ વાઉચર્સ
+              Recorded site expense vouchers
             </p>
           </div>
         </div>
@@ -367,7 +367,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         {/* Average per Record */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-700">
-            <span className="text-xs font-bold uppercase tracking-wider">સરેરાશ ખર્ચ (Avg / Entry)</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Average per Entry</span>
             <div className="p-2 bg-slate-100 rounded-xl">
               <Calculator className="w-4 h-4 text-slate-600" />
             </div>
@@ -377,7 +377,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
               ₹{summary.avgPerRecord.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
-              વાઉચર દીઠ એવરેજ એક્સપેન્સ
+              Average voucher amount
             </p>
           </div>
         </div>
@@ -407,7 +407,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
               <option value="ALL">All Categories ({records.length})</option>
               {EXPENSE_CATEGORIES.map((cat, idx) => (
                 <option key={idx} value={cat}>
-                  {cat} ({EXPENSE_GUJARATI_LABELS[cat] || ""})
+                  {cat}
                 </option>
               ))}
             </select>
@@ -477,7 +477,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
                 {filteredRecords.map((rec) => {
                   const amt = parseFloat(String(rec.paymentAmount || rec.grossSalary || rec.netSalary || rec.amount || 0)) || 0;
                   const cat = rec.workType || "Site Expense";
-                  const guj = EXPENSE_GUJARATI_LABELS[cat] || "";
+                  const subtitle = EXPENSE_SUBTITLES[cat] || "";
 
                   return (
                     <tr key={rec.id} className="hover:bg-rose-50/30 transition-colors">
@@ -487,7 +487,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
                           <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
                           <div>
                             <span className="font-bold text-slate-900">{cat}</span>
-                            {guj && <span className="block text-[10px] text-slate-400 font-medium">{guj}</span>}
+                            {subtitle && <span className="block text-[10px] text-slate-400 font-medium">{subtitle}</span>}
                           </div>
                         </div>
                       </td>
@@ -537,17 +537,17 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Add Other Kharch (સાઇટ અન્ય પરચૂરણ ખર્ચ)"
+        title="Add Other Expense"
       >
         <form onSubmit={handleSaveAdd} className="space-y-4">
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-900">
-            <strong>Deduction Notice:</strong> આ રકમ Category 2 Investment Capital માંથી ઓટોમેટિક કટ થશે.
+            <strong>Deduction Notice:</strong> This amount is automatically deducted from Category 2 Investment Capital.
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Date (તારીખ) *
+                Date *
               </label>
               <input
                 type="date"
@@ -560,7 +560,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Amount (રકમ ₹) *
+                Amount (₹) *
               </label>
               <input
                 type="number"
@@ -577,7 +577,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
           {/* Expense Category Select */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Expense Category (ખર્ચનો પ્રકાર) *
+              Expense Category *
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
               {EXPENSE_CATEGORIES.map((cat, idx) => (
@@ -593,7 +593,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
                 >
                   <div>{cat}</div>
                   <div className={`text-[9px] ${form.expenseCategory === cat ? "text-rose-100" : "text-slate-400"}`}>
-                    {EXPENSE_GUJARATI_LABELS[cat]}
+                    {EXPENSE_SUBTITLES[cat] || ""}
                   </div>
                 </button>
               ))}
@@ -626,7 +626,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Team / Vendor / Person (ટીમ અથવા વેન્ડર)
+                Team / Vendor / Recipient
               </label>
               <input
                 type="text"
@@ -646,7 +646,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Payment Method (ચુકવણી પદ્ધતિ)
+                Payment Method
               </label>
               <select
                 value={form.paymentMethod}
@@ -676,7 +676,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Notes / Purpose (વિગત)
+                Notes / Purpose
               </label>
               <input
                 type="text"
@@ -752,7 +752,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-hidden"
             >
               {EXPENSE_CATEGORIES.map((c, idx) => (
-                <option key={idx} value={c}>{c} ({EXPENSE_GUJARATI_LABELS[c] || ""})</option>
+                <option key={idx} value={c}>{c}</option>
               ))}
             </select>
           </div>

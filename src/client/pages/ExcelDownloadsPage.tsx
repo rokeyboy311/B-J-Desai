@@ -114,7 +114,7 @@ export default function ExcelDownloadsPage() {
     if (selectedLocation === 'ALL') {
       files.push({
         id: 'master_all',
-        title: 'Master ERP Database Backup (સમગ્ર ડેટાબેઝ એક્સેલ)',
+        title: 'Master ERP Database Backup',
         filename: 'Export_All_Locations.xlsx',
         category: 'MASTER',
         categoryLabel: 'Master Report',
@@ -129,7 +129,7 @@ export default function ExcelDownloadsPage() {
       locations.forEach(loc => {
         files.push({
           id: `loc_all_${loc.id}`,
-          title: `${loc.name} - Complete Project Workbook (પ્રોજેક્ટ સંપૂર્ણ ફાઇલ)`,
+          title: `${loc.name} - Complete Project Workbook`,
           filename: `Export_${loc.name.replace(/\s+/g, '_')}_all.xlsx`,
           category: 'LOCATION',
           categoryLabel: 'Location Master',
@@ -141,7 +141,7 @@ export default function ExcelDownloadsPage() {
     } else {
       files.push({
         id: `loc_single_${selectedLocation}`,
-        title: `${locName} - Complete Project Workbook (પ્રોજેક્ટ સંપૂર્ણ ફાઇલ)`,
+        title: `${locName} - Complete Project Workbook`,
         filename: `Export_${locName.replace(/\s+/g, '_')}_all.xlsx`,
         category: 'LOCATION',
         categoryLabel: 'Location Master',
@@ -169,7 +169,7 @@ export default function ExcelDownloadsPage() {
       const safeName = inv.name.replace(/\s+/g, '_');
       files.push({
         id: `investor_${inv.id}`,
-        title: `${inv.name} - Personal Investor Passbook (ઇન્વેસ્ટર પાસબુક)`,
+        title: `${inv.name} - Personal Investor Passbook`,
         filename: `Investor_${safeName}_Passbook.xlsx`,
         category: 'INVESTOR',
         categoryLabel: 'Investor Passbook',
@@ -184,7 +184,7 @@ export default function ExcelDownloadsPage() {
       const safeName = v.name.replace(/\s+/g, '_');
       files.push({
         id: `vendor_${safeName}`,
-        title: `${v.name} - Vendor Purchase Bill (વેન્ડર બિલ હિસાબ)`,
+        title: `${v.name} - Vendor Purchase Bill`,
         filename: `Vendor_${safeName}_Purchases.xlsx`,
         category: 'VENDOR',
         categoryLabel: 'Vendor Bill',
@@ -200,7 +200,7 @@ export default function ExcelDownloadsPage() {
       const safeName = c.name.replace(/\s+/g, '_');
       files.push({
         id: `customer_${safeName}`,
-        title: `${c.name} - Customer Supply Bill (ગ્રાહક સપ્લાય બિલ)`,
+        title: `${c.name} - Customer Supply Bill`,
         filename: `Customer_${safeName}_Bill.xlsx`,
         category: 'CUSTOMER',
         categoryLabel: 'Customer Bill',
@@ -226,7 +226,7 @@ export default function ExcelDownloadsPage() {
     // 8. MATERIAL PURCHASE VS SUPPLY PRICE ANALYTICS
     files.push({
       id: `mat_analytics_${selectedLocation}`,
-      title: `Material Purchase vs Supply Analytics (${locName}) (મટિરિયલ ખરીદી vs સપ્લાય ભાવ એનાલિટિક્સ)`,
+      title: `Material Purchase vs Supply Analytics (${locName}) (Costing & Pricing Audit)`,
       filename: `Material_Purchase_Supply_Analytics_${locName.replace(/\s+/g, '_')}.xlsx`,
       category: 'OPERATIONAL',
       categoryLabel: 'Material Analytics',
@@ -275,9 +275,9 @@ export default function ExcelDownloadsPage() {
               <FileSpreadsheet className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-black text-white">Excel Downloads Hub (એક્સેલ ડાઉનલોડ સેન્ટર)</h1>
+              <h1 className="text-lg sm:text-xl md:text-2xl font-black text-white">Excel Downloads Hub</h1>
               <p className="text-xs text-indigo-200 mt-0.5">
-                તમામ કેટેગરી, ઇન્વેસ્ટર પાસબુક, વેન્ડર બિલ, કસ્ટમર સપ્લાય તથા રિફંડેબલ રેકોર્ડ્સની એક્સેલ ફાઇલો ડાઉનલોડ કરો
+                Export comprehensive spreadsheets for all categories, investor statements, vendor invoices, customer supplies, and financial audits.
               </p>
             </div>
           </div>
@@ -292,7 +292,7 @@ export default function ExcelDownloadsPage() {
               onChange={e => setSelectedLocation(e.target.value)}
               className="bg-transparent border-none outline-none text-xs font-bold text-white cursor-pointer w-full pr-2"
             >
-              <option value="ALL" className="text-slate-900">All Locations (બધા પ્રોજેક્ટ)</option>
+              <option value="ALL" className="text-slate-900">All Locations</option>
               {locations.map(l => (
                 <option key={l.id} value={String(l.id)} className="text-slate-900">{l.name}</option>
               ))}
@@ -354,12 +354,12 @@ export default function ExcelDownloadsPage() {
         {/* Category Tabs */}
         <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
           {[
-            { key: 'ALL', label: 'All Files (બધી ફાઇલ)' },
-            { key: 'INVESTOR', label: 'Investor Passbooks (ઇન્વેસ્ટર)' },
-            { key: 'VENDOR', label: 'Vendor Bills (ખરીદી)' },
-            { key: 'CUSTOMER', label: 'Customer Bills (સપ્લાય)' },
-            { key: 'REFUNDABLE', label: 'Refundables (રિફંડેબલ)' },
-            { key: 'LOCATION', label: 'Location Bundles (પ્રોજેક્ટ)' },
+            { key: 'ALL', label: 'All Files' },
+            { key: 'INVESTOR', label: 'Investor Passbooks' },
+            { key: 'VENDOR', label: 'Vendor Bills' },
+            { key: 'CUSTOMER', label: 'Customer Bills' },
+            { key: 'REFUNDABLE', label: 'Refundables' },
+            { key: 'LOCATION', label: 'Location Bundles' },
           ].map(cat => (
             <button
               key={cat.key}

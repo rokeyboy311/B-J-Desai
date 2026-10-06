@@ -320,7 +320,7 @@ export default function LocationDetailsPage() {
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          Other Kharch (અન્ય ખર્ચ)
+          Other Expenses
         </button>
 
         <button

@@ -233,7 +233,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Cost & Reconciliation Matrix</h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            સાઇટ સપ્લાય (Cat 3) + લેબર હાજરી / પગાર (Cat 4) નો કુલ સરવાળો = કોન્ટ્રાક્ટર કોસ્ટ (Cat 5) સાથે મેળવવો.
+            Reconcile Site Supply + Labour Attendance total against recorded Contractor Invoices.
           </p>
         </div>
 
@@ -270,7 +270,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <div className="flex items-center gap-2">
               <Scale className="w-4 h-4 text-purple-700" />
               <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                રિકોન્સિલેશન સૂત્ર (Reconciliation Equation)
+                Reconciliation Equation
               </span>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                 reconciliation?.summary.reconciliationStatus === "MATCHED"
@@ -306,7 +306,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
           </div>
 
           <div className="text-right shrink-0">
-            <span className="text-[11px] text-slate-500 block font-medium">Difference / તફાવત:</span>
+            <span className="text-[11px] text-slate-500 block font-medium">Difference / Variance:</span>
             <span className={`text-base font-black ${
               reconciliation?.summary.reconciliationStatus === "MATCHED"
                 ? "text-emerald-700"
@@ -532,7 +532,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 bg-purple-900/50 px-2.5 py-1 rounded-md border border-purple-500/30">
-                  સંપૂર્ણ સાંકળ રિકોન્સિલેશન (Full Chain Reconciliation)
+                  Full Chain Reconciliation
                 </span>
                 <h3 className="text-lg font-black text-white mt-1.5 flex items-center gap-2">
                   <Scale className="w-5 h-5 text-purple-400" />
@@ -658,7 +658,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-300 font-medium">Difference / તફાવત:</span>
+                  <span className="text-xs text-slate-300 font-medium">Difference / Variance:</span>
                   <span className={`px-3 py-1 rounded-full text-xs font-black ${
                     reconciliation.summary.variance >= 0
                       ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"

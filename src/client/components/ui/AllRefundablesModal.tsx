@@ -110,25 +110,25 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="All Refundable Records (બધા રિફન્ડેબલ ડિપોઝિટ અને એડવાન્સ રેકોર્ડ)"
+      title="All Refundable Records"
       maxWidth="max-w-6xl"
     >
       <div className="space-y-4">
         {/* Top Financial Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-gradient-to-r from-purple-900/90 via-indigo-900 to-slate-900 p-4 rounded-2xl text-white shadow-sm border border-purple-500/20">
           <div>
-            <div className="text-[11px] font-bold text-purple-200 uppercase tracking-wider">Total Disbursed (કુલ ડિપોઝિટ)</div>
+            <div className="text-[11px] font-bold text-purple-200 uppercase tracking-wider">Total Disbursed</div>
             <div className="text-xl font-black text-white mt-0.5">₹{Number(summary?.totalDisbursed || 0).toLocaleString("en-IN")}</div>
             <div className="text-[10px] text-purple-300 mt-0.5">{summary?.count || 0} Total Records</div>
           </div>
           <div>
-            <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Received Back (પરત મળેલ)</div>
+            <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Received Back</div>
             <div className="text-xl font-black text-emerald-400 mt-0.5">₹{Number(summary?.totalRefunded || 0).toLocaleString("en-IN")}</div>
             <div className="text-[10px] text-emerald-200 mt-0.5">Reconciled to Cash/Bank</div>
           </div>
           <div className="sm:col-span-2 bg-white/10 p-3 rounded-xl border border-white/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">લેવાના બાકી (Pending Balance)</div>
+              <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Pending Balance</div>
               <div className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5">₹{Number(summary?.pending || 0).toLocaleString("en-IN")}</div>
               <div className="text-[10px] text-slate-300 mt-0.5">Project Capital Receivable</div>
             </div>
@@ -154,7 +154,7 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
                 onChange={e => setSelectedLocation(e.target.value)}
                 className="bg-transparent border-none outline-none text-xs font-bold text-slate-800 cursor-pointer"
               >
-                <option value="ALL">All Project Locations (બધા પ્રોજેક્ટ)</option>
+                <option value="ALL">All Project Locations</option>
                 {locationsList.map(l => (
                   <option key={l.id} value={String(l.id)}>{l.name}</option>
                 ))}
@@ -165,7 +165,7 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs text-xs">
               {[
                 { key: 'ALL', label: 'All' },
-                { key: 'PENDING', label: 'Pending (લેવાના બાકી)' },
+                { key: 'PENDING', label: 'Pending' },
                 { key: 'PARTIAL', label: 'Partial' },
                 { key: 'REFUNDED', label: 'Completed' },
               ].map(tab => (

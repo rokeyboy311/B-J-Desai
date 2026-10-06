@@ -569,7 +569,7 @@ investmentRouter.post('/location-allocations', async (req: AuthRequest, res: Res
     const allocAmount = parseFloat(String(amount));
 
     if (isNaN(locId) || locId <= 0) {
-      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+      return res.status(400).json({ error: 'Please select a project location' });
     }
 
     if (isNaN(invId) || isNaN(allocAmount) || allocAmount <= 0) {
@@ -943,7 +943,7 @@ investmentRouter.post('/bills', async (req: AuthRequest, res: Response) => {
     const parsedAmount = parseFloat(String(amount));
 
     if (isNaN(locId) || locId <= 0) {
-      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+      return res.status(400).json({ error: 'Please select a project location' });
     }
 
     if (!partyName || isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -1315,7 +1315,7 @@ investmentRouter.post('/transactions', async (req: AuthRequest, res: Response) =
 
       if (data.amount > availableCat7Capital) {
         return res.status(400).json({
-          error: `ઇન્વેસ્ટર કેપિટલ (Category 7) માં પૂરતું બેલેન્સ નથી / Insufficient Category 7 Investor Capital. ${party[0].partyName} પાસે આ સાઇટ પર માત્ર ₹${availableCat7Capital.toLocaleString('en-IN')} ઉપલબ્ધ છે, તેથી ₹${data.amount.toLocaleString('en-IN')} કપાશે નહીં. કૃપા કરીને પ્રથમ Category 7 (Investor Capital) માંથી વધુ રકમ ફાળવો.`
+          error: `Insufficient Category 7 Investor Capital. ${party[0].partyName} has only ₹${availableCat7Capital.toLocaleString('en-IN')} available on this site. Please allocate more capital from Category 7 first.`
         });
       }
     }
@@ -1390,7 +1390,7 @@ investmentRouter.put('/transactions/:id', async (req: AuthRequest, res: Response
 
       if (data.amount > availableCat7Capital) {
         return res.status(400).json({
-          error: `ઇન્વેસ્ટર કેપિટલ (Category 7) માં પૂરતું બેલેન્સ નથી / Insufficient Category 7 Investor Capital. ${party[0].partyName} પાસે આ સાઇટ પર માત્ર ₹${availableCat7Capital.toLocaleString('en-IN')} ઉપલબ્ધ છે, તેથી ₹${data.amount.toLocaleString('en-IN')} કપાશે નહીં.`
+          error: `Insufficient Category 7 Investor Capital. ${party[0].partyName} has only ₹${availableCat7Capital.toLocaleString('en-IN')} available on this site.`
         });
       }
     }
@@ -1592,7 +1592,7 @@ investmentRouter.post('/refundable-records', async (req: AuthRequest, res: Respo
 
     const locId = locationId ? parseInt(String(locationId), 10) : NaN;
     if (isNaN(locId) || locId <= 0) {
-      return res.status(400).json({ error: 'મહેરબાની કરીને પ્રોજેક્ટ લોકેશન સિલેક્ટ કરો / Please select a project location' });
+      return res.status(400).json({ error: 'Please select a project location' });
     }
     await assertLocationAccess(userId, locId);
 

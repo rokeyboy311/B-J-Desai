@@ -858,7 +858,7 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
         const supervisorCount = parseInt(scRes.rows[0]?.count as string || '0', 10);
 
         // Location 7 Categories Calculations:
-        // Cat 2: Investment Capital (પ્રોજેક્ટ મૂડી & કપાત - Net Project Capital)
+        // Cat 2: Investment Capital (Net Project Capital)
         const fullProjectCapital = Math.round((totalInvestorCapital + billInvestment) * 100) / 100;
         const projectOperationalDeductions = Math.round((siteSupplies + labourUpad + totalOtherKharch + pendingRefundable) * 100) / 100;
         const remainingProjectCapital = Math.round((fullProjectCapital - projectOperationalDeductions - investorPayment) * 100) / 100;

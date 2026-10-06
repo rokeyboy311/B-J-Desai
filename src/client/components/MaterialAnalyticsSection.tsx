@@ -190,7 +190,7 @@ export default function MaterialAnalyticsSection({
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 mb-4 animate-spin">
           <RefreshCw className="w-6 h-6" />
         </div>
-        <h3 className="text-base font-bold text-slate-800">મટિરિયલ એનાલિટિક્સ લોડ થઈ રહ્યું છે...</h3>
+        <h3 className="text-base font-bold text-slate-800">Loading Material Analytics...</h3>
         <p className="text-xs text-slate-500 mt-1">Calculating material purchase prices, supply rates, and stock ledgers...</p>
       </div>
     );
@@ -220,7 +220,7 @@ export default function MaterialAnalyticsSection({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30 mb-2">
               <Layers className="w-3.5 h-3.5" />
-              <span>મટિરિયલ ખરીદી vs સપ્લાય ભાવ પૃથ્થકરણ (Costing & Pricing Audit)</span>
+              <span>Material Purchase vs Supply Pricing Analysis (Costing & Pricing Audit)</span>
             </div>
             <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white">
               Material Purchase vs Supply Analytics

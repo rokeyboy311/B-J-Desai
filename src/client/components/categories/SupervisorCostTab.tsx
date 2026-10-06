@@ -175,7 +175,7 @@ export default function SupervisorCostTab({ locationId }: { locationId: number }
         <div>
           <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-indigo-600" />
-            <span>Supervisor Cost (સુપરવાઇઝર ખર્ચ)</span>
+            <span>Supervisor Cost</span>
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
             Track site supervisor salaries, allowances, and site management expenses
@@ -340,7 +340,7 @@ export default function SupervisorCostTab({ locationId }: { locationId: number }
           setIsModalOpen(false);
           setEditingId(null);
         }}
-        title={editingId ? "Edit Supervisor Cost" : "+ Add Supervisor Cost (સુપરવાઇઝર ખર્ચ)"}
+        title={editingId ? "Edit Supervisor Cost" : "+ Add Supervisor Cost"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

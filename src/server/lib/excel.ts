@@ -270,15 +270,15 @@ export function generateInvestorStatementBuffer(party: any, transactions: any[],
     let outAmt = 0;
 
     if (tx.type === 'CONTRIBUTION') {
-      typeLabel = 'Capital Contributed (જમા)';
+      typeLabel = 'Capital Contributed';
       inAmt = amt;
       running += amt;
     } else if (tx.type === 'INVESTMENT') {
-      typeLabel = 'Investment Karya Deployed (પ્રોજેક્ટ રોકાણ)';
+      typeLabel = 'Investment Capital Deployed';
       outAmt = amt;
       running -= amt;
     } else if (tx.type === 'UPAD' || tx.type === 'PAYMENT') {
-      typeLabel = 'Investor Upad / Payment (ઉપાડ)';
+      typeLabel = 'Investor Upad / Payment';
       outAmt = amt;
       running -= amt;
     }
@@ -436,7 +436,7 @@ export function generateRefundableRecordsBuffer(recordsList: any[], locationName
     [],
     ['Total Refundable Outflow (₹):', totalDisbursed],
     ['Total Received Back (₹):', totalRefunded],
-    ['Total Pending Receivable / લેવાના બાકી (₹):', pendingRefundable],
+    ['Total Pending Receivable (₹):', pendingRefundable],
     ['Total Records Count:', recordsList.length],
     [],
     ['DETAILED REFUNDABLE RECORDS REGISTER'],

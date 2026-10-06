@@ -514,7 +514,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                       onClick={() => handleDelete(r.id)}
                       className="flex-1 min-h-[42px] px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-rose-200 transition-colors cursor-pointer active:scale-95"
                     >
-                      <Trash2 className="w-4 h-4 text-rose-600" /> Delete (ડિલીટ)
+                      <Trash2 className="w-4 h-4 text-rose-600" /> Delete
                     </button>
                   </div>
                 </div>

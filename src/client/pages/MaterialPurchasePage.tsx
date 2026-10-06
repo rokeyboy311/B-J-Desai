@@ -883,7 +883,6 @@ export default function MaterialPurchasePage() {
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                 <span>Transportation Fee (₹)</span>
-                <span className="text-[10px] text-blue-600 font-semibold ml-1">(વાહન ભાડું)</span>
               </label>
               <input
                 type="number"
@@ -935,14 +934,14 @@ export default function MaterialPurchasePage() {
             </div>
             {(parseFloat(formData.transportationFee) || 0) > 0 && (
               <div className="flex items-center justify-between text-xs text-blue-700">
-                <span>Transportation Fee (વાહન ભાડું):</span>
+                <span>Transportation Fee:</span>
                 <span className="font-bold tabular-nums">
                   + ₹{(parseFloat(formData.transportationFee) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                 </span>
               </div>
             )}
             <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 uppercase">Grand Total (કુલ રકમ):</span>
+              <span className="text-xs font-bold text-slate-900 uppercase">Grand Total:</span>
               <span className="text-base font-black text-slate-900 tabular-nums">
                 ₹{(
                   ((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * (1 + (parseFloat(formData.taxPercentage) || 0) / 100) +
@@ -983,7 +982,7 @@ export default function MaterialPurchasePage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-blue-50/90 p-3.5 rounded-2xl border border-blue-200/80 shadow-2xs">
                 <div className="flex items-center justify-between text-blue-800">
-                  <span className="text-[10px] uppercase font-black tracking-wider">Total Inward (ખરીદી)</span>
+                  <span className="text-[10px] uppercase font-black tracking-wider">Total Inward</span>
                   <ArrowDownRight className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="text-lg font-black text-blue-950 mt-1 tabular-nums">
@@ -996,7 +995,7 @@ export default function MaterialPurchasePage() {
 
               <div className="bg-amber-50/90 p-3.5 rounded-2xl border border-amber-200/80 shadow-2xs">
                 <div className="flex items-center justify-between text-amber-800">
-                  <span className="text-[10px] uppercase font-black tracking-wider">Site Supplies (સાઇટ)</span>
+                  <span className="text-[10px] uppercase font-black tracking-wider">Site Supplies</span>
                   <MapPin className="w-4 h-4 text-amber-600" />
                 </div>
                 <div className="text-lg font-black text-amber-950 mt-1 tabular-nums">
@@ -1022,7 +1021,7 @@ export default function MaterialPurchasePage() {
 
               <div className="bg-emerald-50/90 p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs">
                 <div className="flex items-center justify-between text-emerald-800">
-                  <span className="text-[10px] uppercase font-black tracking-wider">Available Stock (હાજર)</span>
+                  <span className="text-[10px] uppercase font-black tracking-wider">Available Stock</span>
                   <Package className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div className="text-lg font-black text-emerald-950 mt-1 tabular-nums">
@@ -1084,7 +1083,7 @@ export default function MaterialPurchasePage() {
                   <div className="flex items-center gap-1.5">
                     <MapPin className="w-4 h-4 text-amber-600" />
                     <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                      Location-wise Site Distribution (ક્યાં ક્યાં લોકેશનમાં કેટલું સપ્લાય થયું)
+                      Location-wise Site Distribution
                     </h3>
                   </div>
                   <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
@@ -1174,7 +1173,7 @@ export default function MaterialPurchasePage() {
                   <div className="flex items-center gap-1.5">
                     <Users className="w-4 h-4 text-purple-600" />
                     <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                      Customer Supplies (કસ્ટમર સપ્લાય વિગતો)
+                      Customer Supplies Breakdown
                     </h3>
                   </div>
                   <span className="text-[11px] font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200">
@@ -1237,7 +1236,7 @@ export default function MaterialPurchasePage() {
                   <div className="flex items-center gap-1.5">
                     <ShoppingBag className="w-4 h-4 text-blue-600" />
                     <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                      Purchase History (ખરીદી ઇતિહાસ)
+                      Purchase History
                     </h3>
                   </div>
                   <span className="text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">
