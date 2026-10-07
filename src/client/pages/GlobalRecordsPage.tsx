@@ -21,8 +21,22 @@ interface GlobalRecord {
 export default function GlobalRecordsPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
-  const [records, setRecords] = useState<GlobalRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState<GlobalRecord[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_records_cache');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_records_cache');
+      return !(saved && JSON.parse(saved).length > 0);
+    } catch {
+      return true;
+    }
+  });
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
   const navigate = useNavigate();
 
@@ -87,7 +101,12 @@ export default function GlobalRecordsPage() {
     try {
       if (!isBackground && records.length === 0) setLoading(true);
       const data = await apiFetch("/records/all");
-      setRecords(data || []);
+      if (Array.isArray(data)) {
+        setRecords(data);
+        try {
+          sessionStorage.setItem('bd_erp_records_cache', JSON.stringify(data));
+        } catch {}
+      }
     } catch (error) {
       console.error("Failed to load records");
     } finally {

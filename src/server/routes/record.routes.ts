@@ -3,8 +3,11 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.ts';
 import { createRecordSchema, updateRecordSchema } from '../validators/record.validator.ts';
 import { getRecords, getAllRecords, getRecordMetrics, createRecord, updateRecord, deleteRecord } from '../../db/records.ts';
 import { assertLocationAccess } from '../lib/locationAuth.ts';
+import { realtimeSync } from '../lib/realtimeSync.ts';
 
 const recordRouter = Router();
+
+let allRecordsCache: { version: number; data: any; timestamp: number } | null = null;
 
 recordRouter.use(requireAuth);
 
@@ -16,7 +19,20 @@ recordRouter.get('/all', async (req: AuthRequest, res: Response) => {
       type: req.query.type as 'INCOME' | 'EXPENSE' | undefined,
     };
 
+    const hasFilters = Boolean(filters.startDate || filters.endDate || filters.type);
+    const currentVersion = realtimeSync.getVersion();
+    if (!hasFilters && allRecordsCache && allRecordsCache.version === currentVersion && Date.now() - allRecordsCache.timestamp < 60000) {
+      return res.json(allRecordsCache.data);
+    }
+
     const data = await getAllRecords(req.dbUser!.id, filters);
+    if (!hasFilters) {
+      allRecordsCache = {
+        version: currentVersion,
+        data,
+        timestamp: Date.now()
+      };
+    }
     res.json(data);
   } catch (error) {
     console.error('Failed to fetch all records:', error);

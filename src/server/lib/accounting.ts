@@ -1095,6 +1095,25 @@ export async function runDatabaseMigrations(): Promise<void> {
       // Ignore if already added or not supported
     }
 
+    // High performance database indexes for instant aggregations
+    try {
+      await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_records_loc_del ON records(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_records_type_cat ON records(type, category, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_mat_purchases_loc_del ON material_purchases(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_mat_supplies_loc_del ON material_supplies(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_site_supplies_loc_del ON site_supplies(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_labour_salaries_loc_del ON labour_salaries(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_contractor_costs_loc_del ON contractor_costs(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_supervisor_costs_loc_del ON supervisor_costs(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_stock_ledger_loc_del ON stock_ledger(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_inv_parties_loc_del ON investment_parties(location_id, is_deleted);
+        CREATE INDEX IF NOT EXISTS idx_inv_alloc_loc_del ON investor_location_allocations(location_id, is_deleted);
+      `);
+    } catch (idxErr) {
+      // Non-fatal if index creation fails
+    }
+
     // Backfill / migrate data from legacy investment_parties & investment_transactions if any
     try {
       const legacyParties = await db.execute(sql`

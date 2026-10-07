@@ -182,14 +182,15 @@ export function useLiveSync(onSync: () => void | Promise<void>, intervalMs: numb
     window.addEventListener('focus', onFocus);
     window.addEventListener('bd_erp_data_updated', onDataUpdated);
 
-    // 3. Fallback active polling
+    // 3. Fallback active polling (conservative fallback to prevent network storms)
     let timer: any = null;
+    const effectiveInterval = Math.max(intervalMs || 0, 30000);
     if (intervalMs > 0) {
       timer = setInterval(() => {
         if (document.visibilityState === 'visible') {
           handleSync();
         }
-      }, intervalMs);
+      }, effectiveInterval);
     }
 
     return () => {

@@ -9,8 +9,22 @@ import { Modal } from "../components/ui/Modal";
 export default function LocationsPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [locations, setLocations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [locations, setLocations] = useState<any[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_locations_breakdown_cache');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_locations_breakdown_cache');
+      return !(saved && JSON.parse(saved).length > 0);
+    } catch {
+      return true;
+    }
+  });
 
   // Add Location Modal
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -23,6 +37,9 @@ export default function LocationsPage() {
       const res = await apiFetch("/reports/locations-breakdown").catch(() => []);
       if (Array.isArray(res)) {
         setLocations(res);
+        try {
+          sessionStorage.setItem('bd_erp_locations_breakdown_cache', JSON.stringify(res));
+        } catch {}
       }
     } catch (err) {
       console.error("Failed to load locations", err);

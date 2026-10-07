@@ -35,8 +35,28 @@ export default function LocationDetailsPage() {
     "investor_capital" | "investment_capital" | "site_supply" | "labour_attendance" | "other_kharch" | "contractor_cost" | "supervisor_cost"
   >("investor_capital");
   
-  const [locationName, setLocationName] = useState("Loading...");
-  const [locMetrics, setLocMetrics] = useState<any>(null);
+  const [locationName, setLocationName] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_locations_breakdown_cache');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const found = list.find((b: any) => b.id.toString() === locationId);
+        if (found?.name) return found.name;
+      }
+    } catch {}
+    return "Loading...";
+  });
+  const [locMetrics, setLocMetrics] = useState<any>(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_locations_breakdown_cache');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const found = list.find((b: any) => b.id.toString() === locationId);
+        if (found) return found;
+      }
+    } catch {}
+    return null;
+  });
   const [projectUtilization, setProjectUtilization] = useState<any>(null);
 
   const loadLocationDetails = async () => {

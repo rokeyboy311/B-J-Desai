@@ -34,7 +34,7 @@ export const createPool = () => {
 
     const config: any = {
       connectionString: connStr,
-      max: process.env.NODE_ENV === 'production' ? 10 : 5,
+      max: process.env.NODE_ENV === 'production' ? 20 : 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 15000,
       ssl: isRemote ? { rejectUnauthorized: false } : false,

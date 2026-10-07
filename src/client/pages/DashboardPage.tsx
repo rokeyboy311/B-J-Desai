@@ -9,10 +9,38 @@ import { useLiveSync } from "../hooks/useLiveSync";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [metrics, setMetrics] = useState<any>(null);
-  const [contractorReconciliation, setContractorReconciliation] = useState<any>(null);
-  const [locationsBreakdown, setLocationsBreakdown] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState<any>(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_dash_metrics_cache');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [contractorReconciliation, setContractorReconciliation] = useState<any>(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_dash_recon_cache');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [locationsBreakdown, setLocationsBreakdown] = useState<any[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_locations_breakdown_cache');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('bd_erp_dash_metrics_cache');
+      return !saved;
+    } catch {
+      return true;
+    }
+  });
 
   const loadDashboard = async (isBackground = false) => {
     try {
@@ -22,9 +50,18 @@ export default function DashboardPage() {
         apiFetch(`/contractor-costs/reconciliation?locationId=ALL`).catch(() => null),
         apiFetch(`/reports/locations-breakdown`).catch(() => [])
       ]);
-      setMetrics(res || null);
-      if (reconRes) setContractorReconciliation(reconRes);
-      if (Array.isArray(locBreakdownRes)) setLocationsBreakdown(locBreakdownRes);
+      if (res) {
+        setMetrics(res);
+        try { sessionStorage.setItem('bd_erp_dash_metrics_cache', JSON.stringify(res)); } catch {}
+      }
+      if (reconRes) {
+        setContractorReconciliation(reconRes);
+        try { sessionStorage.setItem('bd_erp_dash_recon_cache', JSON.stringify(reconRes)); } catch {}
+      }
+      if (Array.isArray(locBreakdownRes)) {
+        setLocationsBreakdown(locBreakdownRes);
+        try { sessionStorage.setItem('bd_erp_locations_breakdown_cache', JSON.stringify(locBreakdownRes)); } catch {}
+      }
     } catch (err) {
       console.error("Dashboard data load error:", err);
     } finally {
