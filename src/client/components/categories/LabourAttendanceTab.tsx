@@ -582,10 +582,16 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
 
   // Open Edit Modal
   const handleEditClick = (record: any) => {
+    const attUpper = String(record.attendanceType || "").toUpperCase();
+    const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
+    const editAmount = isUpad
+      ? (parseFloat(record.upad || "0") || parseFloat(record.paymentAmount || "0") || parseFloat(record.amount || "0") || 0)
+      : (parseFloat(record.paymentAmount || "0") || parseFloat(record.grossSalary || "0") || parseFloat(record.netSalary || "0") || parseFloat(record.amount || "0") || 0);
+
     setEditingRecord({
       ...record,
       teamName: record.labourTeam || record.teamName || record.labourName || "",
-      amount: record.paymentAmount || record.upad || record.grossSalary || record.netSalary || "0",
+      amount: String(editAmount || "0"),
       workName: record.workType || record.tcNumber || "",
       rate: record.tcRate || record.dailyRate || "0",
       quantity: record.tcQuantity || record.quantity || "0",
@@ -1382,7 +1388,11 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
                 const isKharch = attUpper.includes("KHARCH") || attUpper === "OTHER_KHARCH" || attUpper === "EXPENSE";
                 const isWork = attUpper.includes("WORK") || attUpper.includes("TC") || attUpper === "TC_WISE";
-                const amount = parseFloat(r.grossSalary || r.upad || r.paymentAmount || r.netSalary || "0") || 0;
+                const amount = isUpad
+                  ? (parseFloat(r.upad || "0") || parseFloat(r.paymentAmount || "0") || parseFloat(r.amount || "0") || 0)
+                  : isKharch
+                  ? (parseFloat(r.paymentAmount || "0") || parseFloat(r.grossSalary || "0") || parseFloat(r.netSalary || "0") || parseFloat(r.amount || "0") || 0)
+                  : (parseFloat(r.grossSalary || "0") || parseFloat(r.netSalary || "0") || parseFloat(r.amount || "0") || 0);
 
                 return (
                   <tr key={r.id || idx} className="hover:bg-slate-50/80 transition-colors">

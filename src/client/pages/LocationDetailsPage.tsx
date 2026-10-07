@@ -10,7 +10,6 @@ import SiteSupplyTab from "../components/categories/SiteSupplyTab";
 import LabourAttendanceTab from "../components/categories/LabourAttendanceTab";
 import OtherKharchTab from "../components/categories/OtherKharchTab";
 import ContractorCostTab from "../components/categories/ContractorCostTab";
-import SupervisorCostTab from "../components/categories/SupervisorCostTab";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { useLiveSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
@@ -32,7 +31,7 @@ export default function LocationDetailsPage() {
   } = useGoogleSync();
 
   const [activeCategory, setActiveCategory] = useState<
-    "investor_capital" | "investment_capital" | "site_supply" | "labour_attendance" | "other_kharch" | "contractor_cost" | "supervisor_cost"
+    "investor_capital" | "investment_capital" | "site_supply" | "labour_attendance" | "other_kharch" | "contractor_cost"
   >("investor_capital");
   
   const [locationName, setLocationName] = useState(() => {
@@ -354,18 +353,6 @@ export default function LocationDetailsPage() {
         >
           Contractor Cost
         </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveCategory("supervisor_cost")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeCategory === "supervisor_cost"
-              ? "bg-[#0B1D3A] text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          Supervisor Cost
-        </button>
       </div>
 
       {/* Tab Panel Content */}
@@ -391,9 +378,6 @@ export default function LocationDetailsPage() {
         )}
         {activeCategory === "contractor_cost" && (
           <ContractorCostTab locationId={Number(locationId)} />
-        )}
-        {activeCategory === "supervisor_cost" && (
-          <SupervisorCostTab locationId={Number(locationId)} />
         )}
       </div>
 
