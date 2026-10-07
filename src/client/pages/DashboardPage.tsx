@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Building2, MapPin, Calculator, Users, Package, Truck, Wrench, PlusCircle, ArrowRight,
-  HardHat, UserCheck, AlertTriangle, CheckCircle2, TrendingUp, DollarSign, RefreshCw
+  HardHat, AlertTriangle, CheckCircle2, TrendingUp, DollarSign, RefreshCw
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useLiveSync } from "../hooks/useLiveSync";
@@ -120,10 +120,6 @@ export default function DashboardPage() {
       const cost = Number(loc.contractorCosts?.recorded || loc.cat7ContractorCost?.recorded || 0);
       return sum + cost;
     }, 0);
-  }, [locationsBreakdown]);
-
-  const totalSupervisorSummary = useMemo(() => {
-    return locationsBreakdown.reduce((sum, loc) => sum + Number(loc.supervisorCost || 0), 0);
   }, [locationsBreakdown]);
 
   // 3. Total Utilized Investment Capital (Site supplies + Labour + Other kharch)
@@ -284,7 +280,7 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* Operational Expenses Summary Row (Site Supply, Labour, Contractor, Supervisor) */}
+      {/* Operational Expenses Summary Row (Site Supply, Labour, Contractor) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
         <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
           <div>
@@ -292,11 +288,11 @@ export default function DashboardPage() {
             <p className="text-[11px] text-slate-500">Authoritative aggregation across all operational site categories</p>
           </div>
           <span className="text-xs font-black text-slate-900 tabular-nums">
-            Total: {formatLakhOrCr(totalSiteSupplySummary + totalLabourSummary + totalContractorSummary + totalSupervisorSummary)}
+            Total: {formatLakhOrCr(totalSiteSupplySummary + totalLabourSummary + totalContractorSummary)}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
             <div className="p-2.5 bg-amber-100 text-amber-700 rounded-lg shrink-0">
@@ -337,19 +333,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-lg shrink-0">
-              <UserCheck className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">Supervisor Cost</span>
-              <span className="text-base font-black text-slate-900 tabular-nums block">
-                ₹{totalSupervisorSummary.toLocaleString("en-IN")}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">Site Supervision</span>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -383,7 +366,6 @@ export default function DashboardPage() {
               const siteSupply = Number(loc.siteSupplies || 0);
               const labourCost = Number(loc.labourMetrics?.attendanceWages || 0);
               const contractor = Number(loc.contractorCosts?.recorded || 0);
-              const supervisor = Number(loc.supervisorCost || 0);
               
               const pct = fullCap > 0 ? Math.min(100, Math.round((Math.max(0, utilized) / fullCap) * 100)) : 0;
               const isDeficit = remaining < 0;
@@ -437,11 +419,6 @@ export default function DashboardPage() {
                     <div className="px-2.5 py-1 bg-slate-100 rounded-lg text-center">
                       <span className="text-[9px] uppercase font-bold text-slate-400 block">Contractor</span>
                       <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatLakhOrCr(contractor)}</span>
-                    </div>
-
-                    <div className="px-2.5 py-1 bg-slate-100 rounded-lg text-center">
-                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Supervisor</span>
-                      <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatLakhOrCr(supervisor)}</span>
                     </div>
 
                     <div className="p-1.5 text-slate-400 hover:text-blue-600">

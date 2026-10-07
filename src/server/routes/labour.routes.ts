@@ -16,11 +16,17 @@ function transformLabourRecord(r: any) {
   const isUpad = attUpper.includes('UPAD') || attUpper === 'TEAM_UPAD';
   const isKharch = attUpper.includes('KHARCH') || attUpper === 'OTHER_KHARCH' || attUpper === 'EXPENSE';
 
+  const upadVal = parseFloat(String(r.upad ?? 0)) || 0;
+  const payVal = parseFloat(String(r.paymentAmount ?? 0)) || 0;
+  const amtVal = parseFloat(String(r.amount ?? 0)) || 0;
+  const grossVal = parseFloat(String(r.grossSalary ?? 0)) || 0;
+  const netVal = parseFloat(String(r.netSalary ?? 0)) || 0;
+
   const amount = isUpad
-    ? (parseFloat(r.upad || '0') || parseFloat(r.paymentAmount || '0') || 0)
+    ? (upadVal || payVal || amtVal || grossVal || 0)
     : isKharch
-    ? (parseFloat(r.paymentAmount || '0') || parseFloat(r.grossSalary || '0') || 0)
-    : (parseFloat(r.grossSalary || '0') || parseFloat(r.netSalary || '0') || 0);
+    ? (payVal || grossVal || netVal || amtVal || 0)
+    : (grossVal || netVal || payVal || amtVal || 0);
 
   return {
     ...r,

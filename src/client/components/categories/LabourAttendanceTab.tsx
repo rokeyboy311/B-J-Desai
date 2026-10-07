@@ -183,6 +183,27 @@ function TeamSelectInput({
   );
 }
 
+const getRecordAmount = (r: any): number => {
+  if (!r) return 0;
+  const upadVal = parseFloat(String(r.upad ?? 0)) || 0;
+  const payVal = parseFloat(String(r.paymentAmount ?? 0)) || 0;
+  const amtVal = parseFloat(String(r.amount ?? 0)) || 0;
+  const grossVal = parseFloat(String(r.grossSalary ?? 0)) || 0;
+  const netVal = parseFloat(String(r.netSalary ?? 0)) || 0;
+
+  const attUpper = String(r.attendanceType || "").toUpperCase();
+  const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
+  const isKharch = attUpper.includes("KHARCH") || attUpper === "OTHER_KHARCH" || attUpper === "EXPENSE";
+
+  if (isUpad) {
+    return upadVal || payVal || amtVal || grossVal || 0;
+  }
+  if (isKharch) {
+    return payVal || grossVal || netVal || amtVal || 0;
+  }
+  return grossVal || netVal || payVal || amtVal || 0;
+};
+
 export default function LabourAttendanceTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
 
@@ -332,20 +353,20 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       const isKharch = attUpper.includes("KHARCH") || attUpper === "OTHER_KHARCH" || attUpper === "EXPENSE";
       const isWork = attUpper.includes("WORK") || attUpper.includes("TC") || attUpper === "TC_WISE";
 
+      const recAmt = getRecordAmount(r);
+
       if (isUpad) {
-        totalTeamUpad += parseFloat(r.upad || r.paymentAmount || "0") || 0;
+        totalTeamUpad += recAmt;
       } else if (isKharch) {
-        totalOtherKharch += parseFloat(r.grossSalary || r.netSalary || r.paymentAmount || "0") || 0;
+        totalOtherKharch += recAmt;
       } else if (isWork) {
-        const amt = parseFloat(r.grossSalary || r.netSalary || "0") || 0;
-        totalTcWiseWages += amt;
-        totalAttendanceWages += amt;
+        totalTcWiseWages += recAmt;
+        totalAttendanceWages += recAmt;
       } else {
         // Day Wise
-        const amt = parseFloat(r.grossSalary || r.netSalary || "0") || 0;
-        totalDayWiseWages += amt;
-        totalDayWiseDays += parseFloat(r.days || "0") || 0;
-        totalAttendanceWages += amt;
+        totalDayWiseWages += recAmt;
+        totalDayWiseDays += parseFloat(String(r.days || "0")) || 0;
+        totalAttendanceWages += recAmt;
       }
     });
 
@@ -582,11 +603,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
 
   // Open Edit Modal
   const handleEditClick = (record: any) => {
-    const attUpper = String(record.attendanceType || "").toUpperCase();
-    const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
-    const editAmount = isUpad
-      ? (parseFloat(record.upad || "0") || parseFloat(record.paymentAmount || "0") || parseFloat(record.amount || "0") || 0)
-      : (parseFloat(record.paymentAmount || "0") || parseFloat(record.grossSalary || "0") || parseFloat(record.netSalary || "0") || parseFloat(record.amount || "0") || 0);
+    const editAmount = getRecordAmount(record);
 
     setEditingRecord({
       ...record,
@@ -1388,11 +1405,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 const isUpad = attUpper.includes("UPAD") || attUpper === "TEAM_UPAD";
                 const isKharch = attUpper.includes("KHARCH") || attUpper === "OTHER_KHARCH" || attUpper === "EXPENSE";
                 const isWork = attUpper.includes("WORK") || attUpper.includes("TC") || attUpper === "TC_WISE";
-                const amount = isUpad
-                  ? (parseFloat(r.upad || "0") || parseFloat(r.paymentAmount || "0") || parseFloat(r.amount || "0") || 0)
-                  : isKharch
-                  ? (parseFloat(r.paymentAmount || "0") || parseFloat(r.grossSalary || "0") || parseFloat(r.netSalary || "0") || parseFloat(r.amount || "0") || 0)
-                  : (parseFloat(r.grossSalary || "0") || parseFloat(r.netSalary || "0") || parseFloat(r.amount || "0") || 0);
+                const amount = getRecordAmount(r);
 
                 return (
                   <tr key={r.id || idx} className="hover:bg-slate-50/80 transition-colors">
