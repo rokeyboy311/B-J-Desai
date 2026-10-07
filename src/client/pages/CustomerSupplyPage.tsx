@@ -133,6 +133,24 @@ export default function CustomerSupplyPage() {
     }
   };
 
+  const handleEdit = (s: any) => {
+    setEditingId(s.id);
+    setFormData({
+      locationId: s.locationId ? s.locationId.toString() : (locations[0]?.id?.toString() || ""),
+      date: s.date || new Date().toISOString().split("T")[0],
+      partyName: s.partyName || "",
+      materialId: s.materialId ? s.materialId.toString() : "",
+      materialName: s.materialName || "",
+      quantity: s.quantity ? s.quantity.toString() : "",
+      unit: s.unit || "Nos",
+      rate: s.rate ? s.rate.toString() : "",
+      taxPercentage: s.taxPercentage ? s.taxPercentage.toString() : "18",
+      paymentStatus: (s.paymentStatus || "PAID").toUpperCase() === "PAID" ? "Paid" : "Pending",
+      notes: s.description || ""
+    });
+    setIsModalOpen(true);
+  };
+
   const handleDelete = async (id: number) => {
     const confirmed = await confirmAction({
       title: "Delete Customer Supply",
@@ -344,13 +362,24 @@ export default function CustomerSupplyPage() {
                         </span>
                       </td>
                       <td className="p-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(s.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(s)}
+                            className="text-slate-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Record"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(s.id)}
+                            className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Record"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -361,11 +390,11 @@ export default function CustomerSupplyPage() {
         </div>
       </div>
 
-      {/* Modal: Add Customer Supply */}
+      {/* Modal: Add/Edit Customer Supply */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="+ Add Customer Supply"
+        title={editingId ? "Edit Customer Supply" : "+ Add Customer Supply"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">

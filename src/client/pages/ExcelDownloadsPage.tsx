@@ -119,7 +119,7 @@ export default function ExcelDownloadsPage() {
         category: 'MASTER',
         categoryLabel: 'Master Report',
         icon: FolderArchive,
-        description: 'Complete centralized export containing all locations, investments, purchases, supplies, labour, and supervisor records.',
+        description: 'Complete centralized export containing all locations, investments, purchases, supplies, and labour records.',
         endpoint: '/reports/export-all'
       });
     }

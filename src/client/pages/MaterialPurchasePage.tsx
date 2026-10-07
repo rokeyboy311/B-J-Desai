@@ -30,6 +30,7 @@ export default function MaterialPurchasePage() {
   
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPurchaseId, setEditingPurchaseId] = useState<number | null>(null);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState<{ name: string; id?: number | null } | null>(null);
   const [detailModalTab, setDetailModalTab] = useState<"all" | "sites" | "customers" | "purchases">("all");
 
@@ -123,15 +124,19 @@ export default function MaterialPurchasePage() {
         notes: formData.notes
       };
 
-      await apiFetch("/materials/purchases", {
-        method: "POST",
+      const url = editingPurchaseId ? `/materials/purchases/${editingPurchaseId}` : "/materials/purchases";
+      const method = editingPurchaseId ? "PUT" : "POST";
+
+      await apiFetch(url, {
+        method,
         body: JSON.stringify(payload)
       });
 
       triggerSync("materials");
       triggerSync("stock");
-      showToast("Material purchase recorded in Central Inventory for all sites!", "success");
+      showToast(editingPurchaseId ? "Material purchase updated!" : "Material purchase recorded in Central Inventory for all sites!", "success");
       setIsModalOpen(false);
+      setEditingPurchaseId(null);
       setFormData({
         date: new Date().toISOString().split("T")[0],
         supplierName: "",
@@ -148,6 +153,23 @@ export default function MaterialPurchasePage() {
     } catch (err: any) {
       showToast(err.message || "Failed to save purchase", "error");
     }
+  };
+
+  const handleEditPurchase = (p: any) => {
+    setEditingPurchaseId(p.id);
+    setFormData({
+      date: p.date || new Date().toISOString().split("T")[0],
+      supplierName: p.supplierName || p.partyName || "",
+      materialName: p.materialName || "",
+      quantity: p.quantity ? String(p.quantity) : "",
+      unit: p.unit || "Nos",
+      rate: p.rate ? String(p.rate) : "",
+      transportationFee: p.transportCost ? String(p.transportCost) : (p.transportationFee ? String(p.transportationFee) : ""),
+      taxPercentage: p.taxPercentage ? String(p.taxPercentage) : "18",
+      paymentStatus: (p.paymentStatus || "PAID").toUpperCase() === "PAID" ? "Paid" : "Pending",
+      notes: p.notes || p.description || ""
+    });
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (id: number) => {
@@ -361,6 +383,7 @@ export default function MaterialPurchasePage() {
           <button
             type="button"
             onClick={() => {
+              setEditingPurchaseId(null);
               setFormData({
                 date: new Date().toISOString().split("T")[0],
                 supplierName: "",
@@ -632,7 +655,7 @@ export default function MaterialPurchasePage() {
                           </span>
                         </td>
                         
-                        {/* Actions: Stock View & Delete Button */}
+                        {/* Actions: Stock View, Edit & Delete Button */}
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             {/* Stock View Button */}
@@ -644,6 +667,16 @@ export default function MaterialPurchasePage() {
                             >
                               <BarChart2 className="w-3.5 h-3.5 text-blue-600" />
                               <span>Stock View</span>
+                            </button>
+
+                            {/* Edit Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleEditPurchase(p)}
+                              className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-200 cursor-pointer"
+                              title="Edit Purchase Record"
+                            >
+                              <Edit3 size={15} />
                             </button>
 
                             {/* Delete Button */}
@@ -752,11 +785,14 @@ export default function MaterialPurchasePage() {
         </div>
       )}
 
-      {/* Modal: Add Material Purchase */}
+      {/* Modal: Add/Edit Material Purchase */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="+ Add Material Purchase"
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingPurchaseId(null);
+        }}
+        title={editingPurchaseId ? "Edit Material Purchase" : "+ Add Material Purchase"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Central Inventory Banner */}

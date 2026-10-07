@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch, getStoredPinToken, getApiUrl } from "../lib/api";
-import { Receipt, Search, Filter, Download } from "lucide-react";
+import { Receipt, Search, Filter, Download, Pencil, Trash2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
-import { useLiveSync } from "../hooks/useLiveSync";
+import { useLiveSync, triggerSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
 
 interface GlobalRecord {
@@ -19,7 +19,7 @@ interface GlobalRecord {
 }
 
 export default function GlobalRecordsPage() {
-  const { showToast } = useToast();
+  const { showToast, confirmAction } = useToast();
   const [searchParams] = useSearchParams();
   const [records, setRecords] = useState<GlobalRecord[]>(() => {
     try {
@@ -39,6 +39,18 @@ export default function GlobalRecordsPage() {
   });
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
   const navigate = useNavigate();
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<GlobalRecord | null>(null);
+  const [editForm, setEditForm] = useState({
+    amount: "",
+    date: "",
+    partyName: "",
+    category: "",
+    description: "",
+    type: "EXPENSE" as 'INCOME' | 'EXPENSE'
+  });
 
   useEffect(() => {
     const urlSearch = searchParams.get("search");
@@ -124,6 +136,74 @@ export default function GlobalRecordsPage() {
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+  };
+
+  const handleOpenEdit = (record: GlobalRecord, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingRecord(record);
+    setEditForm({
+      amount: String(record.amount || ""),
+      date: record.date || new Date().toISOString().split("T")[0],
+      partyName: record.partyName || "",
+      category: record.category || "",
+      description: record.description || "",
+      type: record.type || "EXPENSE"
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRecord) return;
+    const amt = parseFloat(editForm.amount);
+    if (isNaN(amt) || amt <= 0) {
+      showToast("Please enter a valid positive amount", "error");
+      return;
+    }
+
+    try {
+      await apiFetch(`/records/${editingRecord.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          locationId: editingRecord.locationId,
+          type: editForm.type,
+          amount: amt,
+          date: editForm.date,
+          partyName: editForm.partyName.trim() || undefined,
+          category: editForm.category.trim() || undefined,
+          description: editForm.description.trim() || undefined
+        })
+      });
+
+      showToast("Record updated successfully", "success");
+      setIsEditModalOpen(false);
+      setEditingRecord(null);
+      triggerSync("records");
+      fetchRecords(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to update record", "error");
+    }
+  };
+
+  const handleDeleteRecord = async (record: GlobalRecord, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const confirmed = await confirmAction({
+      title: "Delete Record",
+      message: `Are you sure you want to delete this ${record.type.toLowerCase()} record of ₹${parseFloat(record.amount).toLocaleString('en-IN')} for ${record.partyName}?`,
+      confirmLabel: "Delete",
+      isDanger: true
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/records/${record.id}`, { method: "DELETE" });
+      showToast("Record deleted successfully", "success");
+      triggerSync("records");
+      fetchRecords(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete record", "error");
+    }
   };
 
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');

@@ -5,7 +5,7 @@ import {
   Landmark, Plus, Trash2, Search, ArrowRight,
   CheckCircle2, AlertCircle, RefreshCw,
   TrendingUp, Download, Eye, ExternalLink,
-  FileSpreadsheet, User, ArrowUpRight, ArrowDownLeft
+  FileSpreadsheet, User, ArrowUpRight, ArrowDownLeft, Pencil
 } from "lucide-react";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
@@ -68,8 +68,9 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
   const [notebookFilter, setNotebookFilter] = useState<"ALL" | "ADDED" | "REMOVED">("ALL");
   const [notebookSearch, setNotebookSearch] = useState("");
 
-  // Add Modal State
+  // Add/Edit Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingAllocationId, setEditingAllocationId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     investorId: "",
@@ -293,7 +294,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     });
   }, [allocations, searchQuery, selectedInvestorFilter]);
 
-  // Handle Form Submission (Add Investor Capital from Admin Capital)
+  // Handle Form Submission (Add/Edit Investor Capital from Admin Capital)
   const handleAddAllocation = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(formData.amount);
@@ -308,35 +309,52 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       return;
     }
 
-    if (adminSummary && amt > Number(adminSummary.availableAdminCapital || 0)) {
-      showToast(`Amount exceeds Total Available Admin Capital (₹${Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN")})`, "error");
-      return;
-    }
+    if (!editingAllocationId) {
+      if (adminSummary && amt > Number(adminSummary.availableAdminCapital || 0)) {
+        showToast(`Amount exceeds Total Available Admin Capital (₹${Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN")})`, "error");
+        return;
+      }
 
-    if (selectedInvestorObj && amt > Number(selectedInvestorObj.availableCapital || 0)) {
-      showToast(`Selected investor has only ₹${Number(selectedInvestorObj.availableCapital || 0).toLocaleString("en-IN")} available in Admin Capital`, "error");
-      return;
+      if (selectedInvestorObj && amt > Number(selectedInvestorObj.availableCapital || 0)) {
+        showToast(`Selected investor has only ₹${Number(selectedInvestorObj.availableCapital || 0).toLocaleString("en-IN")} available in Admin Capital`, "error");
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
-      await apiFetch("/investments/location-allocations", {
-        method: "POST",
-        body: JSON.stringify({
-          investorId: parseInt(formData.investorId, 10),
-          locationId,
-          amount: amt.toString(),
-          date: formData.date,
-          paymentMethod: formData.paymentMethod,
-          referenceNumber: formData.referenceNumber || null,
-          notes: formData.notes || null
-        })
-      });
+      if (editingAllocationId) {
+        await apiFetch(`/investments/location-allocations/${editingAllocationId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            amount: amt.toString(),
+            date: formData.date,
+            paymentMethod: formData.paymentMethod,
+            referenceNumber: formData.referenceNumber || null,
+            notes: formData.notes || null
+          })
+        });
+        showToast(`Allocation updated successfully!`, "success");
+      } else {
+        await apiFetch("/investments/location-allocations", {
+          method: "POST",
+          body: JSON.stringify({
+            investorId: parseInt(formData.investorId, 10),
+            locationId,
+            amount: amt.toString(),
+            date: formData.date,
+            paymentMethod: formData.paymentMethod,
+            referenceNumber: formData.referenceNumber || null,
+            notes: formData.notes || null
+          })
+        });
+        showToast(`₹${amt.toLocaleString("en-IN")} Investor Capital successfully allocated from Admin Capital!`, "success");
+      }
 
       triggerSync("investments");
       triggerSync("reports");
-      showToast(`₹${amt.toLocaleString("en-IN")} Investor Capital successfully allocated from Admin Capital!`, "success");
       setIsAddModalOpen(false);
+      setEditingAllocationId(null);
       setFormData({
         investorId: "",
         amount: "",
@@ -348,10 +366,24 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       loadData(true);
     } catch (err: any) {
       console.error("Allocation failed", err);
-      showToast(err.message || "Failed to allocate investor capital", "error");
+      showToast(err.message || "Failed to save investor capital allocation", "error");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Handle Edit Allocation
+  const handleEditAllocation = (item: any) => {
+    setEditingAllocationId(item.id || item.rawId);
+    setFormData({
+      investorId: String(item.investorId || (allocations.find(a => a.id === (item.id || item.rawId))?.investorId || "")),
+      amount: String(item.amount || item.jama || ""),
+      date: item.date || new Date().toISOString().split("T")[0],
+      paymentMethod: item.paymentMethod || "Bank Transfer",
+      referenceNumber: item.referenceNumber && item.referenceNumber !== "—" && item.referenceNumber !== "-" ? item.referenceNumber : "",
+      notes: item.notes && item.notes !== "—" ? item.notes : ""
+    });
+    setIsAddModalOpen(true);
   };
 
   // Handle Delete Allocation
@@ -785,25 +817,37 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                           ₹{entry.runningBalance.toLocaleString("en-IN")}
                         </td>
                         <td className="p-3.5 text-center">
-                          {entry.kind === 'ALLOCATION' ? (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAllocation({ id: entry.rawId, investorName: entry.investorName, amount: entry.amount } as any)}
-                              className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                              title="Delete Allocation and return to Admin Capital"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteTx(entry.rawId)}
-                              className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                              title="Revert deployment back to Investor Capital"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                          <div className="flex items-center justify-center gap-1">
+                            {entry.kind === 'ALLOCATION' && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditAllocation(entry)}
+                                className="p-1 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded transition-colors cursor-pointer"
+                                title="Edit Allocation"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {entry.kind === 'ALLOCATION' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAllocation({ id: entry.rawId, investorName: entry.investorName, amount: entry.amount } as any)}
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Delete Allocation and return to Admin Capital"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTx(entry.rawId)}
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Revert deployment back to Investor Capital"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -973,14 +1017,24 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                       {item.notes || "—"}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteAllocation(item)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Delete this allocation and return funds to Admin Capital"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEditAllocation(item)}
+                          className="p-1.5 text-slate-400 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                          title="Edit this allocation"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAllocation(item)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Delete this allocation and return funds to Admin Capital"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -991,11 +1045,14 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       </div>
       )}
 
-      {/* MODAL: Add Investor Capital from Admin Capital */}
+      {/* MODAL: Add/Edit Investor Capital from Admin Capital */}
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Add Investor Capital from Admin Capital"
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setEditingAllocationId(null);
+        }}
+        title={editingAllocationId ? "Edit Investor Capital Allocation" : "Add Investor Capital from Admin Capital"}
       >
         <form onSubmit={handleAddAllocation} className="space-y-4">
           {/* Header Info Box */}

@@ -746,6 +746,61 @@ investmentRouter.delete('/location-allocations/:id', async (req: AuthRequest, re
 });
 
 /**
+ * PUT /api/investments/location-allocations/:id
+ * Edit an existing capital allocation to location
+ */
+investmentRouter.put('/location-allocations/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const id = parseInt(String(req.params.id), 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Valid ID required' });
+
+    const { amount, date, paymentMethod, referenceNumber, notes } = req.body;
+    const newAmount = parseFloat(String(amount));
+    if (isNaN(newAmount) || newAmount <= 0) {
+      return res.status(400).json({ error: 'Valid positive amount is required' });
+    }
+
+    const updated = await db.transaction(async (tx) => {
+      const existing = await tx.select().from(investorLocationAllocations)
+        .where(and(eq(investorLocationAllocations.id, id), eq(investorLocationAllocations.isDeleted, 0)))
+        .limit(1);
+      if (!existing.length) throw new Error('Allocation record not found');
+
+      const alloc = existing[0];
+      if (alloc.locationId && alloc.locationId > 0) {
+        await assertLocationAccess(userId, alloc.locationId);
+      }
+
+      const [resRec] = await tx.update(investorLocationAllocations).set({
+        amount: String(newAmount),
+        date: date || alloc.date,
+        paymentMethod: paymentMethod || alloc.paymentMethod,
+        referenceNumber: referenceNumber !== undefined ? referenceNumber : alloc.referenceNumber,
+        notes: notes !== undefined ? notes : alloc.notes
+      }).where(eq(investorLocationAllocations.id, id)).returning();
+
+      await tx.insert(auditLogs).values({
+        userId,
+        action: 'UPDATE_LOCATION_ALLOCATION',
+        entityType: 'INVESTMENT',
+        entityId: id,
+        metadata: JSON.stringify({ allocationId: id, oldAmount: alloc.amount, newAmount })
+      });
+
+      return resRec;
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    console.error('[Location Allocation PUT Error]', error);
+    res.status(400).json({ error: error?.message || 'Failed to update allocation' });
+  }
+});
+
+/**
  * POST /api/investments/transfer-to-investment-capital
  * Transfers capital from Location Investor Capital to Location Investment Capital (Tier 2 -> Tier 3)
  * Workflow:
@@ -1634,6 +1689,58 @@ investmentRouter.post('/refundable-records', async (req: AuthRequest, res: Respo
   }
 });
 
+investmentRouter.put('/refundable-records/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
+
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+
+    const { partyName, amount, depositType, date, paymentMethod, referenceNumber, notes } = req.body;
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt <= 0) {
+      return res.status(400).json({ error: 'A valid amount is required' });
+    }
+
+    const existing = await db.select().from(records).where(eq(records.id, id)).limit(1);
+    if (!existing.length) {
+      return res.status(404).json({ error: 'Refundable record not found' });
+    }
+
+    await assertLocationAccess(userId, existing[0].locationId);
+
+    const updated = await db.update(records)
+      .set({
+        partyName: partyName?.trim() || existing[0].partyName,
+        amount: amt.toFixed(2),
+        refundableAmount: amt.toFixed(2),
+        date: date || existing[0].date,
+        paymentMethod: paymentMethod || existing[0].paymentMethod,
+        referenceNumber: referenceNumber !== undefined ? referenceNumber : existing[0].referenceNumber,
+        notes: notes !== undefined ? notes : existing[0].notes,
+        description: depositType ? `Security Deposit: ${depositType}` : existing[0].description,
+        updatedAt: new Date()
+      })
+      .where(eq(records.id, id))
+      .returning();
+
+    await db.insert(auditLogs).values({
+      userId,
+      action: 'UPDATE_REFUNDABLE_RECORD',
+      entityType: 'INVESTMENT',
+      entityId: id,
+      metadata: JSON.stringify({ oldAmount: existing[0].amount, newAmount: amt, partyName })
+    });
+
+    res.json(updated[0]);
+  } catch (error: any) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Failed to update refundable record:', error);
+    res.status(500).json({ error: 'Failed to update refundable record' });
+  }
+});
+
 investmentRouter.put('/refundable-records/:id/refund', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.dbUser?.id;
@@ -1854,11 +1961,11 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
 
     // 6. Category 6: Labour Salaries, Team Upad & Other Kharch
     const labourData = await db.select({
-      netSalary: sql<string>`sum(${labourSalaries.netSalary})`,
-      upad: sql<string>`sum(${labourSalaries.upad})`,
-      paid: sql<string>`sum(${labourSalaries.paymentAmount})`,
-      grossSalary: sql<string>`sum(${labourSalaries.grossSalary})`,
-      balance: sql<string>`sum(${labourSalaries.balance})`,
+      netSalary: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) not like '%UPAD%' then coalesce(${labourSalaries.netSalary}, ${labourSalaries.grossSalary}, 0) else 0 end)`,
+      upad: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) like '%UPAD%' then greatest(coalesce(${labourSalaries.upad}, 0), coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0)) else coalesce(${labourSalaries.upad}, 0) end)`,
+      paid: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) like '%UPAD%' then greatest(coalesce(${labourSalaries.upad}, 0), coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0)) else coalesce(${labourSalaries.paymentAmount}, 0) end)`,
+      grossSalary: sql<string>`sum(coalesce(${labourSalaries.grossSalary}, 0))`,
+      balance: sql<string>`sum(coalesce(${labourSalaries.balance}, 0))`,
       count: sql<number>`count(*)`
     })
     .from(labourSalaries)
@@ -1981,12 +2088,14 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
           else concat('Day Attendance (Days: ', coalesce(${labourSalaries.days}, '0'), ')')
         end`,
         amount: sql<string>`case
-          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then ${labourSalaries.upad}
-          else ${labourSalaries.netSalary}
+          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then greatest(coalesce(${labourSalaries.upad}, 0), coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0))
+          when upper(${labourSalaries.attendanceType}) like '%KHARCH%' or upper(${labourSalaries.attendanceType}) like '%EXPENSE%' then greatest(coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0), coalesce(${labourSalaries.netSalary}, 0))
+          else greatest(coalesce(${labourSalaries.netSalary}, 0), coalesce(${labourSalaries.grossSalary}, 0))
         end`,
         paidAmount: sql<string>`case
-          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then ${labourSalaries.upad}
-          else ${labourSalaries.paymentAmount}
+          when upper(${labourSalaries.attendanceType}) like '%UPAD%' then greatest(coalesce(${labourSalaries.upad}, 0), coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0))
+          when upper(${labourSalaries.attendanceType}) like '%KHARCH%' or upper(${labourSalaries.attendanceType}) like '%EXPENSE%' then greatest(coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0), coalesce(${labourSalaries.netSalary}, 0))
+          else coalesce(${labourSalaries.paymentAmount}, 0)
         end`,
         referenceNumber: sql<string>`coalesce(${labourSalaries.referenceNumber}, ${labourSalaries.tcNumber}, '')`,
         paymentStatus: sql<string>`case 

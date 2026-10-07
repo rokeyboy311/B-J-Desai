@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   ShieldCheck, Plus, ArrowRight, Building2, Wallet,
-  Search, ArrowDownLeft, ArrowUpRight, Trash2, Edit2,
+  Search, ArrowDownLeft, ArrowUpRight, Trash2, Edit2, Pencil,
   BookOpen, User, FileSpreadsheet, ChevronDown, ChevronUp,
   MapPin, DollarSign, ArrowLeftRight
 } from "lucide-react";
@@ -43,6 +43,8 @@ export default function AdminPage() {
   const [isAddInvestorOpen, setIsAddInvestorOpen] = useState(false);
   const [isEditInvestorOpen, setIsEditInvestorOpen] = useState(false);
   const [editingInvestorId, setEditingInvestorId] = useState<number | null>(null);
+  const [editingTxId, setEditingTxId] = useState<number | null>(null);
+  const [editingAllocId, setEditingAllocId] = useState<number | null>(null);
   const [isAllocationOpen, setIsAllocationOpen] = useState(false);
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
@@ -186,8 +188,11 @@ export default function AdminPage() {
     }
 
     try {
-      await apiFetch("/investments/global-transactions", {
-        method: "POST",
+      const url = editingTxId ? `/investments/global-transactions/${editingTxId}` : "/investments/global-transactions";
+      const method = editingTxId ? "PUT" : "POST";
+
+      await apiFetch(url, {
+        method,
         body: JSON.stringify({
           investorId: parseInt(depositForm.investorId, 10),
           type: "CONTRIBUTION",
@@ -199,8 +204,9 @@ export default function AdminPage() {
         })
       });
 
-      showToast(`₹${amount.toLocaleString("en-IN")} deposited successfully`, "success");
+      showToast(editingTxId ? "Deposit updated successfully" : `₹${amount.toLocaleString("en-IN")} deposited successfully`, "success");
       setIsDepositOpen(false);
+      setEditingTxId(null);
       setDepositForm({
         investorId: "",
         amount: "",
@@ -226,8 +232,11 @@ export default function AdminPage() {
     }
 
     try {
-      await apiFetch("/investments/global-transactions", {
-        method: "POST",
+      const url = editingTxId ? `/investments/global-transactions/${editingTxId}` : "/investments/global-transactions";
+      const method = editingTxId ? "PUT" : "POST";
+
+      await apiFetch(url, {
+        method,
         body: JSON.stringify({
           investorId: parseInt(withdrawalForm.investorId, 10),
           type: "UPAD",
@@ -239,8 +248,9 @@ export default function AdminPage() {
         })
       });
 
-      showToast(`₹${amount.toLocaleString("en-IN")} withdrawal recorded successfully`, "success");
+      showToast(editingTxId ? "Withdrawal updated successfully" : `₹${amount.toLocaleString("en-IN")} withdrawal recorded successfully`, "success");
       setIsWithdrawalOpen(false);
+      setEditingTxId(null);
       setWithdrawalForm({
         investorId: "",
         amount: "",
@@ -270,8 +280,11 @@ export default function AdminPage() {
     }
 
     try {
-      await apiFetch("/investments/location-allocations", {
-        method: "POST",
+      const url = editingAllocId ? `/investments/location-allocations/${editingAllocId}` : "/investments/location-allocations";
+      const method = editingAllocId ? "PUT" : "POST";
+
+      await apiFetch(url, {
+        method,
         body: JSON.stringify({
           investorId: parseInt(allocationForm.investorId, 10),
           locationId: parseInt(allocationForm.locationId, 10),
@@ -283,8 +296,9 @@ export default function AdminPage() {
         })
       });
 
-      showToast(`₹${amount.toLocaleString("en-IN")} allocated to location successfully`, "success");
+      showToast(editingAllocId ? "Project allocation updated successfully" : `₹${amount.toLocaleString("en-IN")} allocated to location successfully`, "success");
       setIsAllocationOpen(false);
+      setEditingAllocId(null);
       setAllocationForm({
         investorId: "",
         locationId: "",
@@ -300,6 +314,58 @@ export default function AdminPage() {
       await loadData(true);
     } catch (err: any) {
       showToast(err.message || "Failed to allocate capital", "error");
+    }
+  };
+
+  const handleOpenEditDeposit = (entry: any) => {
+    setEditingTxId(entry.rawId);
+    setDepositForm({
+      investorId: entry.investorId ? String(entry.investorId) : (expandedInvestorId ? String(expandedInvestorId) : ""),
+      amount: String(entry.credit || entry.amount || ""),
+      date: entry.date || new Date().toISOString().split("T")[0],
+      paymentMethod: entry.paymentMethod || "Bank Transfer",
+      referenceNumber: entry.referenceNumber !== "-" ? (entry.referenceNumber || "") : "",
+      notes: entry.particulars || "Capital Deposit"
+    });
+    setIsDepositOpen(true);
+  };
+
+  const handleOpenEditWithdrawal = (entry: any) => {
+    setEditingTxId(entry.rawId);
+    setWithdrawalForm({
+      investorId: entry.investorId ? String(entry.investorId) : (expandedInvestorId ? String(expandedInvestorId) : ""),
+      amount: String(entry.debit || entry.amount || ""),
+      date: entry.date || new Date().toISOString().split("T")[0],
+      paymentMethod: entry.paymentMethod || "Bank Transfer",
+      referenceNumber: entry.referenceNumber !== "-" ? (entry.referenceNumber || "") : "",
+      notes: entry.particulars || "Capital Withdrawal"
+    });
+    setIsWithdrawalOpen(true);
+  };
+
+  const handleOpenEditAllocation = (entry: any) => {
+    setEditingAllocId(entry.rawId);
+    setAllocationForm({
+      investorId: entry.investorId ? String(entry.investorId) : (expandedInvestorId ? String(expandedInvestorId) : ""),
+      locationId: entry.locationId ? String(entry.locationId) : (locations[0]?.id ? String(locations[0].id) : ""),
+      amount: String(entry.debit || entry.amount || ""),
+      date: entry.date || new Date().toISOString().split("T")[0],
+      paymentMethod: entry.paymentMethod || "Bank Transfer",
+      referenceNumber: entry.referenceNumber !== "-" ? (entry.referenceNumber || "") : "",
+      notes: entry.particulars || entry.notes || ""
+    });
+    setIsAllocationOpen(true);
+  };
+
+  const handleOpenEditEntry = (entry: any) => {
+    if (entry.kind === "TRANSACTION") {
+      if (entry.type === "DEPOSIT" || entry.credit > 0) {
+        handleOpenEditDeposit(entry);
+      } else {
+        handleOpenEditWithdrawal(entry);
+      }
+    } else {
+      handleOpenEditAllocation(entry);
     }
   };
 
@@ -443,6 +509,8 @@ export default function AdminPage() {
         rawId: t.id,
         kind: "TRANSACTION",
         date: t.date,
+        investorId: inv.id,
+        investorName: inv.name,
         type: isContrib ? "DEPOSIT" : "WITHDRAWAL",
         typeLabel: isContrib ? "Deposit (+)" : "Withdrawal (-)",
         particulars: t.description || t.notes || (isContrib ? "Capital Deposit" : "Capital Withdrawal"),
@@ -469,6 +537,8 @@ export default function AdminPage() {
         rawId: a.id,
         kind: "ALLOCATION",
         date: a.date,
+        investorId: inv.id,
+        investorName: inv.name,
         locationId: a.locationId,
         locationName: locName,
         type: "ALLOCATION",
@@ -1203,25 +1273,35 @@ export default function AdminPage() {
                                             ₹{entry.runningBalance.toLocaleString("en-IN")}
                                           </td>
                                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                            {entry.kind === "TRANSACTION" ? (
+                                            <div className="flex items-center justify-center gap-1">
                                               <button
                                                 type="button"
-                                                onClick={() => handleDeleteTransaction(entry.rawId)}
-                                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                                title="Delete Transaction"
+                                                onClick={() => handleOpenEditEntry(entry)}
+                                                className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
+                                                title="Edit"
                                               >
-                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <Pencil className="w-3.5 h-3.5" />
                                               </button>
-                                            ) : (
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDeleteAllocation(entry.rawId)}
-                                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                                title="Delete Allocation"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
-                                            )}
+                                              {entry.kind === "TRANSACTION" ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteTransaction(entry.rawId)}
+                                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                                  title="Delete Transaction"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              ) : (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteAllocation(entry.rawId)}
+                                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                                  title="Delete Allocation"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              )}
+                                            </div>
                                           </td>
                                         </tr>
                                       );
@@ -1289,14 +1369,24 @@ export default function AdminPage() {
                                         <td className="py-2.5 px-3 font-mono text-slate-500">{d.referenceNumber}</td>
                                         <td className="py-2.5 px-3 text-slate-600">{d.particulars}</td>
                                         <td className="py-2.5 px-3 text-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteTransaction(d.rawId)}
-                                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-                                            title="Delete Deposit"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
+                                          <div className="flex items-center justify-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenEditDeposit(d)}
+                                              className="p-1 hover:bg-emerald-100 text-slate-400 hover:text-emerald-700 rounded cursor-pointer"
+                                              title="Edit Deposit"
+                                            >
+                                              <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteTransaction(d.rawId)}
+                                              className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                              title="Delete Deposit"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     ))
@@ -1344,14 +1434,24 @@ export default function AdminPage() {
                                         <td className="py-2.5 px-3 font-mono text-slate-500">{w.referenceNumber}</td>
                                         <td className="py-2.5 px-3 text-slate-600">{w.particulars}</td>
                                         <td className="py-2.5 px-3 text-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteTransaction(w.rawId)}
-                                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-                                            title="Delete Withdrawal"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
+                                          <div className="flex items-center justify-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenEditWithdrawal(w)}
+                                              className="p-1 hover:bg-amber-100 text-slate-400 hover:text-amber-700 rounded cursor-pointer"
+                                              title="Edit Withdrawal"
+                                            >
+                                              <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteTransaction(w.rawId)}
+                                              className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                              title="Delete Withdrawal"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     ))
@@ -1402,14 +1502,24 @@ export default function AdminPage() {
                                         <td className="py-2.5 px-3 text-slate-700">{a.paymentMethod}</td>
                                         <td className="py-2.5 px-3 text-slate-600">{a.particulars}</td>
                                         <td className="py-2.5 px-3 text-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteAllocation(a.rawId)}
-                                            className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-                                            title="Delete Allocation"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
+                                          <div className="flex items-center justify-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenEditAllocation(a)}
+                                              className="p-1 hover:bg-indigo-100 text-slate-400 hover:text-indigo-700 rounded cursor-pointer"
+                                              title="Edit Allocation"
+                                            >
+                                              <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteAllocation(a.rawId)}
+                                              className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                              title="Delete Allocation"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     ))
@@ -1577,25 +1687,35 @@ export default function AdminPage() {
                               ₹{entry.runningBalance.toLocaleString("en-IN")}
                             </td>
                             <td className="p-3.5 text-center">
-                              {entry.kind === "TRANSACTION" ? (
+                              <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteTransaction(entry.rawId)}
-                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                  title="Delete Transaction"
+                                  onClick={() => handleOpenEditEntry(entry)}
+                                  className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
+                                  title="Edit Entry"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Pencil className="w-3.5 h-3.5" />
                                 </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteAllocation(entry.rawId)}
-                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                  title="Delete Allocation"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                                {entry.kind === "TRANSACTION" ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteTransaction(entry.rawId)}
+                                    className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                    title="Delete Transaction"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAllocation(entry.rawId)}
+                                    className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                    title="Delete Allocation"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1813,11 +1933,14 @@ export default function AdminPage() {
           </form>
         </Modal>
 
-        {/* MODAL 3: ADD CAPITAL DEPOSIT */}
+        {/* MODAL 3: ADD/EDIT CAPITAL DEPOSIT */}
         <Modal
           isOpen={isDepositOpen}
-          onClose={() => setIsDepositOpen(false)}
-          title="Add Capital Deposit"
+          onClose={() => {
+            setIsDepositOpen(false);
+            setEditingTxId(null);
+          }}
+          title={editingTxId ? "Edit Capital Deposit" : "Add Capital Deposit"}
         >
           <form onSubmit={handleDepositCapital} className="space-y-4">
             <div>
@@ -1917,11 +2040,14 @@ export default function AdminPage() {
           </form>
         </Modal>
 
-        {/* MODAL 4: RECORD CAPITAL WITHDRAWAL */}
+        {/* MODAL 4: RECORD/EDIT CAPITAL WITHDRAWAL */}
         <Modal
           isOpen={isWithdrawalOpen}
-          onClose={() => setIsWithdrawalOpen(false)}
-          title="Record Capital Withdrawal"
+          onClose={() => {
+            setIsWithdrawalOpen(false);
+            setEditingTxId(null);
+          }}
+          title={editingTxId ? "Edit Capital Withdrawal" : "Record Capital Withdrawal"}
         >
           <form onSubmit={handleWithdrawal} className="space-y-4">
             <div>
@@ -2021,11 +2147,14 @@ export default function AdminPage() {
           </form>
         </Modal>
 
-        {/* MODAL 5: TRANSFER TO PROJECT LOCATION */}
+        {/* MODAL 5: TRANSFER/EDIT CAPITAL TO PROJECT LOCATION */}
         <Modal
           isOpen={isAllocationOpen}
-          onClose={() => setIsAllocationOpen(false)}
-          title="Transfer Capital to Location"
+          onClose={() => {
+            setIsAllocationOpen(false);
+            setEditingAllocId(null);
+          }}
+          title={editingAllocId ? "Edit Project Allocation" : "Transfer Capital to Location"}
         >
           <form onSubmit={handleAllocate} className="space-y-4">
             <div>

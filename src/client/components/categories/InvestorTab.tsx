@@ -84,6 +84,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
   });
 
   // Allocation Form State (Main Capital -> Location Central Capital)
+  const [editingAllocId, setEditingAllocId] = useState<number | null>(null);
   const [allocationForm, setAllocationForm] = useState({
     investorId: "",
     locationId: locationId ? String(locationId) : "",
@@ -274,22 +275,38 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
     }
 
     try {
-      await apiFetch("/investments/location-allocations", {
-        method: "POST",
-        body: JSON.stringify({
-          investorId: parseInt(allocationForm.investorId, 10),
-          locationId: parseInt(allocationForm.locationId, 10),
-          amount: amt,
-          date: allocationForm.date,
-          paymentMethod: allocationForm.paymentMethod,
-          referenceNumber: allocationForm.referenceNumber,
-          notes: allocationForm.notes
-        })
-      });
+      if (editingAllocId) {
+        await apiFetch(`/investments/location-allocations/${editingAllocId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            amount: amt,
+            date: allocationForm.date,
+            paymentMethod: allocationForm.paymentMethod,
+            referenceNumber: allocationForm.referenceNumber,
+            notes: allocationForm.notes
+          })
+        });
+        showToast("Allocation updated successfully!", "success");
+      } else {
+        await apiFetch("/investments/location-allocations", {
+          method: "POST",
+          body: JSON.stringify({
+            investorId: parseInt(allocationForm.investorId, 10),
+            locationId: parseInt(allocationForm.locationId, 10),
+            amount: amt,
+            date: allocationForm.date,
+            paymentMethod: allocationForm.paymentMethod,
+            referenceNumber: allocationForm.referenceNumber,
+            notes: allocationForm.notes
+          })
+        });
+        showToast("Capital successfully allocated from Main Investor Capital to location!", "success");
+      }
 
       triggerSync("location_allocations");
       triggerSync("global_investors");
       setIsAllocationModalOpen(false);
+      setEditingAllocId(null);
       setAllocationForm({
         investorId: "",
         locationId: locationId ? String(locationId) : (locations[0]?.id ? String(locations[0].id) : ""),
@@ -299,11 +316,24 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
         referenceNumber: "",
         notes: ""
       });
-      showToast("Capital successfully allocated from Main Investor Capital to location!", "success");
       loadData();
     } catch (err: any) {
-      showToast(err.message || "Failed to allocate capital.", "error");
+      showToast(err.message || "Failed to save allocation.", "error");
     }
+  };
+
+  const handleOpenEditAllocation = (alloc: any) => {
+    setEditingAllocId(alloc.id);
+    setAllocationForm({
+      investorId: String(alloc.investorId || ""),
+      locationId: String(alloc.locationId || ""),
+      amount: String(alloc.amount || ""),
+      date: alloc.date || new Date().toISOString().split("T")[0],
+      paymentMethod: alloc.paymentMethod || "Bank Transfer",
+      referenceNumber: alloc.referenceNumber && alloc.referenceNumber !== "-" ? alloc.referenceNumber : "",
+      notes: alloc.notes && alloc.notes !== "-" ? alloc.notes : ""
+    });
+    setIsAllocationModalOpen(true);
   };
 
   const handleDeleteAllocation = async (id: number) => {
@@ -1268,6 +1298,13 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                         </td>
                         <td className="p-3.5 text-center">
                           <button
+                            onClick={() => handleOpenEditAllocation(alloc)}
+                            className="text-slate-400 hover:text-indigo-600 p-1 mr-1 cursor-pointer"
+                            title="Edit allocation"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => handleDeleteAllocation(alloc.id)}
                             className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
                             title="Delete allocation (Return funds to Main Pool)"
@@ -2005,7 +2042,10 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
       {/* MODAL 5: Transfer / Allocate Capital to Location */}
       <Modal
         isOpen={isAllocationModalOpen}
-        onClose={() => setIsAllocationModalOpen(false)}
+        onClose={() => {
+          setIsAllocationModalOpen(false);
+          setEditingAllocId(null);
+        }}
         maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
@@ -2013,7 +2053,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <span className="font-black text-slate-900 text-base">Transfer Capital to Location</span>
+              <span className="font-black text-slate-900 text-base">{editingAllocId ? "Edit Capital Transfer" : "Transfer Capital to Location"}</span>
               <p className="text-xs text-slate-500 font-normal">Deducts from Main Investor Pool and credits to Location Central Capital</p>
             </div>
           </div>
@@ -2137,7 +2177,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             type="submit"
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition-colors text-sm shadow-md cursor-pointer"
           >
-            Transfer Capital to Location
+            {editingAllocId ? "Update Capital Transfer" : "Transfer Capital to Location"}
           </button>
         </form>
       </Modal>
