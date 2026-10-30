@@ -94,6 +94,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     rate: "",
     transportCost: "0",
     discount: "0",
+    tdsPercentage: "0",
     taxPercentage: "18",
     paymentMethod: "Bank Transfer",
     referenceNumber: "",
@@ -220,6 +221,20 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       const sub = Number(b.subtotal || (Number(b.quantity || 0) * Number(b.rate || 0)));
       const pct = Number(b.taxPercentage || 0);
       return sum + (sub * pct / 100);
+    }, 0);
+  }, [billIncomes]);
+
+  const totalBillTds = useMemo(() => {
+    const list = Array.isArray(billIncomes) ? billIncomes : [];
+    return list.reduce((sum, b) => {
+      const tds = Number(b.tdsAmount);
+      if (!isNaN(tds) && tds > 0) return sum + tds;
+      const sub = Number(b.subtotal || (Number(b.quantity || 0) * Number(b.rate || 0)));
+      const taxPct = Number(b.taxPercentage || 0);
+      const taxAmt = Number(b.taxAmount) || (sub * taxPct / 100);
+      const tdsBase = Math.max(0, sub - taxAmt);
+      const tdsPct = Number(b.tdsPercentage || 0);
+      return sum + (tdsBase * tdsPct / 100);
     }, 0);
   }, [billIncomes]);
 
@@ -585,26 +600,36 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     }
   };
 
-  // Live Bill Calculation Breakdown
+  // Live Bill Calculation Breakdown:
+  // Bill Subtotal - GST = Base Amount of TDS - TDS (+ Transport Fee separately)
   const billCalc = useMemo(() => {
     const rate = parseFloat(billData.rate) || 0;
     const subtotal = rate;
     const transport = parseFloat(billData.transportCost) || 0;
-    const discount = parseFloat(billData.discount) || 0;
     const taxPct = parseFloat(billData.taxPercentage) || 0;
+    const tdsPct = parseFloat(billData.tdsPercentage) || 0;
 
-    // Transport fee is NOT included in GST; GST applies strictly to taxable amount (subtotal - discount)
-    const baseAmount = Math.max(0, subtotal - discount);
-    const taxAmount = (baseAmount * taxPct) / 100;
-    // GST is deducted (minus) from base amount; Transport is counted/added separately to the total
-    const netTotal = Math.max(0, baseAmount - taxAmount) + transport;
+    // 1. GST is calculated on Bill Subtotal and deducted (-)
+    const taxAmount = (subtotal * taxPct) / 100;
+    // 2. Bill Subtotal - GST = Base Amount of TDS
+    const tdsBaseAmount = Math.max(0, subtotal - taxAmount);
+    // 3. TDS is calculated on Base Amount of TDS and deducted (-)
+    const tdsAmount = (tdsBaseAmount * tdsPct) / 100;
+    const afterTdsAmount = Math.max(0, tdsBaseAmount - tdsAmount);
+    // 4. Transport is added separately to the final total
+    const netTotal = afterTdsAmount + transport;
 
     return {
       subtotal,
       transport,
-      discount,
-      baseAmount,
+      taxPct,
       taxAmount,
+      tdsPct,
+      tdsBaseAmount,
+      tdsAmount,
+      afterTdsAmount,
+      discount: tdsAmount,
+      baseAmount: tdsBaseAmount,
       netTotal,
     };
   }, [billData]);
@@ -742,7 +767,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         rate: parseFloat(billData.rate) || 0,
         subtotal: billCalc.subtotal,
         transportCost: billCalc.transport,
-        discount: billCalc.discount,
+        discount: billCalc.tdsAmount,
+        tdsPercentage: parseFloat(billData.tdsPercentage) || 0,
+        tdsAmount: billCalc.tdsAmount,
         taxPercentage: parseFloat(billData.taxPercentage) || 0,
         taxAmount: billCalc.taxAmount,
         totalAmount: billCalc.netTotal,
@@ -790,6 +817,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       rate: "",
       transportCost: "0",
       discount: "0",
+      tdsPercentage: "0",
       taxPercentage: "18",
       paymentMethod: "Bank Transfer",
       referenceNumber: "",
@@ -811,6 +839,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       rate: String(bill.rate || bill.subtotal || bill.amount || ""),
       transportCost: String(bill.transportCost || "0"),
       discount: String(bill.discount || "0"),
+      tdsPercentage: String(bill.tdsPercentage !== undefined ? bill.tdsPercentage : "0"),
       taxPercentage: String(bill.taxPercentage || "0"),
       paymentMethod: bill.paymentMethod || "Bank Transfer",
       referenceNumber: bill.referenceNumber || "",
@@ -2619,14 +2648,20 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     <th className="p-3.5">Bill Details / Notes</th>
                     <th className="p-3.5">Status</th>
                     <th className="p-3.5 text-right">Subtotal</th>
-                    <th className="p-3.5 text-right">Transport / Disc</th>
-                    <th className="p-3.5 text-right">GST</th>
+                    <th className="p-3.5 text-right">GST (-)</th>
+                    <th className="p-3.5 text-right">TDS (-) / Transport (+)</th>
                     <th className="p-3.5 text-right font-bold text-blue-700">Net Total (₹)</th>
                     <th className="p-3.5 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {billIncomes.map(bill => (
+                  {billIncomes.map(bill => {
+                    const sub = Number(bill.subtotal || (Number(bill.quantity || 0) * Number(bill.rate || 0)));
+                    const taxAmt = Number(bill.taxAmount || 0);
+                    const tdsBase = Number(bill.tdsBaseAmount !== undefined ? bill.tdsBaseAmount : Math.max(0, sub - taxAmt));
+                    const tdsPct = Number(bill.tdsPercentage || 0);
+                    const tdsAmt = Number(bill.tdsAmount !== undefined ? bill.tdsAmount : (tdsBase * tdsPct / 100));
+                    return (
                     <tr key={bill.id} className="hover:bg-slate-50">
                       <td className="p-3.5 text-slate-600 font-medium">{bill.date}</td>
                       <td className="p-3.5 font-bold text-slate-900">{bill.partyName || "-"}</td>
@@ -2643,12 +2678,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                           {bill.paymentStatus || 'PAID'}
                         </span>
                       </td>
-                      <td className="p-3.5 text-right text-slate-700 font-medium">₹{Number(bill.subtotal || (Number(bill.quantity || 0) * Number(bill.rate || 0))).toLocaleString()}</td>
-                      <td className="p-3.5 text-right text-slate-500 text-[11px]">
-                        +{Number(bill.transportCost || 0)} / -{Number(bill.discount || 0)}
-                      </td>
+                      <td className="p-3.5 text-right text-slate-700 font-medium">₹{sub.toLocaleString()}</td>
                       <td className="p-3.5 text-right text-rose-600 font-semibold text-[11px]">
-                        -{bill.taxPercentage}% (-₹{Number(bill.taxAmount || 0).toLocaleString()})
+                        -{bill.taxPercentage || 0}% (-₹{taxAmt.toLocaleString()})
+                      </td>
+                      <td className="p-3.5 text-right text-slate-600 text-[11px]">
+                        <span className="text-rose-600 font-semibold">-{tdsPct}% (-₹{tdsAmt.toLocaleString()})</span>
+                        {Number(bill.transportCost || 0) > 0 && (
+                          <span className="text-emerald-700 ml-1">/ +₹{Number(bill.transportCost || 0).toLocaleString()}</span>
+                        )}
                       </td>
                       <td className="p-3.5 text-right font-black text-blue-700 text-sm">
                         ₹{Number(bill.totalAmount || bill.amount).toLocaleString()}
@@ -2662,7 +2700,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                   {billIncomes.length === 0 && (
                     <tr><td colSpan={9} className="p-8 text-center text-slate-500">No bill investments recorded yet.</td></tr>
                   )}
@@ -2672,9 +2711,12 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             {billIncomes.length > 0 && (
               <div className="p-4 bg-blue-50/50 border-t border-blue-100 flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-xs">
                 <span className="font-bold text-blue-900">Total Bill Investments ({billIncomes.length} records):</span>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="text-slate-700 font-bold bg-blue-100/80 px-2.5 py-1 rounded-md border border-blue-200">
-                    Total GST: <strong className="text-blue-900 font-black">₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</strong>
+                    Total GST (-): <strong className="text-rose-700 font-black">₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</strong>
+                  </span>
+                  <span className="text-slate-700 font-bold bg-blue-100/80 px-2.5 py-1 rounded-md border border-blue-200">
+                    Total TDS (-): <strong className="text-rose-700 font-black">₹{totalBillTds.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</strong>
                   </span>
                   <span className="text-base font-black text-blue-800">Total Amount: ₹{totalBillInvestments.toLocaleString()}</span>
                 </div>
@@ -3423,7 +3465,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             />
           </div>
 
-          {/* 4. Transport, Discount & GST */}
+          {/* 4. Transport, GST & TDS */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">5. Transport Fee (₹) (+)</label>
@@ -3435,21 +3477,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 placeholder="0.00"
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
               />
-              <span className="text-[10px] text-slate-500">Excluded from GST (added separately)</span>
+              <span className="text-[10px] text-slate-500">Added separately to total</span>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">6. Discount (₹) (-)</label>
-              <input
-                type="number"
-                step="any"
-                value={billData.discount}
-                onChange={e => setBillData({ ...billData, discount: e.target.value })}
-                placeholder="0.00"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">7. Tax / GST (%) (-)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">6. Tax / GST (%) (-)</label>
               <select
                 value={billData.taxPercentage}
                 onChange={e => setBillData({ ...billData, taxPercentage: e.target.value })}
@@ -3459,6 +3490,24 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   <option key={g} value={g}>{g}% GST</option>
                 ))}
               </select>
+              <span className="text-[10px] text-slate-500">Deducted from Bill Subtotal</span>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">7. TDS (%) (-)</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  max="100"
+                  value={billData.tdsPercentage}
+                  onChange={e => setBillData({ ...billData, tdsPercentage: e.target.value })}
+                  placeholder="0"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 pr-8 text-sm font-semibold"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+              </div>
+              <span className="text-[10px] text-slate-500">Applied on (Subtotal - GST)</span>
             </div>
           </div>
 
@@ -3468,23 +3517,25 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <span>Bill Subtotal:</span>
               <span>₹{billCalc.subtotal.toFixed(2)}</span>
             </div>
-            {billCalc.discount > 0 && (
-              <div className="flex justify-between text-emerald-400">
-                <span>Discount (-):</span>
-                <span>-₹{billCalc.discount.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-slate-300">
-              <span>Taxable Base Amount (for GST):</span>
-              <span>₹{billCalc.baseAmount.toFixed(2)}</span>
+            <div className="flex justify-between text-rose-400">
+              <span>GST ({billData.taxPercentage || 0}% on Bill Subtotal) (-):</span>
+              <span>-₹{billCalc.taxAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-slate-200 font-semibold border-t border-slate-800 pt-1">
+              <span>Base Amount of TDS (Bill Subtotal - GST):</span>
+              <span>₹{billCalc.tdsBaseAmount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-rose-400">
-              <span>GST ({billData.taxPercentage}% on base amount) (-):</span>
-              <span>-₹{billCalc.taxAmount.toFixed(2)}</span>
+              <span>TDS ({billData.tdsPercentage || 0}% on Base Amount of TDS) (-):</span>
+              <span>-₹{billCalc.tdsAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-slate-300 border-t border-slate-800 pt-1">
+              <span>Amount After TDS (Base Amount of TDS - TDS):</span>
+              <span>₹{billCalc.afterTdsAmount.toFixed(2)}</span>
             </div>
             {billCalc.transport > 0 && (
               <div className="flex justify-between text-amber-300">
-                <span>Transport Fee (Added separately, No GST):</span>
+                <span>Transport Fee (Added separately) (+):</span>
                 <span>+₹{billCalc.transport.toFixed(2)}</span>
               </div>
             )}

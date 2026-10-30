@@ -21,6 +21,8 @@ const incomeBillSchema = z.object({
   subtotal: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
   transportCost: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
   discount: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
+  tdsPercentage: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
+  tdsAmount: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
   taxPercentage: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
   taxAmount: z.union([z.number(), z.string()]).transform(Number).optional().default(0),
   totalAmount: z.union([z.number(), z.string()]).transform(Number),
@@ -45,12 +47,18 @@ function parseRecordToBill(r: any) {
   const rate = extra.rate !== undefined ? Number(extra.rate) : Number(r.amount);
   const subtotal = extra.subtotal !== undefined ? Number(extra.subtotal) : Math.round(quantity * rate * 100) / 100;
   const transportCost = extra.transportCost !== undefined ? Number(extra.transportCost) : 0;
-  const discount = extra.discount !== undefined ? Number(extra.discount) : 0;
   const taxPercentage = extra.taxPercentage !== undefined ? Number(extra.taxPercentage) : 0;
-  const taxableAmount = Math.max(0, subtotal - discount);
-  const taxAmount = extra.taxAmount !== undefined ? Number(extra.taxAmount) : Math.round(taxableAmount * (taxPercentage / 100) * 100) / 100;
+  const taxAmount = Math.round(subtotal * (taxPercentage / 100) * 100) / 100;
+  // Bill Subtotal - GST = Base Amount of TDS
+  const tdsBaseAmount = Math.max(0, Math.round((subtotal - taxAmount) * 100) / 100);
+  const tdsPercentage = extra.tdsPercentage !== undefined ? Number(extra.tdsPercentage) : 0;
+  const tdsAmount = extra.tdsPercentage !== undefined
+    ? Math.round(tdsBaseAmount * (tdsPercentage / 100) * 100) / 100
+    : (extra.tdsAmount !== undefined ? Number(extra.tdsAmount) : 0);
+  const discount = tdsAmount;
+  const afterTdsAmount = Math.max(0, Math.round((tdsBaseAmount - tdsAmount) * 100) / 100);
   const calculatedTotal = subtotal > 0
-    ? Math.round((Math.max(0, taxableAmount - taxAmount) + transportCost) * 100) / 100
+    ? Math.round((afterTdsAmount + transportCost) * 100) / 100
     : Number(r.amount);
 
   return {
@@ -65,6 +73,9 @@ function parseRecordToBill(r: any) {
     subtotal,
     transportCost,
     discount,
+    tdsPercentage,
+    tdsBaseAmount,
+    tdsAmount,
     taxPercentage,
     taxAmount,
     totalAmount: calculatedTotal,
@@ -109,6 +120,8 @@ incomeRouter.get('/', async (req: AuthRequest, res: Response) => {
           try { extra = r.notes ? JSON.parse(r.notes) : {}; } catch {}
           extra.totalAmount = parsed.totalAmount;
           extra.taxAmount = parsed.taxAmount;
+          extra.tdsBaseAmount = parsed.tdsBaseAmount;
+          extra.tdsAmount = parsed.tdsAmount;
           await db.update(records).set({
             amount: parsed.totalAmount.toString(),
             notes: JSON.stringify(extra),
@@ -133,11 +146,15 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
     const data = incomeBillSchema.parse(req.body);
     await assertLocationAccess(userId, data.locationId);
 
-    // Ensure transport cost is strictly kept separate from taxable base amount & GST is deducted (-) from base amount
+    // Formula: Bill Subtotal - GST = Base Amount of TDS - TDS (+ Transport Fee separately)
     const subtotal = Math.round(data.quantity * data.rate * 100) / 100;
-    const taxableAmount = Math.max(0, subtotal - (data.discount || 0));
-    const taxAmount = Math.round(taxableAmount * ((data.taxPercentage || 0) / 100) * 100) / 100;
-    const totalAmount = Math.round((Math.max(0, taxableAmount - taxAmount) + (data.transportCost || 0)) * 100) / 100;
+    const taxPercentage = data.taxPercentage || 0;
+    const taxAmount = Math.round(subtotal * (taxPercentage / 100) * 100) / 100;
+    const tdsBaseAmount = Math.max(0, Math.round((subtotal - taxAmount) * 100) / 100);
+    const tdsPercentage = data.tdsPercentage || 0;
+    const tdsAmount = Math.round(tdsBaseAmount * (tdsPercentage / 100) * 100) / 100;
+    const afterTdsAmount = Math.max(0, Math.round((tdsBaseAmount - tdsAmount) * 100) / 100);
+    const totalAmount = Math.round((afterTdsAmount + (data.transportCost || 0)) * 100) / 100;
 
     const notesMeta = JSON.stringify({
       materialName: data.materialName,
@@ -146,8 +163,11 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
       rate: data.rate,
       subtotal,
       transportCost: data.transportCost || 0,
-      discount: data.discount || 0,
-      taxPercentage: data.taxPercentage || 0,
+      discount: tdsAmount,
+      tdsPercentage,
+      tdsBaseAmount,
+      tdsAmount,
+      taxPercentage,
       taxAmount,
       totalAmount,
       paymentStatus: data.paymentStatus,
@@ -180,7 +200,7 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
         totalAmount,
         transportCost: data.transportCost,
       }),
-    });
+    }),
 
     res.status(201).json(parseRecordToBill(inserted[0]));
   } catch (error: any) {
@@ -207,14 +227,17 @@ incomeRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const prevBill = parseRecordToBill(existing[0]);
     const finalQuantity = data.quantity !== undefined ? data.quantity : prevBill.quantity;
     const finalRate = data.rate !== undefined ? data.rate : prevBill.rate;
-    const finalDiscount = data.discount !== undefined ? data.discount : prevBill.discount;
     const finalTaxPct = data.taxPercentage !== undefined ? data.taxPercentage : prevBill.taxPercentage;
+    const finalTdsPct = data.tdsPercentage !== undefined ? data.tdsPercentage : prevBill.tdsPercentage;
     const finalTransport = data.transportCost !== undefined ? data.transportCost : prevBill.transportCost;
 
+    // Formula: Bill Subtotal - GST = Base Amount of TDS - TDS (+ Transport Fee separately)
     const subtotal = Math.round(finalQuantity * finalRate * 100) / 100;
-    const taxableAmount = Math.max(0, subtotal - finalDiscount);
-    const taxAmount = Math.round(taxableAmount * (finalTaxPct / 100) * 100) / 100;
-    const totalAmount = Math.round((Math.max(0, taxableAmount - taxAmount) + finalTransport) * 100) / 100;
+    const taxAmount = Math.round(subtotal * (finalTaxPct / 100) * 100) / 100;
+    const tdsBaseAmount = Math.max(0, Math.round((subtotal - taxAmount) * 100) / 100);
+    const tdsAmount = Math.round(tdsBaseAmount * (finalTdsPct / 100) * 100) / 100;
+    const afterTdsAmount = Math.max(0, Math.round((tdsBaseAmount - tdsAmount) * 100) / 100);
+    const totalAmount = Math.round((afterTdsAmount + finalTransport) * 100) / 100;
 
     const notesMeta = JSON.stringify({
       materialName: data.materialName || prevBill.materialName,
@@ -223,7 +246,10 @@ incomeRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       rate: finalRate,
       subtotal,
       transportCost: finalTransport,
-      discount: finalDiscount,
+      discount: tdsAmount,
+      tdsPercentage: finalTdsPct,
+      tdsBaseAmount,
+      tdsAmount,
       taxPercentage: finalTaxPct,
       taxAmount,
       totalAmount,
