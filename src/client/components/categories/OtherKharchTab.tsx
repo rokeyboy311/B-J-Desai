@@ -751,6 +751,9 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
               onChange={(e) => setEditForm({ ...editForm, expenseCategory: e.target.value })}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-hidden"
             >
+              {editForm.expenseCategory && !EXPENSE_CATEGORIES.includes(editForm.expenseCategory) && (
+                <option value={editForm.expenseCategory}>{editForm.expenseCategory}</option>
+              )}
               {EXPENSE_CATEGORIES.map((c, idx) => (
                 <option key={idx} value={c}>{c}</option>
               ))}

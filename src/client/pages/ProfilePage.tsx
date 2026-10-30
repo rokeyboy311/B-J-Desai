@@ -1,17 +1,50 @@
 import React, { useState } from "react";
-import { Shield, Lock, User, Key, Check } from "lucide-react";
+import { Shield, Lock, User, Key, Check, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { apiFetch } from "../lib/api";
+import { triggerGlobalSync } from "../hooks/useLiveSync";
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { showToast } = useToast();
+  const { showToast, confirmAction } = useToast();
 
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [isChangingPin, setIsChangingPin] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+
+  const handleClearAllData = async () => {
+    const confirmed = await confirmAction({
+      title: "Clear All Database Data",
+      message: "Are you sure you want to permanently delete ALL locations, investors, purchases, supplies, labour, and financial records from the database? This action cannot be undone.",
+      confirmLabel: "Verify & Clear All Data",
+      isDanger: true,
+      requirePassword: true
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setIsClearingData(true);
+      await apiFetch("/auth/clear-all-data", {
+        method: "DELETE"
+      });
+      try {
+        sessionStorage.removeItem("bd_erp_locations_breakdown_cache");
+        sessionStorage.removeItem("bd_erp_records_cache");
+        sessionStorage.removeItem("bd_erp_dash_metrics_cache");
+        sessionStorage.removeItem("bd_erp_dash_recon_cache");
+      } catch {}
+      triggerGlobalSync();
+      showToast("All database data has been permanently cleared!", "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to clear database data", "error");
+    } finally {
+      setIsClearingData(false);
+    }
+  };
 
   const handleChangePin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +191,28 @@ export default function ProfilePage() {
             {isChangingPin ? "Updating PIN..." : "Update Security Credentials"}
           </button>
         </form>
+      </div>
+
+      {/* Database Reset / Danger Zone */}
+      <div className="bg-rose-50/50 rounded-2xl border border-rose-200/80 shadow-xs p-6 space-y-3">
+        <div className="flex items-center gap-2 text-rose-800">
+          <AlertTriangle className="w-4 h-4 text-rose-600" />
+          <h2 className="text-sm font-bold">Database Reset (Clear All Website Data)</h2>
+        </div>
+        <p className="text-xs text-rose-700/80 max-w-2xl">
+          Permanently remove all locations, investors, capital allocations, material purchases, customer supplies, site supplies, labour attendance, and transaction records from the database.
+        </p>
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={handleClearAllData}
+            disabled={isClearingData}
+            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-2 shadow-xs disabled:opacity-50"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>{isClearingData ? "Clearing Database..." : "Clear All Database Data"}</span>
+          </button>
+        </div>
       </div>
 
     </div>

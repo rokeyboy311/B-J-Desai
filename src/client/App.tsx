@@ -25,6 +25,19 @@ import MaterialPurchasePage from './pages/MaterialPurchasePage';
 import CustomerSupplyPage from './pages/CustomerSupplyPage';
 
 export default function App() {
+  React.useEffect(() => {
+    try {
+      const CLEAR_MARKER = 'bd_erp_db_cleared_20261030';
+      if (!sessionStorage.getItem(CLEAR_MARKER)) {
+        sessionStorage.removeItem('bd_erp_locations_breakdown_cache');
+        sessionStorage.removeItem('bd_erp_records_cache');
+        sessionStorage.removeItem('bd_erp_dash_metrics_cache');
+        sessionStorage.removeItem('bd_erp_dash_recon_cache');
+        sessionStorage.setItem(CLEAR_MARKER, '1');
+      }
+    } catch {}
+  }, []);
+
   return (
     <AuthProvider>
       <ToastProvider>

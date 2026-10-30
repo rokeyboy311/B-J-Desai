@@ -793,21 +793,25 @@ export async function getAdminCapitalSummary(
  */
 export async function normalizeMaterialsAndStockDB(): Promise<void> {
   try {
-    // 0. Ensure Central Inventory for All Sites system location exists
-    const centralLocId = await getOrCreateCentralLocation();
+    // 0. If there are material_purchases rows, ensure Central Inventory for All Sites system location exists
+    const purchaseCountRes = await db.execute(sql`SELECT COUNT(*) as cnt FROM material_purchases WHERE is_deleted = 0`);
+    const purchaseCount = parseInt(String((purchaseCountRes.rows[0] as any)?.cnt || '0'), 10);
+    if (purchaseCount > 0) {
+      const centralLocId = await getOrCreateCentralLocation();
 
-    // Reconcile purchase records and stock movements to Central Inventory
-    await db.execute(sql`
-      UPDATE material_purchases 
-      SET location_id = ${centralLocId} 
-      WHERE location_id IS NULL OR location_id NOT IN (SELECT id FROM locations WHERE is_deleted = 0);
-    `);
+      // Reconcile purchase records and stock movements to Central Inventory
+      await db.execute(sql`
+        UPDATE material_purchases 
+        SET location_id = ${centralLocId} 
+        WHERE location_id IS NULL OR location_id NOT IN (SELECT id FROM locations WHERE is_deleted = 0);
+      `);
 
-    await db.execute(sql`
-      UPDATE stock_ledger 
-      SET location_id = ${centralLocId} 
-      WHERE reference_type = 'PURCHASE' AND (location_id IS NULL OR location_id != ${centralLocId});
-    `);
+      await db.execute(sql`
+        UPDATE stock_ledger 
+        SET location_id = ${centralLocId} 
+        WHERE reference_type = 'PURCHASE' AND (location_id IS NULL OR location_id != ${centralLocId});
+      `);
+    }
 
     // 1. Normalize all material names to UPPERCASE in master table
     await db.execute(sql`

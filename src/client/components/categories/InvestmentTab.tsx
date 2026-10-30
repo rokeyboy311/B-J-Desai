@@ -55,6 +55,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
   const [editingTxId, setEditingTxId] = useState<number | null>(null);
   const [editingBillId, setEditingBillId] = useState<number | null>(null);
+  const [editingRefundableId, setEditingRefundableId] = useState<number | null>(null);
   const [activeRefundRecord, setActiveRefundRecord] = useState<any | null>(null);
 
   // Filters & Search
@@ -476,7 +477,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     });
   }, [investmentNotebookEntries, notebookFilter, notebookCategoryFilter, notebookSearch]);
 
-  // Handle Save Refundable Record
+  // Handle Save / Update Refundable Record
   const handleSaveRefundable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!refundableFormData.partyName || !refundableFormData.amount) {
@@ -484,8 +485,13 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       return;
     }
     try {
-      await apiFetch("/investments/refundable-records", {
-        method: "POST",
+      const url = editingRefundableId
+        ? `/investments/refundable-records/${editingRefundableId}`
+        : "/investments/refundable-records";
+      const method = editingRefundableId ? "PUT" : "POST";
+
+      await apiFetch(url, {
+        method,
         body: JSON.stringify({
           locationId,
           partyName: refundableFormData.partyName.trim(),
@@ -508,12 +514,32 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         referenceNumber: "",
         notes: "",
       });
+      setEditingRefundableId(null);
       setIsRefundableModalOpen(false);
-      showToast("Refundable record added and deducted from Project Capital", "success");
+      showToast(
+        editingRefundableId
+          ? "Refundable record updated"
+          : "Refundable record added and deducted from Project Capital",
+        "success"
+      );
       loadData();
     } catch (err: any) {
       showToast(err.message || "Failed to save refundable record.", "error");
     }
+  };
+
+  const openEditRefundable = (rec: any) => {
+    setEditingRefundableId(rec.id);
+    setRefundableFormData({
+      partyName: rec.partyName || "",
+      amount: String(rec.amount || ""),
+      depositType: rec.depositType || rec.description || "Security Deposit",
+      date: rec.date || new Date().toISOString().split("T")[0],
+      paymentMethod: rec.paymentMethod || "Bank Transfer",
+      referenceNumber: rec.referenceNumber || "",
+      notes: rec.notes || "",
+    });
+    setIsRefundableModalOpen(true);
   };
 
   // Handle Process Refund
@@ -589,7 +615,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     if (!capitalFormData.partyId || !capitalFormData.amount) return;
 
     const selectedParty = parties.find(p => p.id.toString() === capitalFormData.partyId);
-    const availableBalance = selectedParty ? Number(selectedParty.cat7Available ?? selectedParty.balance ?? 0) : 0;
+    const rawAvailableBalance = selectedParty ? Number(selectedParty.cat7Available ?? selectedParty.balance ?? 0) : 0;
+    const editingOrigTx = editingTxId ? investorTxs.find(t => t.id === editingTxId) : null;
+    const oldTxAmount =
+      editingOrigTx &&
+      editingOrigTx.type === "INVESTMENT" &&
+      String(editingOrigTx.partyId) === String(capitalFormData.partyId)
+        ? Number(editingOrigTx.amount || 0) || 0
+        : 0;
+    const availableBalance = Math.round((rawAvailableBalance + oldTxAmount) * 100) / 100;
     const enteredAmount = parseFloat(capitalFormData.amount);
 
     if (isNaN(enteredAmount) || enteredAmount <= 0) {
@@ -597,7 +631,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       return;
     }
 
-    if (capitalFormData.type === "INVESTMENT" && !editingTxId && enteredAmount > availableBalance) {
+    if (capitalFormData.type === "INVESTMENT" && enteredAmount > availableBalance) {
       showToast(
         `Selected investor ${selectedParty?.partyName || ''} has only ₹${availableBalance.toLocaleString('en-IN')} available in Category 7. Cannot deduct ₹${enteredAmount.toLocaleString('en-IN')}.`,
         "error"
@@ -868,6 +902,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           <button
             onClick={() => {
+              setEditingRefundableId(null);
               setRefundableFormData({
                 partyName: "",
                 amount: "",
@@ -2325,23 +2360,92 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                           </td>
                           <td className="p-3.5 text-center">
                             {entry.kind === 'INVESTOR_CAPITAL' ? (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTx(entry.rawId)}
-                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                title="Delete Investment Transaction"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const origTx = investorTxs.find(t => t.id === entry.rawId);
+                                    if (!origTx) return;
+                                    setEditingTxId(origTx.id);
+                                    setCapitalFormData({
+                                      partyId: String(origTx.partyId || ""),
+                                      amount: String(origTx.amount || entry.amount || ""),
+                                      type: origTx.type === "CONTRIBUTION" ? "CONTRIBUTION" : "INVESTMENT",
+                                      date: origTx.date || new Date().toISOString().split("T")[0],
+                                      paymentMethod: origTx.paymentMethod || "Bank Transfer",
+                                      referenceNumber: origTx.referenceNumber || "",
+                                      description: origTx.description || "",
+                                    });
+                                    setIsCapitalModalOpen(true);
+                                  }}
+                                  className="p-1 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded transition-colors cursor-pointer"
+                                  title="Edit Investment Transaction"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTx(entry.rawId)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Investment Transaction"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             ) : entry.kind === 'BILL_INVESTMENT' ? (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteBill(entry.rawId)}
-                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                title="Delete Bill Investment"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const origBill = billIncomes.find(b => b.id === entry.rawId);
+                                    if (origBill) openEditBill(origBill);
+                                  }}
+                                  className="p-1 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors cursor-pointer"
+                                  title="Edit Bill Investment"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBill(entry.rawId)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Bill Investment"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : entry.kind === 'UPAD' ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const origTx = investorTxs.find(t => t.id === entry.rawId);
+                                    if (!origTx) return;
+                                    setEditingTxId(origTx.id);
+                                    setPaymentFormData({
+                                      partyId: String(origTx.partyId || ""),
+                                      amount: String(origTx.amount || entry.amount || ""),
+                                      date: origTx.date || new Date().toISOString().split("T")[0],
+                                      paymentMethod: origTx.paymentMethod || "Bank Transfer",
+                                      referenceNumber: origTx.referenceNumber || "",
+                                      description: origTx.description || "",
+                                    });
+                                    setIsPaymentModalOpen(true);
+                                  }}
+                                  className="p-1 hover:bg-amber-50 text-slate-400 hover:text-amber-600 rounded transition-colors cursor-pointer"
+                                  title="Edit Upad / Return"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTx(entry.rawId)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Upad / Return"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             ) : (
                               <span className="text-slate-300 text-[10px]">—</span>
                             )}
@@ -2606,6 +2710,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
               <button
                 onClick={() => {
+                  setEditingRefundableId(null);
                   setRefundableFormData({
                     partyName: "",
                     amount: "",
@@ -2751,6 +2856,13 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                                 Record Refund
                               </button>
                             )}
+                            <button
+                              onClick={() => openEditRefundable(rec)}
+                              className="text-slate-400 hover:text-purple-600 p-1 cursor-pointer"
+                              title="Edit Record"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={() => handleDeleteRefundable(rec.id)}
                               className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
@@ -2917,7 +3029,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             >
               <option value="">-- Choose Investor --</option>
               {(Array.isArray(parties) ? parties : []).map(p => {
-                const cat7Bal = Number(p?.cat7Available ?? p?.balance ?? 0);
+                const rawCat7Bal = Number(p?.cat7Available ?? p?.balance ?? 0);
+                const editingOrigTx = editingTxId ? investorTxs.find(t => t.id === editingTxId) : null;
+                const oldTxAmt =
+                  editingOrigTx &&
+                  editingOrigTx.type === "INVESTMENT" &&
+                  String(editingOrigTx.partyId) === String(p?.id)
+                    ? Number(editingOrigTx.amount || 0) || 0
+                    : 0;
+                const cat7Bal = Math.round((rawCat7Bal + oldTxAmt) * 100) / 100;
                 return (
                   <option key={p?.id || Math.random()} value={p?.id ? String(p.id) : ""}>
                     {p?.partyName || "Investor"} (Category 7 Investor Capital: ₹{cat7Bal.toLocaleString("en-IN")})
@@ -2931,10 +3051,18 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {(() => {
             const partyList = Array.isArray(parties) ? parties : [];
             const selectedParty = partyList.find(p => p && String(p.id) === capitalFormData.partyId);
-            const currentBal = selectedParty ? Number(selectedParty.cat7Available ?? selectedParty.balance ?? 0) : 0;
+            const rawCurrentBal = selectedParty ? Number(selectedParty.cat7Available ?? selectedParty.balance ?? 0) : 0;
+            const editingOrigTx = editingTxId ? investorTxs.find(t => t.id === editingTxId) : null;
+            const oldTxAmt =
+              editingOrigTx &&
+              editingOrigTx.type === "INVESTMENT" &&
+              String(editingOrigTx.partyId) === String(capitalFormData.partyId)
+                ? Number(editingOrigTx.amount || 0) || 0
+                : 0;
+            const currentBal = Math.round((rawCurrentBal + oldTxAmt) * 100) / 100;
             const enteredAmt = parseFloat(capitalFormData.amount) || 0;
-            const newBal = currentBal - enteredAmt;
-            const isExceeded = !editingTxId && enteredAmt > currentBal;
+            const newBal = Math.round((currentBal - enteredAmt) * 100) / 100;
+            const isExceeded = enteredAmt > currentBal;
 
             return (
               <div className={`p-3.5 border rounded-xl space-y-2.5 transition-colors ${
@@ -3030,7 +3158,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <label className="text-xs font-bold text-slate-700">Investment Amount (₹) *</label>
                 {(() => {
                   const selectedParty = parties.find(p => p.id.toString() === capitalFormData.partyId);
-                  const bal = selectedParty ? Number(selectedParty.balance || 0) : 0;
+                  const rawBal = selectedParty ? Number(selectedParty.cat7Available ?? selectedParty.balance ?? 0) : 0;
+                  const editingOrigTx = editingTxId ? investorTxs.find(t => t.id === editingTxId) : null;
+                  const oldTxAmt =
+                    editingOrigTx &&
+                    editingOrigTx.type === "INVESTMENT" &&
+                    String(editingOrigTx.partyId) === String(capitalFormData.partyId)
+                      ? Number(editingOrigTx.amount || 0) || 0
+                      : 0;
+                  const bal = Math.round((rawBal + oldTxAmt) * 100) / 100;
                   return bal > 0 ? (
                     <button
                       type="button"
@@ -3405,16 +3541,21 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </form>
       </Modal>
 
-      {/* MODAL: Add Refundable Record (Security Deposit & Advances) */}
+      {/* MODAL: Add / Edit Refundable Record (Security Deposit & Advances) */}
       <Modal
         isOpen={isRefundableModalOpen}
-        onClose={() => setIsRefundableModalOpen(false)}
+        onClose={() => {
+          setIsRefundableModalOpen(false);
+          setEditingRefundableId(null);
+        }}
         maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-purple-100 text-purple-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
             <div>
-              <span className="font-black text-slate-900 text-base">Add Refundable Record</span>
+              <span className="font-black text-slate-900 text-base">
+                {editingRefundableId ? "Edit Refundable Record" : "Add Refundable Record"}
+              </span>
               <p className="text-xs text-slate-500 font-normal">
                 This amount is deducted from Project Capital and will be credited back when refunded.
               </p>
@@ -3525,7 +3666,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             type="submit"
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
           >
-            Save Refundable Record & Deduct from Capital
+            {editingRefundableId ? "Update Refundable Record" : "Save Refundable Record & Deduct from Capital"}
           </button>
         </form>
       </Modal>

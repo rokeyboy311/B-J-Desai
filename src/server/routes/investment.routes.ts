@@ -757,7 +757,7 @@ investmentRouter.put('/location-allocations/:id', async (req: AuthRequest, res: 
     const id = parseInt(String(req.params.id), 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Valid ID required' });
 
-    const { amount, date, paymentMethod, referenceNumber, notes } = req.body;
+    const { investorId, amount, date, paymentMethod, referenceNumber, notes } = req.body;
     const newAmount = parseFloat(String(amount));
     if (isNaN(newAmount) || newAmount <= 0) {
       return res.status(400).json({ error: 'Valid positive amount is required' });
@@ -774,7 +774,71 @@ investmentRouter.put('/location-allocations/:id', async (req: AuthRequest, res: 
         await assertLocationAccess(userId, alloc.locationId);
       }
 
+      const oldAmount = parseFloat(String(alloc.amount || 0)) || 0;
+      const targetInvestorId = investorId ? parseInt(String(investorId), 10) : alloc.investorId;
+      const isSameInvestor = targetInvestorId === alloc.investorId;
+
+      // Validate against Admin Capital & Investor available balance (adding back oldAmount)
+      const adminSummary = await getAdminCapitalSummary(tx, userId);
+      const effectiveAdminAvailable = Math.round((adminSummary.availableAdminCapital + oldAmount) * 100) / 100;
+      if (newAmount > effectiveAdminAvailable) {
+        throw new Error(
+          `Cannot update allocation to ₹${newAmount.toLocaleString('en-IN')}: Exceeds available Admin Capital (₹${effectiveAdminAvailable.toLocaleString('en-IN')}).`
+        );
+      }
+
+      const invSummary = adminSummary.investors.find(i => i.id === targetInvestorId);
+      if (invSummary) {
+        const effectiveInvestorAvailable = Math.round((invSummary.availableCapital + (isSameInvestor ? oldAmount : 0)) * 100) / 100;
+        if (newAmount > effectiveInvestorAvailable) {
+          throw new Error(
+            `Cannot update allocation to ₹${newAmount.toLocaleString('en-IN')}: Selected investor ${invSummary.name} has only ₹${effectiveInvestorAvailable.toLocaleString('en-IN')} available.`
+          );
+        }
+      }
+
+      // Check that reducing amount or changing investor does not fall below already-invested Category 2 capital
+      if (alloc.locationId && (!isSameInvestor || newAmount < oldAmount)) {
+        const oldInvRow = await tx.select({ name: investors.name }).from(investors).where(eq(investors.id, alloc.investorId)).limit(1);
+        const oldInvName = oldInvRow[0]?.name ? oldInvRow[0].name.trim().toUpperCase() : '';
+        if (oldInvName) {
+          const allocQuery = await tx.select({
+            total: sql<string>`COALESCE(SUM(CAST(${investorLocationAllocations.amount} AS numeric)), 0)`
+          }).from(investorLocationAllocations)
+            .where(and(
+              eq(investorLocationAllocations.locationId, alloc.locationId),
+              eq(investorLocationAllocations.investorId, alloc.investorId),
+              eq(investorLocationAllocations.isDeleted, 0)
+            ));
+          const totalAllocated = parseFloat(allocQuery[0]?.total || '0') || 0;
+
+          const deployedQuery = await tx.select({
+            total: sql<string>`COALESCE(SUM(CAST(${investmentTransactions.amount} AS numeric)), 0)`
+          }).from(investmentTransactions)
+            .innerJoin(investmentParties, eq(investmentTransactions.partyId, investmentParties.id))
+            .where(and(
+              eq(investmentParties.locationId, alloc.locationId),
+              sql`UPPER(${investmentParties.partyName}) = ${oldInvName}`,
+              eq(investmentTransactions.type, 'INVESTMENT'),
+              eq(investmentTransactions.isDeleted, 0),
+              eq(investmentParties.isDeleted, 0)
+            ));
+          const alreadyInvested = parseFloat(deployedQuery[0]?.total || '0') || 0;
+
+          const newTotalForOldInv = isSameInvestor
+            ? Math.round((totalAllocated - oldAmount + newAmount) * 100) / 100
+            : Math.round((totalAllocated - oldAmount) * 100) / 100;
+
+          if (newTotalForOldInv < alreadyInvested) {
+            throw new Error(
+              `Cannot reduce allocation below ₹${alreadyInvested.toLocaleString('en-IN')}: That amount has already been deployed into Category 2 Investment Capital.`
+            );
+          }
+        }
+      }
+
       const [resRec] = await tx.update(investorLocationAllocations).set({
+        investorId: targetInvestorId,
         amount: String(newAmount),
         date: date || alloc.date,
         paymentMethod: paymentMethod || alloc.paymentMethod,
@@ -787,7 +851,7 @@ investmentRouter.put('/location-allocations/:id', async (req: AuthRequest, res: 
         action: 'UPDATE_LOCATION_ALLOCATION',
         entityType: 'INVESTMENT',
         entityId: id,
-        metadata: JSON.stringify({ allocationId: id, oldAmount: alloc.amount, newAmount })
+        metadata: JSON.stringify({ allocationId: id, oldAmount: alloc.amount, newAmount, investorId: targetInvestorId })
       });
 
       return resRec;

@@ -122,17 +122,31 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     loadData(true);
   }, 4000);
 
+  // Editing Allocation Object
+  const editingAllocationObj = useMemo(() => {
+    if (!editingAllocationId) return null;
+    return allocations.find(a => a.id === editingAllocationId) || null;
+  }, [allocations, editingAllocationId]);
+
+  // Editing Deployment Transaction State
+  const [editingDeployTx, setEditingDeployTx] = useState<any | null>(null);
+  const [isEditDeployModalOpen, setIsEditDeployModalOpen] = useState(false);
+
   // Selected Investor from form
   const selectedInvestorObj = useMemo(() => {
     if (!formData.investorId || !adminSummary?.investors) return null;
     return adminSummary.investors.find(i => String(i.id) === formData.investorId) || null;
   }, [formData.investorId, adminSummary]);
 
-  // Max allocatable for selected investor
+  // Max allocatable for selected investor (adds back existing allocation amount when editing)
   const maxAllocatable = useMemo(() => {
     if (!selectedInvestorObj || !adminSummary) return 0;
-    return Math.max(0, Math.min(selectedInvestorObj.availableCapital, adminSummary.availableAdminCapital));
-  }, [selectedInvestorObj, adminSummary]);
+    const oldAmt = editingAllocationObj ? (parseFloat(String(editingAllocationObj.amount || 0)) || 0) : 0;
+    const isSameInvestor = editingAllocationObj && String(editingAllocationObj.investorId) === String(selectedInvestorObj.id);
+    const effectiveInvestorAvail = Number(selectedInvestorObj.availableCapital || 0) + (isSameInvestor ? oldAmt : 0);
+    const effectiveAdminAvail = Number(adminSummary.availableAdminCapital || 0) + oldAmt;
+    return Math.max(0, Math.round(Math.min(effectiveInvestorAvail, effectiveAdminAvail) * 100) / 100);
+  }, [selectedInvestorObj, adminSummary, editingAllocationObj]);
 
   // Calculate Aggregates
   const totalAllocatedAmount = useMemo(() => {
@@ -309,16 +323,9 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       return;
     }
 
-    if (!editingAllocationId) {
-      if (adminSummary && amt > Number(adminSummary.availableAdminCapital || 0)) {
-        showToast(`Amount exceeds Total Available Admin Capital (₹${Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN")})`, "error");
-        return;
-      }
-
-      if (selectedInvestorObj && amt > Number(selectedInvestorObj.availableCapital || 0)) {
-        showToast(`Selected investor has only ₹${Number(selectedInvestorObj.availableCapital || 0).toLocaleString("en-IN")} available in Admin Capital`, "error");
-        return;
-      }
+    if (selectedInvestorObj && amt > maxAllocatable) {
+      showToast(`Amount exceeds available capital (Max: ₹${Number(maxAllocatable || 0).toLocaleString("en-IN")})`, "error");
+      return;
     }
 
     setSubmitting(true);
@@ -327,6 +334,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         await apiFetch(`/investments/location-allocations/${editingAllocationId}`, {
           method: "PUT",
           body: JSON.stringify({
+            investorId: parseInt(formData.investorId, 10),
             amount: amt.toString(),
             date: formData.date,
             paymentMethod: formData.paymentMethod,
@@ -374,16 +382,73 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
 
   // Handle Edit Allocation
   const handleEditAllocation = (item: any) => {
-    setEditingAllocationId(item.id || item.rawId);
+    const targetId = item.id && typeof item.id === "number" ? item.id : item.rawId;
+    const origAlloc = allocations.find(a => a.id === targetId);
+    setEditingAllocationId(targetId);
     setFormData({
-      investorId: String(item.investorId || (allocations.find(a => a.id === (item.id || item.rawId))?.investorId || "")),
-      amount: String(item.amount || item.jama || ""),
-      date: item.date || new Date().toISOString().split("T")[0],
-      paymentMethod: item.paymentMethod || "Bank Transfer",
-      referenceNumber: item.referenceNumber && item.referenceNumber !== "—" && item.referenceNumber !== "-" ? item.referenceNumber : "",
-      notes: item.notes && item.notes !== "—" ? item.notes : ""
+      investorId: String(origAlloc?.investorId || item.investorId || ""),
+      amount: String(origAlloc?.amount || item.amount || item.jama || ""),
+      date: origAlloc?.date || item.date || new Date().toISOString().split("T")[0],
+      paymentMethod: origAlloc?.paymentMethod || item.paymentMethod || "Bank Transfer",
+      referenceNumber: (origAlloc?.referenceNumber ?? item.referenceNumber) && (origAlloc?.referenceNumber ?? item.referenceNumber) !== "—" && (origAlloc?.referenceNumber ?? item.referenceNumber) !== "-" ? (origAlloc?.referenceNumber ?? item.referenceNumber) : "",
+      notes: origAlloc?.notes || (item.notes && item.notes !== "—" ? item.notes : "")
     });
     setIsAddModalOpen(true);
+  };
+
+  // Handle Edit Deployed Transaction
+  const handleEditDeployTx = (entry: any) => {
+    const targetId = entry.rawId || entry.id;
+    const origTx = locationTxs.find(t => t.id === targetId);
+    if (!origTx) return;
+    setEditingDeployTx({
+      id: origTx.id,
+      partyId: String(origTx.partyId),
+      partyName: origTx.partyName || entry.investorName || "Investor",
+      amount: String(origTx.amount || entry.amount || ""),
+      date: origTx.date || new Date().toISOString().split("T")[0],
+      paymentMethod: origTx.paymentMethod || "Bank Transfer",
+      referenceNumber: origTx.referenceNumber || "",
+      description: origTx.description || ""
+    });
+    setIsEditDeployModalOpen(true);
+  };
+
+  const handleSaveDeployTx = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDeployTx) return;
+    const amt = parseFloat(editingDeployTx.amount);
+    if (!amt || isNaN(amt) || amt <= 0) {
+      showToast("Please enter a valid positive amount", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiFetch(`/investments/transactions/${editingDeployTx.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          locationId,
+          partyId: parseInt(editingDeployTx.partyId, 10),
+          type: "INVESTMENT",
+          amount: amt,
+          date: editingDeployTx.date,
+          paymentMethod: editingDeployTx.paymentMethod,
+          referenceNumber: editingDeployTx.referenceNumber,
+          description: editingDeployTx.description
+        })
+      });
+      triggerSync("investments");
+      triggerSync("investor_capital");
+      triggerSync("reports");
+      setIsEditDeployModalOpen(false);
+      setEditingDeployTx(null);
+      showToast("Deployed investment record updated successfully", "success");
+      loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to update deployed investment record", "error");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Handle Delete Allocation
@@ -818,34 +883,44 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                         </td>
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            {entry.kind === 'ALLOCATION' && (
-                              <button
-                                type="button"
-                                onClick={() => handleEditAllocation(entry)}
-                                className="p-1 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded transition-colors cursor-pointer"
-                                title="Edit Allocation"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            )}
                             {entry.kind === 'ALLOCATION' ? (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAllocation({ id: entry.rawId, investorName: entry.investorName, amount: entry.amount } as any)}
-                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                title="Delete Allocation and return to Admin Capital"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditAllocation(entry)}
+                                  className="p-1 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded transition-colors cursor-pointer"
+                                  title="Edit Allocation"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAllocation({ id: entry.rawId, investorName: entry.investorName, amount: entry.amount } as any)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Allocation and return to Admin Capital"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTx(entry.rawId)}
-                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                title="Revert deployment back to Investor Capital"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditDeployTx(entry)}
+                                  className="p-1 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded transition-colors cursor-pointer"
+                                  title="Edit Deployed Investment"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTx(entry.rawId)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Revert deployment back to Investor Capital"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -1062,7 +1137,15 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                 <Landmark className="w-4 h-4 text-emerald-700" />
                 <span>Tier 1 &rarr; Tier 2 Allocation</span>
               </span>
-              <span>Available Admin Capital: ₹{adminSummary ? Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN") : "0"}</span>
+              <span>
+                Available Admin Capital: ₹
+                {adminSummary
+                  ? Number(
+                      (adminSummary.availableAdminCapital || 0) +
+                        (editingAllocationObj ? (parseFloat(String(editingAllocationObj.amount || 0)) || 0) : 0)
+                    ).toLocaleString("en-IN")
+                  : "0"}
+              </span>
             </div>
             <p className="text-[11px] text-emerald-700">
               Target Location: <strong>{locationName}</strong> &bull; Selected amount will be moved from central Admin Capital into this location's investor pool.
@@ -1082,11 +1165,16 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             >
               <option value="">-- Choose Investor from Admin Capital --</option>
               {adminSummary?.investors && adminSummary.investors.length > 0 ? (
-                adminSummary.investors.map((inv) => (
-                  <option key={inv.id} value={String(inv.id)}>
-                    {inv.name} &bull; Available in Admin: ₹{Number(inv.availableCapital || 0).toLocaleString("en-IN")}
-                  </option>
-                ))
+                adminSummary.investors.map((inv) => {
+                  const isEditingThisInv = editingAllocationObj && String(editingAllocationObj.investorId) === String(inv.id);
+                  const oldAmt = isEditingThisInv ? (parseFloat(String(editingAllocationObj.amount || 0)) || 0) : 0;
+                  const effAvail = Number(inv.availableCapital || 0) + oldAmt;
+                  return (
+                    <option key={inv.id} value={String(inv.id)}>
+                      {inv.name} &bull; Available in Admin: ₹{effAvail.toLocaleString("en-IN")}
+                    </option>
+                  );
+                })
               ) : (
                 <option value="" disabled>No investors found in Admin Capital</option>
               )}
@@ -1099,7 +1187,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <div className="flex justify-between font-bold text-slate-800">
                 <span>{selectedInvestorObj.name}</span>
                 <span className="text-emerald-700">
-                  Available: ₹{Number(selectedInvestorObj.availableCapital || 0).toLocaleString("en-IN")}
+                  Available: ₹{Number(maxAllocatable || 0).toLocaleString("en-IN")}
                 </span>
               </div>
               <div className="text-[11px] text-slate-500 flex justify-between">
@@ -1210,9 +1298,100 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>{submitting ? "Allocating Funds..." : "Confirm & Add Investor Capital to Location"}</span>
+            <span>
+              {submitting
+                ? "Saving..."
+                : editingAllocationId
+                ? "Update Investor Capital Allocation"
+                : "Confirm & Add Investor Capital to Location"}
+            </span>
           </button>
         </form>
+      </Modal>
+
+      {/* MODAL: Edit Deployed Investment Transaction */}
+      <Modal
+        isOpen={isEditDeployModalOpen}
+        onClose={() => {
+          setIsEditDeployModalOpen(false);
+          setEditingDeployTx(null);
+        }}
+        title="Edit Deployed Investment Record"
+      >
+        {editingDeployTx && (
+          <form onSubmit={handleSaveDeployTx} className="space-y-4">
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 font-semibold">
+              Editing deployment to Category 2 Investment Capital for <strong>{editingDeployTx.partyName}</strong>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={editingDeployTx.date}
+                  onChange={e => setEditingDeployTx({ ...editingDeployTx, date: e.target.value })}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Amount (₹) *</label>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  value={editingDeployTx.amount}
+                  onChange={e => setEditingDeployTx({ ...editingDeployTx, amount: e.target.value })}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-bold text-purple-900"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+                <select
+                  value={editingDeployTx.paymentMethod}
+                  onChange={e => setEditingDeployTx({ ...editingDeployTx, paymentMethod: e.target.value })}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
+                >
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Cash">Cash</option>
+                  <option value="UPI / RTGS">UPI / RTGS</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Reference No.</label>
+                <input
+                  type="text"
+                  value={editingDeployTx.referenceNumber}
+                  onChange={e => setEditingDeployTx({ ...editingDeployTx, referenceNumber: e.target.value })}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Particulars</label>
+              <input
+                type="text"
+                value={editingDeployTx.description}
+                onChange={e => setEditingDeployTx({ ...editingDeployTx, description: e.target.value })}
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-xs"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs cursor-pointer"
+            >
+              {submitting ? "Updating..." : "Update Deployed Investment"}
+            </button>
+          </form>
+        )}
       </Modal>
     </div>
   );

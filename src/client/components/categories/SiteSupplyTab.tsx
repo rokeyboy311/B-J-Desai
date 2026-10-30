@@ -222,13 +222,21 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   const handleEdit = (record: any) => {
     setEditingId(record.id);
     
-    const items = (record.items && record.items.length > 0) ? record.items.map((i: any) => ({
-      materialId: i.materialId?.toString() || "",
-      quantity: i.quantity?.toString() || "",
-      unit: i.unit || "Nos",
-      rate: i.rate?.toString() || "0",
-      taxPercentage: i.taxPercentage?.toString() || "18"
-    })) : [{ materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }];
+    const items = (record.items && record.items.length > 0) ? record.items.map((i: any) => {
+      const qty = parseFloat(i.quantity) || 0;
+      let rateVal = parseFloat(i.rate) || 0;
+      const itemSub = parseFloat(i.subtotal || i.amount) || 0;
+      if (rateVal <= 0 && qty > 0 && itemSub > 0) {
+        rateVal = Math.round((itemSub / qty) * 100) / 100;
+      }
+      return {
+        materialId: i.materialId?.toString() || "",
+        quantity: i.quantity?.toString() || "",
+        unit: i.unit || "Nos",
+        rate: rateVal > 0 ? String(rateVal) : (i.rate?.toString() || "0"),
+        taxPercentage: i.taxPercentage !== undefined && i.taxPercentage !== null ? String(i.taxPercentage) : "18"
+      };
+    }) : [{ materialId: "", quantity: "", unit: "Nos", rate: "0", taxPercentage: "18" }];
     
     setFormData({
       date: record.date || new Date().toISOString().split("T")[0],

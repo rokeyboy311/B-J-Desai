@@ -221,11 +221,36 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const labourName = String(data.labourName || labourTeam || existing[0].labourName || 'Team');
     const workName = data.workName || data.workType || data.expenseCategory || data.category || (isOtherKharch ? 'Site Expense' : data.notes || existing[0].workType || '');
     const unitOfMeasurement = data.unitOfMeasurement || (isWorkWise ? (existing[0].unitOfMeasurement || 'Nos') : null);
-    const quantity = data.quantity ? String(data.quantity) : (data.tcQuantity ? String(data.tcQuantity) : (existing[0].tcQuantity || '0'));
-    const rate = data.rate ? String(data.rate) : (data.tcRate ? String(data.tcRate) : (data.dailyRate || existing[0].dailyRate || '0'));
-    const days = data.days !== undefined ? String(data.days) : (rawAttType === 'Half Day' ? '0.5' : (existing[0].days || '1'));
-    const dailyRate = String(data.dailyRate || existing[0].dailyRate || '0');
-    const amount = data.amount || data.upad || data.paymentAmount || existing[0].paymentAmount || '0';
+    let quantity = data.quantity !== undefined ? String(data.quantity) : (data.tcQuantity !== undefined ? String(data.tcQuantity) : (existing[0].tcQuantity || '0'));
+    let rate = data.rate !== undefined ? String(data.rate) : (data.tcRate !== undefined ? String(data.tcRate) : (data.dailyRate || existing[0].tcRate || existing[0].dailyRate || '0'));
+    let days = data.days !== undefined ? String(data.days) : (rawAttType === 'Half Day' ? '0.5' : (existing[0].days || '1'));
+    let dailyRate = data.dailyRate !== undefined ? String(data.dailyRate) : (existing[0].dailyRate || '0');
+    const amount = data.amount !== undefined ? String(data.amount) : (data.upad !== undefined ? String(data.upad) : (data.paymentAmount !== undefined ? String(data.paymentAmount) : (existing[0].paymentAmount || '0')));
+
+    // If user edited total amount directly on a TC_WISE or DAY_WISE record where rate was 0, derive rate
+    if (isWorkWise) {
+      const qNum = parseFloat(quantity) || 0;
+      const rNum = parseFloat(rate) || 0;
+      const amtNum = parseFloat(amount) || 0;
+      if (qNum <= 0 && amtNum > 0) {
+        quantity = '1';
+      }
+      if (rNum <= 0 && amtNum > 0) {
+        const effQ = parseFloat(quantity) || 1;
+        rate = String(Math.round((amtNum / effQ) * 100) / 100);
+      }
+    } else if (!isTeamUpad && !isOtherKharch) {
+      const dNum = parseFloat(days) || 0;
+      const drNum = parseFloat(dailyRate) || 0;
+      const amtNum = parseFloat(amount) || 0;
+      if (dNum <= 0 && amtNum > 0) {
+        days = '1';
+      }
+      if (drNum <= 0 && amtNum > 0) {
+        const effD = parseFloat(days) || 1;
+        dailyRate = String(Math.round((amtNum / effD) * 100) / 100);
+      }
+    }
 
     const calc = calculateLabourSalaryTotals({
       attendanceType,
@@ -236,8 +261,8 @@ labourRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       tcQuantity: quantity,
       tcRate: rate,
       amount,
-      upad: isTeamUpad ? amount : (data.upad ?? existing[0].upad),
-      paymentAmount: isTeamUpad || isOtherKharch ? amount : (data.paymentAmount ?? existing[0].paymentAmount),
+      upad: isTeamUpad ? amount : '0',
+      paymentAmount: (isTeamUpad || isOtherKharch) ? amount : '0',
       deduction: data.deduction ?? existing[0].deduction
     });
 

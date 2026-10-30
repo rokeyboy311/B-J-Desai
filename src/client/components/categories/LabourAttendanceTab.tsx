@@ -604,16 +604,26 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   // Open Edit Modal
   const handleEditClick = (record: any) => {
     const editAmount = getRecordAmount(record);
+    const daysVal = parseFloat(record.days || "1") || 1;
+    const qtyVal = parseFloat(record.tcQuantity || record.quantity || "1") || 1;
+    let derivedDailyRate = record.dailyRate || "0";
+    if (record.attendanceType === "DAY_WISE" && (parseFloat(derivedDailyRate) <= 0 || isNaN(parseFloat(derivedDailyRate))) && editAmount > 0) {
+      derivedDailyRate = String(Math.round((editAmount / daysVal) * 100) / 100);
+    }
+    let derivedRate = record.tcRate || record.rate || record.dailyRate || "0";
+    if (record.attendanceType === "TC_WISE" && (parseFloat(derivedRate) <= 0 || isNaN(parseFloat(derivedRate))) && editAmount > 0) {
+      derivedRate = String(Math.round((editAmount / qtyVal) * 100) / 100);
+    }
 
     setEditingRecord({
       ...record,
       teamName: record.labourTeam || record.teamName || record.labourName || "",
       amount: String(editAmount || "0"),
       workName: record.workType || record.tcNumber || "",
-      rate: record.tcRate || record.dailyRate || "0",
+      rate: derivedRate,
       quantity: record.tcQuantity || record.quantity || "0",
       days: record.days || "1",
-      dailyRate: record.dailyRate || "0",
+      dailyRate: derivedDailyRate,
       unitOfMeasurement: record.unitOfMeasurement || "Sq.Ft",
       notes: record.notes || "",
       referenceNumber: record.referenceNumber || "",
@@ -626,6 +636,9 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRecord) return;
+
+    const isUpad = editingRecord.attendanceType === "TEAM_UPAD";
+    const isKharch = editingRecord.attendanceType === "OTHER_KHARCH";
 
     try {
       await apiFetch(`/labour/${editingRecord.id}`, {
@@ -642,8 +655,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           days: editingRecord.days,
           dailyRate: editingRecord.dailyRate,
           amount: editingRecord.amount,
-          upad: editingRecord.amount,
-          paymentAmount: editingRecord.amount,
+          upad: isUpad ? editingRecord.amount : "0",
+          paymentAmount: (isUpad || isKharch) ? editingRecord.amount : "0",
           paymentMethod: editingRecord.paymentMethod,
           referenceNumber: editingRecord.referenceNumber,
           notes: editingRecord.notes
@@ -654,6 +667,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       setIsEditModalOpen(false);
       setEditingRecord(null);
       triggerSync("labour");
+      triggerSync("investments");
+      triggerSync("reports");
       loadData(true);
     } catch (err: any) {
       showToast(err.message || "Failed to update record", "error");
@@ -1636,7 +1651,11 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                         type="number"
                         step="0.1"
                         value={editingRecord.days}
-                        onChange={e => setEditingRecord({ ...editingRecord, days: e.target.value })}
+                        onChange={e => {
+                          const newDays = e.target.value;
+                          const calcAmt = Math.round((parseFloat(newDays) || 0) * (parseFloat(editingRecord.dailyRate) || 0) * 100) / 100;
+                          setEditingRecord({ ...editingRecord, days: newDays, amount: String(calcAmt) });
+                        }}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                       />
                     </div>
@@ -1661,7 +1680,11 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                         type="number"
                         step="0.01"
                         value={editingRecord.quantity}
-                        onChange={e => setEditingRecord({ ...editingRecord, quantity: e.target.value })}
+                        onChange={e => {
+                          const newQty = e.target.value;
+                          const calcAmt = Math.round((parseFloat(newQty) || 0) * (parseFloat(editingRecord.rate) || 0) * 100) / 100;
+                          setEditingRecord({ ...editingRecord, quantity: newQty, amount: String(calcAmt) });
+                        }}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                       />
                     </div>
@@ -1671,7 +1694,11 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                         type="number"
                         step="0.01"
                         value={editingRecord.rate}
-                        onChange={e => setEditingRecord({ ...editingRecord, rate: e.target.value })}
+                        onChange={e => {
+                          const newRate = e.target.value;
+                          const calcAmt = Math.round((parseFloat(editingRecord.quantity) || 0) * (parseFloat(newRate) || 0) * 100) / 100;
+                          setEditingRecord({ ...editingRecord, rate: newRate, amount: String(calcAmt) });
+                        }}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                       />
                     </div>
@@ -1681,12 +1708,41 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                     <label className="block text-xs font-bold text-slate-700 mb-1">Daily Rate (₹)</label>
                     <input
                       type="number"
+                      step="0.01"
                       value={editingRecord.dailyRate}
-                      onChange={e => setEditingRecord({ ...editingRecord, dailyRate: e.target.value })}
+                      onChange={e => {
+                        const newDailyRate = e.target.value;
+                        const calcAmt = Math.round((parseFloat(editingRecord.days) || 0) * (parseFloat(newDailyRate) || 0) * 100) / 100;
+                        setEditingRecord({ ...editingRecord, dailyRate: newDailyRate, amount: String(calcAmt) });
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
                     />
                   </div>
                 )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Total Amount (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editingRecord.amount}
+                    onChange={e => {
+                      const newAmt = e.target.value;
+                      const numAmt = parseFloat(newAmt) || 0;
+                      if (editingRecord.attendanceType === "TC_WISE") {
+                        const qty = parseFloat(editingRecord.quantity) || 1;
+                        const calcRate = qty > 0 ? Math.round((numAmt / qty) * 100) / 100 : 0;
+                        setEditingRecord({ ...editingRecord, amount: newAmt, rate: String(calcRate) });
+                      } else {
+                        const days = parseFloat(editingRecord.days) || 1;
+                        const calcDailyRate = days > 0 ? Math.round((numAmt / days) * 100) / 100 : 0;
+                        setEditingRecord({ ...editingRecord, amount: newAmt, dailyRate: String(calcDailyRate) });
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-800"
+                  />
+                </div>
               </div>
             )}
 

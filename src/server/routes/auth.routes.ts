@@ -267,4 +267,49 @@ authRouter.get('/me', requireAuth, (req: AuthRequest, res: Response) => {
   });
 });
 
+// Endpoint to clear all database business records
+const handleClearAllDatabaseData = async (req: AuthRequest, res: Response) => {
+  try {
+    await db.execute(sql`
+      TRUNCATE TABLE
+        site_supply_items,
+        site_supplies,
+        stock_ledger,
+        material_stock_adjustments,
+        material_purchases,
+        material_supplies,
+        material_labour_supplies,
+        materials,
+        labour_salaries,
+        labour_master,
+        contractor_costs,
+        labour_teams,
+        parties,
+        supervisor_costs,
+        investor_location_allocations,
+        investor_transactions,
+        investors,
+        investment_transactions,
+        investment_parties,
+        records,
+        audit_logs,
+        locations
+      RESTART IDENTITY CASCADE;
+    `);
+    return res.json({
+      success: true,
+      message: 'All database records have been permanently cleared.'
+    });
+  } catch (error: any) {
+    console.error('[Clear All Database Data Error]', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to clear database data'
+    });
+  }
+};
+
+authRouter.delete('/clear-all-data', requireAuth, handleClearAllDatabaseData);
+authRouter.post('/clear-all-data', requireAuth, handleClearAllDatabaseData);
+
 export default authRouter;

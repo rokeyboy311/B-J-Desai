@@ -65,7 +65,11 @@ reportRouter.get('/location-analytics', async (req: AuthRequest, res: Response) 
 
     const locRows = await db.select({ id: locations.id, name: locations.name })
       .from(locations)
-      .where(and(eq(locations.isDeleted, 0), locCondition))
+      .where(and(
+        eq(locations.isDeleted, 0),
+        sql`LOWER(TRIM(${locations.name})) NOT IN ('central inventory for all sites', 'central inventory', 'central stock')`,
+        locCondition
+      ))
       .orderBy(locations.name);
 
     const analyticsList = [];
@@ -760,7 +764,10 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
         address: locations.address,
         createdAt: locations.createdAt,
       }).from(locations)
-        .where(eq(locations.isDeleted, 0))
+        .where(and(
+          eq(locations.isDeleted, 0),
+          sql`LOWER(TRIM(${locations.name})) NOT IN ('central inventory for all sites', 'central inventory', 'central stock')`
+        ))
         .orderBy(locations.name),
 
       db.execute(sql`
