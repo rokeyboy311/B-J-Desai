@@ -7,6 +7,7 @@ import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
+import { formatINR, formatDate } from "../../lib/formatters";
 
 export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
@@ -309,21 +310,21 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Supplies</div>
           <div className="text-xl font-black text-slate-800 mt-1">{stats.totalEntries} Records</div>
-          <div className="text-[11px] text-teal-600 font-medium mt-0.5">{stats.totalDispatchedQty} Total Units Dispatched</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-0.5">{formatINR(stats.totalDispatchedQty)} Total Units Dispatched</div>
         </div>
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Subtotal</div>
-          <div className="text-xl font-black text-slate-700 mt-1">₹{stats.totalSubtotal.toLocaleString()}</div>
+          <div className="text-xl font-black text-slate-700 mt-1">₹{formatINR(stats.totalSubtotal)}</div>
           <div className="text-[11px] text-slate-500 font-medium mt-0.5">Taxable Base Amount</div>
         </div>
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">GST Tax Amount</div>
-          <div className="text-xl font-black text-teal-700 mt-1">₹{stats.totalTax.toLocaleString()}</div>
+          <div className="text-xl font-black text-teal-700 mt-1">₹{formatINR(stats.totalTax)}</div>
           <div className="text-[11px] text-teal-600 font-medium mt-0.5">Total GST (CGST/SGST)</div>
         </div>
         <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-200 shadow-sm">
           <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">Grand Total with GST</div>
-          <div className="text-xl font-black text-teal-900 mt-1">₹{stats.grandSupplyValue.toLocaleString()}</div>
+          <div className="text-xl font-black text-teal-900 mt-1">₹{formatINR(stats.grandSupplyValue)}</div>
           <div className="text-[11px] text-teal-700 font-medium mt-0.5">Deducted from Cat 2 Capital</div>
         </div>
       </div>
@@ -353,7 +354,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                   <span className="px-2 py-0.5 bg-teal-50 border border-teal-100 text-teal-900 rounded text-[11px] font-bold flex items-center gap-1">
                     {locName}
                   </span>
-                  <span className="text-slate-500 text-xs font-medium">{r.date}</span>
+                  <span className="text-slate-500 text-xs font-medium">{formatDate(r.date)}</span>
                 </div>
 
                 <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
@@ -367,18 +368,16 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                       const matName = materials.find(m => m.id === item.materialId)?.name || 'Material #' + item.materialId;
                       const itemQty = parseFloat(item.quantity) || 0;
                       const itemRate = parseFloat(item.rate) || 0;
-                      const itemGstPct = parseFloat(item.taxPercentage) || 0;
-                      const itemGstAmt = parseFloat(item.taxAmount) || 0;
                       const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemQty * itemRate);
 
                       return (
                         <div key={i} className="text-xs flex flex-wrap items-center justify-between gap-1 py-1 border-b border-slate-200/60 last:border-none">
                           <div>
                             <span className="font-bold text-teal-900">{matName}</span>
-                            <span className="text-slate-600 text-[11px] ml-1.5 font-semibold">({itemQty} {item.unit || 'Nos'})</span>
+                            <span className="text-slate-600 text-[11px] ml-1.5 font-semibold">({formatINR(itemQty)} {item.unit || 'Nos'})</span>
                           </div>
                           <div className="font-extrabold text-slate-800">
-                            ₹{itemTotalAmt.toLocaleString()}
+                            ₹{formatINR(itemTotalAmt)}
                           </div>
                         </div>
                       );
@@ -395,11 +394,11 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                 <div className="grid grid-cols-2 gap-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-100 text-xs">
                   <div>
                     <div className="text-[10px] uppercase font-bold text-teal-800">Taxable + GST</div>
-                    <div className="font-semibold text-slate-700">₹{subtotalVal.toLocaleString()} + ₹{taxVal.toLocaleString()}</div>
+                    <div className="font-semibold text-slate-700">₹{formatINR(subtotalVal)} + ₹{formatINR(taxVal)}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] uppercase font-bold text-teal-800">Grand Total</div>
-                    <div className="font-black text-teal-950 text-sm">₹{totalVal.toLocaleString()}</div>
+                    <div className="font-black text-teal-950 text-sm">₹{formatINR(totalVal)}</div>
                   </div>
                 </div>
 
@@ -451,7 +450,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
 
                 return (
                   <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-3 text-slate-700 font-medium">{r.date}</td>
+                    <td className="p-3 text-slate-700 font-medium">{formatDate(r.date)}</td>
                     <td className="p-3 font-bold text-slate-800">
                        {locations.find(l => l.id === r.locationId)?.name || `Location ${r.locationId}`}
                     </td>
@@ -474,14 +473,14 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                            return (
                              <div key={i} className="flex flex-wrap gap-1.5 items-center text-[11px] bg-slate-50/90 border border-slate-200/80 rounded px-2 py-1">
                                <span className="font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">{matName}</span>
-                               <span className="text-slate-700 font-semibold">{itemQty} {item.unit || 'Nos'}</span>
-                               {itemRate > 0 && <span className="text-slate-500 font-medium">@ ₹{itemRate}</span>}
+                               <span className="text-slate-700 font-semibold">{formatINR(itemQty)} {item.unit || 'Nos'}</span>
+                               {itemRate > 0 && <span className="text-slate-500 font-medium">@ ₹{formatINR(itemRate)}</span>}
                                {itemGstPct > 0 && (
                                  <span className="text-amber-700 font-semibold bg-amber-50 px-1 rounded border border-amber-100">
-                                   +{itemGstPct}% GST (₹{itemGstAmt.toFixed(2)})
+                                   +{itemGstPct}% GST (₹{formatINR(itemGstAmt)})
                                  </span>
                                )}
-                               <span className="font-bold text-slate-900 ml-auto">= ₹{itemTotalAmt.toLocaleString()}</span>
+                               <span className="font-bold text-slate-900 ml-auto">= ₹{formatINR(itemTotalAmt)}</span>
                              </div>
                            )
                         })}
@@ -493,14 +492,14 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                       </div>
                     </td>
                     <td className="p-3 text-right font-medium text-slate-600">
-                      ₹{subtotalVal.toLocaleString()}
+                      ₹{formatINR(subtotalVal)}
                     </td>
                     <td className="p-3 text-right font-bold text-teal-700">
-                      {taxVal > 0 ? `₹${taxVal.toLocaleString()}` : <span className="text-slate-400 font-normal">₹0.00</span>}
+                      {taxVal > 0 ? `₹${formatINR(taxVal)}` : <span className="text-slate-400 font-normal">₹0</span>}
                     </td>
                     <td className="p-3 text-right font-black text-slate-900">
                       <span className="bg-teal-50 text-teal-900 px-2 py-0.5 rounded-md border border-teal-200">
-                        ₹{totalVal.toLocaleString()}
+                        ₹{formatINR(totalVal)}
                       </span>
                     </td>
                     <td className="p-3 text-center">
@@ -668,11 +667,11 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                      {/* Live Item Total Strip */}
                      <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 flex flex-wrap justify-between items-center text-[11px]">
                        <div className="flex gap-3 text-slate-600">
-                         <span>Taxable Subtotal: <strong className="text-slate-800">₹{computed.subtotal.toFixed(2)}</strong></span>
-                         <span>GST Tax: <strong className="text-amber-700">₹{computed.itemTax.toFixed(2)} ({item.taxPercentage}%)</strong></span>
+                         <span>Taxable Subtotal: <strong className="text-slate-800">₹{formatINR(computed.subtotal)}</strong></span>
+                         <span>GST Tax: <strong className="text-amber-700">₹{formatINR(computed.itemTax)} ({item.taxPercentage}%)</strong></span>
                        </div>
                        <div className="font-bold text-teal-800">
-                         Total with GST: <strong>₹{computed.itemTotal.toFixed(2)}</strong>
+                         Total with GST: <strong>₹{formatINR(computed.itemTotal)}</strong>
                        </div>
                      </div>
                    </div>
@@ -688,15 +687,15 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <div className="text-[10px] uppercase font-bold text-teal-300">Base Subtotal</div>
-                  <div className="text-sm font-bold mt-0.5">₹{modalCalculations.totalTaxable.toLocaleString()}</div>
+                  <div className="text-sm font-bold mt-0.5">₹{formatINR(modalCalculations.totalTaxable)}</div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase font-bold text-amber-300">Total GST Tax</div>
-                  <div className="text-sm font-bold text-amber-300 mt-0.5">₹{modalCalculations.totalTax.toLocaleString()}</div>
+                  <div className="text-sm font-bold text-amber-300 mt-0.5">₹{formatINR(modalCalculations.totalTax)}</div>
                 </div>
                 <div className="bg-teal-800/80 rounded-lg p-1">
                   <div className="text-[10px] uppercase font-black text-white">Grand Total with GST</div>
-                  <div className="text-base font-black text-white mt-0.5">₹{modalCalculations.grandTotal.toLocaleString()}</div>
+                  <div className="text-base font-black text-white mt-0.5">₹{formatINR(modalCalculations.grandTotal)}</div>
                 </div>
               </div>
             </div>

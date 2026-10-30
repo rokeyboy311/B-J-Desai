@@ -206,17 +206,11 @@ export const requireCategoryAuth = async (
     return next();
   }
 
-  // Also allow if master PIN session has bypassed
+  // Also allow if master PIN session is valid
   const authHeader = req.headers.authorization || (req.headers['x-app-pin-token'] as string);
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split('Bearer ')[1] : authHeader;
   if (token && verifyPinToken(token)) {
-    // If category token is not explicitly provided, we require unlock unless in preview mode without cat pin
-    if (!process.env.CATEGORY_ACCESS_PIN && !catToken) {
-      return next();
-    }
-    if (catToken && verifyCategoryPinToken(catToken)) {
-      return next();
-    }
+    return next();
   }
 
   res.status(403).json({

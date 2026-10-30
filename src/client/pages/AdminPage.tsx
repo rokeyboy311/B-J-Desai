@@ -11,6 +11,7 @@ import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerGlobalSync, triggerSync } from "../hooks/useLiveSync";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { Modal } from "../components/ui/Modal";
+import { formatINR, formatDate } from "../lib/formatters";
 
 const GST_PRESETS = ["0", "5", "12", "18", "28"];
 
@@ -266,7 +267,7 @@ export default function AdminPage() {
         })
       });
 
-      showToast(editingTxId ? "Deposit updated successfully" : `₹${amount.toLocaleString("en-IN")} deposited successfully`, "success");
+      showToast(editingTxId ? "Deposit updated successfully" : `₹${formatINR(amount)} deposited successfully`, "success");
       setIsDepositOpen(false);
       setEditingTxId(null);
       setDepositForm({
@@ -310,7 +311,7 @@ export default function AdminPage() {
         })
       });
 
-      showToast(editingTxId ? "Withdrawal updated successfully" : `₹${amount.toLocaleString("en-IN")} withdrawal recorded successfully`, "success");
+      showToast(editingTxId ? "Withdrawal updated successfully" : `₹${formatINR(amount)} withdrawal recorded successfully`, "success");
       setIsWithdrawalOpen(false);
       setEditingTxId(null);
       setWithdrawalForm({
@@ -358,7 +359,7 @@ export default function AdminPage() {
         })
       });
 
-      showToast(editingAllocId ? "Project allocation updated successfully" : `₹${amount.toLocaleString("en-IN")} allocated to location successfully`, "success");
+      showToast(editingAllocId ? "Project allocation updated successfully" : `₹${formatINR(amount)} allocated to location successfully`, "success");
       setIsAllocationOpen(false);
       setEditingAllocId(null);
       setAllocationForm({
@@ -1080,7 +1081,7 @@ export default function AdminPage() {
         investorName: r.partyName || "Refundable Party",
         type: "REFUNDABLE",
         typeLabel: "Refundable Deposit (-)",
-        particulars: `${r.description || "Security Deposit"}${refAmt > 0 ? ` (Refunded: ₹${refAmt.toLocaleString("en-IN")})` : ""}`,
+        particulars: `${r.description || "Security Deposit"}${refAmt > 0 ? ` (Refunded: ₹${formatINR(refAmt)})` : ""}`,
         destination: "Security Deposit / Advance",
         paymentMethod: r.paymentMethod || "Bank Transfer",
         referenceNumber: r.referenceNumber || "-",
@@ -1249,25 +1250,29 @@ export default function AdminPage() {
             <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
               <span className="text-[11px] uppercase font-bold text-slate-300 block">Total Capital Added</span>
               <span className="text-lg sm:text-xl font-black text-emerald-400 block tabular-nums mt-0.5">
-                +₹{totalContributed.toLocaleString("en-IN")}
+                +₹{formatINR(totalContributed)}
               </span>
               <span className="text-[10px] text-slate-400">Investor Deposits</span>
             </div>
 
-            <div className="bg-cyan-950/60 backdrop-blur-xs p-3.5 rounded-2xl border border-cyan-500/30">
-              <span className="text-[11px] uppercase font-bold text-cyan-300 block">Bill Investments</span>
+            <div
+              onClick={() => setWorkflowView("bill_investments")}
+              className="bg-cyan-950/60 hover:bg-cyan-900/70 backdrop-blur-xs p-3.5 rounded-2xl border border-cyan-500/30 cursor-pointer transition-all"
+              title="Click to view Bill Investments"
+            >
+              <span className="text-[11px] uppercase font-bold text-cyan-300 block">Bill Investments ({billIncomes.length})</span>
               <span className="text-lg sm:text-xl font-black text-cyan-300 block tabular-nums mt-0.5">
-                +₹{totalBillInvestments.toLocaleString("en-IN")}
+                +₹{formatINR(totalBillInvestments)}
               </span>
               <span className="text-[10px] text-cyan-200/80 block">
-                GST: -₹{totalBillGst.toLocaleString("en-IN")} &bull; TDS: -₹{totalBillTds.toLocaleString("en-IN")}
+                GST: -₹{formatINR(totalBillGst)} &bull; TDS: -₹{formatINR(totalBillTds)}
               </span>
             </div>
 
             <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
               <span className="text-[11px] uppercase font-bold text-slate-300 block">Total Withdrawn</span>
               <span className="text-lg sm:text-xl font-black text-amber-400 block tabular-nums mt-0.5">
-                -₹{totalWithdrawn.toLocaleString("en-IN")}
+                -₹{formatINR(totalWithdrawn)}
               </span>
               <span className="text-[10px] text-slate-400">Total Capital Returned</span>
             </div>
@@ -1275,7 +1280,7 @@ export default function AdminPage() {
             <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
               <span className="text-[11px] uppercase font-bold text-slate-300 block">Project Allocations</span>
               <span className="text-lg sm:text-xl font-black text-blue-400 block tabular-nums mt-0.5">
-                -₹{totalAllocated.toLocaleString("en-IN")}
+                -₹{formatINR(totalAllocated)}
               </span>
               <span className="text-[10px] text-slate-400">Transferred to Sites</span>
             </div>
@@ -1283,25 +1288,29 @@ export default function AdminPage() {
             <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
               <span className="text-[11px] uppercase font-bold text-slate-300 block">Material Purchases</span>
               <span className="text-lg sm:text-xl font-black text-purple-400 block tabular-nums mt-0.5">
-                -₹{totalPurchasesCost.toLocaleString("en-IN")}
+                -₹{formatINR(totalPurchasesCost)}
               </span>
               <span className="text-[10px] text-slate-400">Central Supply Cost</span>
             </div>
 
-            <div className="bg-purple-950/60 backdrop-blur-xs p-3.5 rounded-2xl border border-purple-500/30">
+            <div
+              onClick={() => setWorkflowView("refundable_records")}
+              className="bg-purple-950/60 hover:bg-purple-900/70 backdrop-blur-xs p-3.5 rounded-2xl border border-purple-500/30 cursor-pointer transition-all"
+              title="Click to view Refundable Records"
+            >
               <span className="text-[11px] uppercase font-bold text-purple-300 block">Refundable (Pending)</span>
               <span className="text-lg sm:text-xl font-black text-purple-300 block tabular-nums mt-0.5">
-                -₹{refundableSummary.pendingRefundable.toLocaleString("en-IN")}
+                -₹{formatINR(refundableSummary.pendingRefundable)}
               </span>
               <span className="text-[10px] text-purple-200/80 block">
-                Paid: ₹{refundableSummary.totalRefundable.toLocaleString("en-IN")} &bull; Rec: ₹{refundableSummary.totalRefunded.toLocaleString("en-IN")}
+                Paid: ₹{formatINR(refundableSummary.totalRefundable)} &bull; Rec: ₹{formatINR(refundableSummary.totalRefunded)}
               </span>
             </div>
 
             <div className="bg-emerald-950/70 p-3.5 rounded-2xl border border-emerald-500/40 col-span-2 sm:col-span-1">
               <span className="text-[11px] uppercase font-bold text-emerald-300 block">Available Capital</span>
               <span className="text-lg sm:text-xl font-black text-emerald-200 block tabular-nums mt-0.5">
-                ₹{availableCapital.toLocaleString("en-IN")}
+                ₹{formatINR(availableCapital)}
               </span>
               <span className="text-[10px] text-emerald-300/70">Central Admin Balance</span>
             </div>
@@ -1359,7 +1368,7 @@ export default function AdminPage() {
               </span>
               {refundableSummary.pendingRefundable > 0 && (
                 <span className="ml-0.5 px-1.5 py-0.5 bg-amber-400 text-slate-900 rounded-full text-[10px] font-black">
-                  ₹{refundableSummary.pendingRefundable.toLocaleString("en-IN")}
+                  ₹{formatINR(refundableSummary.pendingRefundable)}
                 </span>
               )}
             </button>
@@ -1492,7 +1501,7 @@ export default function AdminPage() {
                           <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200/80">
                             <span className="text-[10px] uppercase font-bold text-emerald-800 block">Total Deposits</span>
                             <span className="text-sm font-black text-emerald-950 block tabular-nums">
-                              +₹{statement.totalDeposits.toLocaleString("en-IN")}
+                              +₹{formatINR(statement.totalDeposits)}
                             </span>
                             <span className="text-[9px] text-emerald-700 font-semibold">{statement.depositsList.length} entries</span>
                           </div>
@@ -1500,7 +1509,7 @@ export default function AdminPage() {
                           <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200/80">
                             <span className="text-[10px] uppercase font-bold text-amber-800 block">Total Withdrawals</span>
                             <span className="text-sm font-black text-amber-950 block tabular-nums">
-                              -₹{statement.totalWithdrawals.toLocaleString("en-IN")}
+                              -₹{formatINR(statement.totalWithdrawals)}
                             </span>
                             <span className="text-[9px] text-amber-700 font-semibold">{statement.withdrawalsList.length} entries</span>
                           </div>
@@ -1508,7 +1517,7 @@ export default function AdminPage() {
                           <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-200/80">
                             <span className="text-[10px] uppercase font-bold text-blue-800 block">Allocations</span>
                             <span className="text-sm font-black text-blue-950 block tabular-nums">
-                              -₹{statement.totalAllocated.toLocaleString("en-IN")}
+                              -₹{formatINR(statement.totalAllocated)}
                             </span>
                             <span className="text-[9px] text-blue-700 font-semibold">{statement.allocationsList.length} sites</span>
                           </div>
@@ -1516,7 +1525,7 @@ export default function AdminPage() {
                           <div className="bg-slate-900 text-white p-2.5 rounded-xl border border-slate-800">
                             <span className="text-[10px] uppercase font-bold text-amber-300 block">Available Balance</span>
                             <span className="text-sm font-black block tabular-nums text-white">
-                              ₹{statement.netBalance.toLocaleString("en-IN")}
+                              ₹{formatINR(statement.netBalance)}
                             </span>
                             <span className="text-[9px] text-slate-300 font-medium">Net Balance</span>
                           </div>
@@ -1627,7 +1636,7 @@ export default function AdminPage() {
                               className="px-2.5 py-1 bg-indigo-50 text-indigo-900 border border-indigo-200 rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
                             >
                               <span>{locName}:</span>
-                              <span className="text-indigo-700 font-black tabular-nums">₹{data.totalAmount.toLocaleString("en-IN")}</span>
+                              <span className="text-indigo-700 font-black tabular-nums">₹{formatINR(data.totalAmount)}</span>
                               <span className="text-[10px] text-indigo-500">({data.count} transfers)</span>
                             </span>
                           ))}
@@ -1663,7 +1672,7 @@ export default function AdminPage() {
                               }`}
                             >
                               <span>Deposits ({statement.depositsList.length})</span>
-                              <span className="font-mono text-[11px] font-black">+₹{statement.totalDeposits.toLocaleString("en-IN")}</span>
+                              <span className="font-mono text-[11px] font-black">+₹{formatINR(statement.totalDeposits)}</span>
                             </button>
 
                             <button
@@ -1676,7 +1685,7 @@ export default function AdminPage() {
                               }`}
                             >
                               <span>Withdrawals ({statement.withdrawalsList.length})</span>
-                              <span className="font-mono text-[11px] font-black">-₹{statement.totalWithdrawals.toLocaleString("en-IN")}</span>
+                              <span className="font-mono text-[11px] font-black">-₹{formatINR(statement.totalWithdrawals)}</span>
                             </button>
 
                             <button
@@ -1689,7 +1698,7 @@ export default function AdminPage() {
                               }`}
                             >
                               <span>Project Allocations ({statement.allocationsList.length})</span>
-                              <span className="font-mono text-[11px] font-black">-₹{statement.totalAllocated.toLocaleString("en-IN")}</span>
+                              <span className="font-mono text-[11px] font-black">-₹{formatINR(statement.totalAllocated)}</span>
                             </button>
                           </div>
 
@@ -1765,7 +1774,7 @@ export default function AdminPage() {
                                             {statement.allEntries.length - idx}
                                           </td>
                                           <td className="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap">
-                                            {entry.date}
+                                            {formatDate(entry.date)}
                                           </td>
                                           <td className="py-2.5 px-3 whitespace-nowrap">
                                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
@@ -1794,13 +1803,13 @@ export default function AdminPage() {
                                             )}
                                           </td>
                                           <td className="py-2.5 px-3 text-right font-black text-emerald-700 bg-emerald-50/20 font-mono tabular-nums">
-                                            {entry.credit > 0 ? `+₹${entry.credit.toLocaleString("en-IN")}` : "—"}
+                                            {entry.credit > 0 ? `+₹${formatINR(entry.credit)}` : "—"}
                                           </td>
                                           <td className="py-2.5 px-3 text-right font-black text-rose-700 bg-rose-50/20 font-mono tabular-nums">
-                                            {entry.debit > 0 ? `-₹${entry.debit.toLocaleString("en-IN")}` : "—"}
+                                            {entry.debit > 0 ? `-₹${formatINR(entry.debit)}` : "—"}
                                           </td>
                                           <td className="py-2.5 px-3 text-right font-black font-mono bg-amber-50/30 text-slate-900 tabular-nums">
-                                            ₹{entry.runningBalance.toLocaleString("en-IN")}
+                                            ₹{formatINR(entry.runningBalance)}
                                           </td>
                                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                             <div className="flex items-center justify-center gap-1">
@@ -1845,13 +1854,13 @@ export default function AdminPage() {
                                         Statement Totals:
                                       </td>
                                       <td className="py-2.5 px-3 text-right text-emerald-800 bg-emerald-100/60 font-mono text-sm">
-                                        +₹{statement.totalDeposits.toLocaleString("en-IN")}
+                                        +₹{formatINR(statement.totalDeposits)}
                                       </td>
                                       <td className="py-2.5 px-3 text-right text-rose-800 bg-rose-100/60 font-mono text-sm">
-                                        -₹{statement.totalDeductions.toLocaleString("en-IN")}
+                                        -₹{formatINR(statement.totalDeductions)}
                                       </td>
                                       <td className="py-2.5 px-3 text-right font-mono text-sm bg-amber-100/60 text-slate-900">
-                                        ₹{statement.netBalance.toLocaleString("en-IN")}
+                                        ₹{formatINR(statement.netBalance)}
                                       </td>
                                       <td className="py-2.5 px-3" />
                                     </tr>
@@ -1867,7 +1876,7 @@ export default function AdminPage() {
                           <div className="bg-white rounded-2xl border border-emerald-300 shadow-xs overflow-hidden">
                             <div className="p-3 bg-emerald-50 border-b border-emerald-200 flex justify-between items-center text-xs font-bold text-emerald-950">
                               <span>Deposits History</span>
-                              <span>Total Deposited: +₹{statement.totalDeposits.toLocaleString("en-IN")}</span>
+                              <span>Total Deposited: +₹{formatINR(statement.totalDeposits)}</span>
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-left text-xs border-collapse">
@@ -1891,9 +1900,9 @@ export default function AdminPage() {
                                   ) : (
                                     statement.depositsList.map((d: any) => (
                                       <tr key={d.id} className="hover:bg-emerald-50/30">
-                                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{d.date}</td>
+                                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{formatDate(d.date)}</td>
                                         <td className="py-2.5 px-3 text-right font-black text-emerald-700 font-mono text-sm tabular-nums">
-                                          +₹{d.credit.toLocaleString("en-IN")}
+                                          +₹{formatINR(d.credit)}
                                         </td>
                                         <td className="py-2.5 px-3 text-slate-700">{d.paymentMethod}</td>
                                         <td className="py-2.5 px-3 font-mono text-slate-500">{d.referenceNumber}</td>
@@ -1932,7 +1941,7 @@ export default function AdminPage() {
                           <div className="bg-white rounded-2xl border border-amber-300 shadow-xs overflow-hidden">
                             <div className="p-3 bg-amber-50 border-b border-amber-200 flex justify-between items-center text-xs font-bold text-amber-950">
                               <span>Withdrawals History</span>
-                              <span>Total Withdrawn: -₹{statement.totalWithdrawals.toLocaleString("en-IN")}</span>
+                              <span>Total Withdrawn: -₹{formatINR(statement.totalWithdrawals)}</span>
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-left text-xs border-collapse">
@@ -1956,9 +1965,9 @@ export default function AdminPage() {
                                   ) : (
                                     statement.withdrawalsList.map((w: any) => (
                                       <tr key={w.id} className="hover:bg-amber-50/30">
-                                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{w.date}</td>
+                                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{formatDate(w.date)}</td>
                                         <td className="py-2.5 px-3 text-right font-black text-amber-700 font-mono text-sm tabular-nums">
-                                          -₹{w.debit.toLocaleString("en-IN")}
+                                          -₹{formatINR(w.debit)}
                                         </td>
                                         <td className="py-2.5 px-3 text-slate-700">{w.paymentMethod}</td>
                                         <td className="py-2.5 px-3 font-mono text-slate-500">{w.referenceNumber}</td>
@@ -1997,7 +2006,7 @@ export default function AdminPage() {
                           <div className="bg-white rounded-2xl border border-indigo-300 shadow-xs overflow-hidden">
                             <div className="p-3 bg-indigo-50 border-b border-indigo-200 flex justify-between items-center text-xs font-bold text-indigo-950">
                               <span>Project &amp; Location Allocations</span>
-                              <span>Total Allocated: -₹{statement.totalAllocated.toLocaleString("en-IN")}</span>
+                              <span>Total Allocated: -₹{formatINR(statement.totalAllocated)}</span>
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-left text-xs border-collapse">
@@ -2021,13 +2030,13 @@ export default function AdminPage() {
                                   ) : (
                                     statement.allocationsList.map((a: any) => (
                                       <tr key={a.id} className="hover:bg-indigo-50/30">
-                                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{a.date}</td>
+                                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{formatDate(a.date)}</td>
                                         <td className="py-2.5 px-3 font-bold text-indigo-950 flex items-center gap-1.5">
                                           <Building2 className="w-3.5 h-3.5 text-indigo-600" />
                                           <span>{a.locationName}</span>
                                         </td>
                                         <td className="py-2.5 px-3 text-right font-black text-indigo-700 font-mono text-sm tabular-nums">
-                                          -₹{a.debit.toLocaleString("en-IN")}
+                                          -₹{formatINR(a.debit)}
                                         </td>
                                         <td className="py-2.5 px-3 text-slate-700">{a.paymentMethod}</td>
                                         <td className="py-2.5 px-3 text-slate-600">{a.particulars}</td>
@@ -2065,6 +2074,512 @@ export default function AdminPage() {
                 );
               })
             )}
+            {/* Also show Bill Investments & Refundable Records Overview Cards directly inside Investors View */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+              {/* Bill Investments Quick Section */}
+              <div className="bg-white rounded-3xl border border-cyan-200 shadow-xs overflow-hidden">
+                <div className="p-4 bg-gradient-to-r from-cyan-50 to-white border-b border-cyan-100 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-cyan-600" />
+                      <h3 className="text-sm font-black text-slate-900">Admin Bill Investments ({billIncomes.length})</h3>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Total Net Credited: <span className="font-bold text-cyan-700">+₹{formatINR(totalBillInvestments)}</span> (GST: -₹{formatINR(totalBillGst)} &bull; TDS: -₹{formatINR(totalBillTds)})
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetBillForm();
+                        setIsBillModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      + Add Bill
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkflowView("bill_investments")}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      Full Table
+                    </button>
+                  </div>
+                </div>
+                {billIncomes.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    No bill investments added yet. Click "+ Add Bill Investment" above to record one.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto max-h-72">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-100">
+                        <tr>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Party / Company</th>
+                          <th className="p-3 text-right">Subtotal</th>
+                          <th className="p-3 text-right">GST (-)</th>
+                          <th className="p-3 text-right">TDS (-)</th>
+                          <th className="p-3 text-right font-black text-cyan-800">Net Amount</th>
+                          <th className="p-3 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {billIncomes.map((bill: any) => {
+                          const sub = Number(bill.subtotal || bill.rate || bill.amount || 0);
+                          const gstPct = Number(bill.taxPercentage || 0);
+                          const gstAmt = Number(bill.taxAmount) || Math.round((sub * gstPct / 100) * 100) / 100;
+                          const tdsBase = Math.max(0, sub - gstAmt);
+                          const tdsPct = Number(bill.tdsPercentage || 0);
+                          const tdsAmt = Number(bill.tdsAmount) || Math.round((tdsBase * tdsPct / 100) * 100) / 100;
+                          const netAmt = Number(bill.totalAmount || bill.amount || 0);
+                          return (
+                            <tr key={bill.id} className="hover:bg-cyan-50/30">
+                              <td className="p-3 whitespace-nowrap text-slate-600">{formatDate(bill.date)}</td>
+                              <td className="p-3 font-bold text-slate-900">
+                                {bill.partyName}
+                                {bill.referenceNumber && <span className="block text-[10px] font-mono text-slate-400">#{bill.referenceNumber}</span>}
+                              </td>
+                              <td className="p-3 text-right tabular-nums">₹{formatINR(sub)}</td>
+                              <td className="p-3 text-right tabular-nums text-rose-600">-₹{formatINR(gstAmt)} ({gstPct}%)</td>
+                              <td className="p-3 text-right tabular-nums text-amber-700">-₹{formatINR(tdsAmt)} ({tdsPct}%)</td>
+                              <td className="p-3 text-right font-black text-cyan-700 tabular-nums">+₹{formatINR(netAmt)}</td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditBill(bill)}
+                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer"
+                                    title="Edit Bill"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBill(bill.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                    title="Delete Bill"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Refundable Records Quick Section */}
+              <div className="bg-white rounded-3xl border border-purple-200 shadow-xs overflow-hidden">
+                <div className="p-4 bg-gradient-to-r from-purple-50 to-white border-b border-purple-100 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-purple-600" />
+                      <h3 className="text-sm font-black text-slate-900">Admin Refundable Records ({safeRefundableRecords.length})</h3>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Pending Deduction: <span className="font-bold text-purple-700">-₹{formatINR(refundableSummary.pendingRefundable)}</span> (Paid: ₹{formatINR(refundableSummary.totalRefundable)} &bull; Refunded: ₹{formatINR(refundableSummary.totalRefunded)})
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRefundableId(null);
+                        setRefundableFormData({
+                          partyName: "",
+                          amount: "",
+                          depositType: "Security Deposit",
+                          date: new Date().toISOString().split("T")[0],
+                          paymentMethod: "Bank Transfer",
+                          referenceNumber: "",
+                          notes: "",
+                        });
+                        setIsRefundableModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      + Add Deposit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkflowView("refundable_records")}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      Full Table
+                    </button>
+                  </div>
+                </div>
+                {safeRefundableRecords.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    No refundable records added yet. Click "+ Add Refundable Record" above to record one.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto max-h-72">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-100">
+                        <tr>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Party Name</th>
+                          <th className="p-3 text-right">Deposited</th>
+                          <th className="p-3 text-right">Refunded</th>
+                          <th className="p-3 text-right font-black text-purple-800">Pending</th>
+                          <th className="p-3 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {safeRefundableRecords.map((rec: any) => {
+                          const depAmt = Number(rec.refundableAmount || rec.amount || 0);
+                          const refAmt = Number(rec.refundedAmount || 0);
+                          const pendAmt = Math.max(0, Math.round((depAmt - refAmt) * 100) / 100);
+                          return (
+                            <tr key={rec.id} className="hover:bg-purple-50/30">
+                              <td className="p-3 whitespace-nowrap text-slate-600">{formatDate(rec.date)}</td>
+                              <td className="p-3 font-bold text-slate-900">{rec.partyName}</td>
+                              <td className="p-3 text-right tabular-nums">₹{formatINR(depAmt)}</td>
+                              <td className="p-3 text-right tabular-nums text-emerald-700">₹{formatINR(refAmt)}</td>
+                              <td className="p-3 text-right font-black text-purple-700 tabular-nums">₹{formatINR(pendAmt)}</td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditRefundable(rec)}
+                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer"
+                                    title="Edit Record"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteRefundable(rec.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                    title="Delete Record"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* WORKFLOW VIEW: BILL INVESTMENTS */}
+        {workflowView === "bill_investments" && (
+          <div className="space-y-4">
+            <div className="bg-white p-5 rounded-3xl border border-cyan-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200 mb-1">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Admin Bill Investment Ledger</span>
+                </div>
+                <h2 className="text-lg font-black text-slate-900">
+                  Bill Investments (Subtotal - GST = Base Amount of TDS - TDS)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  All bill investments are managed centrally in Admin and credited directly to Available Admin Capital.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="bg-cyan-50 px-4 py-2 rounded-2xl border border-cyan-200 text-right">
+                  <span className="text-[10px] font-bold uppercase text-cyan-700 block">Total Net Bill Capital</span>
+                  <span className="text-base font-black text-cyan-900 tabular-nums">+₹{formatINR(totalBillInvestments)}</span>
+                </div>
+                <div className="bg-rose-50 px-3.5 py-2 rounded-2xl border border-rose-200 text-right">
+                  <span className="text-[10px] font-bold uppercase text-rose-700 block">Total GST (-)</span>
+                  <span className="text-sm font-black text-rose-900 tabular-nums">-₹{formatINR(totalBillGst)}</span>
+                </div>
+                <div className="bg-amber-50 px-3.5 py-2 rounded-2xl border border-amber-200 text-right">
+                  <span className="text-[10px] font-bold uppercase text-amber-700 block">Total TDS (-)</span>
+                  <span className="text-sm font-black text-amber-900 tabular-nums">-₹{formatINR(totalBillTds)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetBillForm();
+                    setIsBillModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Bill Investment</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3.5 whitespace-nowrap">Date</th>
+                      <th className="p-3.5">Party / Customer / Company</th>
+                      <th className="p-3.5 text-right">Bill Subtotal</th>
+                      <th className="p-3.5 text-right text-rose-700">GST (-)</th>
+                      <th className="p-3.5 text-right text-indigo-700">Base of TDS</th>
+                      <th className="p-3.5 text-right text-amber-700">TDS (-)</th>
+                      <th className="p-3.5 text-right">Transport (+)</th>
+                      <th className="p-3.5 text-right font-black text-cyan-800 bg-cyan-50/40">Final Net Amount</th>
+                      <th className="p-3.5 text-center">Payment &amp; Ref</th>
+                      <th className="p-3.5 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {billIncomes.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="p-10 text-center text-slate-400">
+                          No Bill Investments recorded yet. Click "+ Add Bill Investment" to create one.
+                        </td>
+                      </tr>
+                    ) : (
+                      billIncomes.map((bill: any) => {
+                        const sub = Number(bill.subtotal || bill.rate || bill.amount || 0);
+                        const gstPct = Number(bill.taxPercentage || 0);
+                        const gstAmt = Number(bill.taxAmount) || Math.round((sub * gstPct / 100) * 100) / 100;
+                        const tdsBase = Math.max(0, Math.round((sub - gstAmt) * 100) / 100);
+                        const tdsPct = Number(bill.tdsPercentage || 0);
+                        const tdsAmt = Number(bill.tdsAmount) || Math.round((tdsBase * tdsPct / 100) * 100) / 100;
+                        const trans = Number(bill.transportCost || 0);
+                        const netAmt = Number(bill.totalAmount || bill.amount || 0);
+                        return (
+                          <tr key={bill.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">{formatDate(bill.date)}</td>
+                            <td className="p-3.5">
+                              <div className="font-bold text-slate-900">{bill.partyName}</div>
+                              {bill.notes && <div className="text-[10px] text-slate-500 mt-0.5">{bill.notes}</div>}
+                            </td>
+                            <td className="p-3.5 text-right font-semibold text-slate-800 tabular-nums">
+                              ₹{formatINR(sub)}
+                            </td>
+                            <td className="p-3.5 text-right font-bold text-rose-600 tabular-nums">
+                              -₹{formatINR(gstAmt)} <span className="text-[10px] text-slate-400">({gstPct}%)</span>
+                            </td>
+                            <td className="p-3.5 text-right font-bold text-indigo-700 tabular-nums">
+                              ₹{formatINR(tdsBase)}
+                            </td>
+                            <td className="p-3.5 text-right font-bold text-amber-700 tabular-nums">
+                              -₹{formatINR(tdsAmt)} <span className="text-[10px] text-slate-400">({tdsPct}%)</span>
+                            </td>
+                            <td className="p-3.5 text-right text-slate-600 tabular-nums">
+                              {trans > 0 ? `+₹${formatINR(trans)}` : "—"}
+                            </td>
+                            <td className="p-3.5 text-right font-black text-cyan-800 bg-cyan-50/30 tabular-nums text-sm">
+                              +₹{formatINR(netAmt)}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
+                                {bill.paymentMethod || "Bank Transfer"}
+                              </span>
+                              {bill.referenceNumber && (
+                                <div className="text-[10px] font-mono text-slate-400 mt-0.5">#{bill.referenceNumber}</div>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditBill(bill)}
+                                  className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
+                                  title="Edit Bill Investment"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBill(bill.id)}
+                                  className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Bill Investment"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* WORKFLOW VIEW: REFUNDABLE RECORDS */}
+        {workflowView === "refundable_records" && (
+          <div className="space-y-4">
+            <div className="bg-white p-5 rounded-3xl border border-purple-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200 mb-1">
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Admin Security Deposits &amp; Refundable Advances</span>
+                </div>
+                <h2 className="text-lg font-black text-slate-900">
+                  Refundable Records Ledger
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Pending refundable deposits are deducted from Admin Capital until refunded back.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="bg-slate-100 px-3.5 py-2 rounded-2xl border border-slate-200 text-right">
+                  <span className="text-[10px] font-bold uppercase text-slate-600 block">Total Deposited</span>
+                  <span className="text-sm font-black text-slate-900 tabular-nums">₹{formatINR(refundableSummary.totalRefundable)}</span>
+                </div>
+                <div className="bg-emerald-50 px-3.5 py-2 rounded-2xl border border-emerald-200 text-right">
+                  <span className="text-[10px] font-bold uppercase text-emerald-700 block">Total Refunded</span>
+                  <span className="text-sm font-black text-emerald-900 tabular-nums">+₹{formatINR(refundableSummary.totalRefunded)}</span>
+                </div>
+                <div className="bg-purple-50 px-4 py-2 rounded-2xl border border-purple-200 text-right">
+                  <span className="text-[10px] font-bold uppercase text-purple-700 block">Pending Deduction</span>
+                  <span className="text-base font-black text-purple-900 tabular-nums">-₹{formatINR(refundableSummary.pendingRefundable)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRefundableId(null);
+                    setRefundableFormData({
+                      partyName: "",
+                      amount: "",
+                      depositType: "Security Deposit",
+                      date: new Date().toISOString().split("T")[0],
+                      paymentMethod: "Bank Transfer",
+                      referenceNumber: "",
+                      notes: "",
+                    });
+                    setIsRefundableModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Refundable Record</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-3.5 whitespace-nowrap">Date</th>
+                      <th className="p-3.5">Party / Authority Name</th>
+                      <th className="p-3.5">Description / Type</th>
+                      <th className="p-3.5 text-center">Payment &amp; Ref</th>
+                      <th className="p-3.5 text-right">Deposited</th>
+                      <th className="p-3.5 text-right text-emerald-700">Refunded</th>
+                      <th className="p-3.5 text-right font-black text-purple-800 bg-purple-50/40">Pending Balance</th>
+                      <th className="p-3.5 text-center">Status</th>
+                      <th className="p-3.5 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredRefundables.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-10 text-center text-slate-400">
+                          No Refundable Records found. Click "+ Add Refundable Record" to create one.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRefundables.map((rec: any) => {
+                        const depAmt = Number(rec.refundableAmount || rec.amount || 0);
+                        const refAmt = Number(rec.refundedAmount || 0);
+                        const pendAmt = Math.max(0, Math.round((depAmt - refAmt) * 100) / 100);
+                        return (
+                          <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">{formatDate(rec.date)}</td>
+                            <td className="p-3.5 font-bold text-slate-900">{rec.partyName}</td>
+                            <td className="p-3.5 text-slate-600">
+                              <div>{rec.description || "Security Deposit"}</div>
+                              {rec.notes && <div className="text-[10px] text-slate-400 mt-0.5">{rec.notes}</div>}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
+                                {rec.paymentMethod || "Bank Transfer"}
+                              </span>
+                              {rec.referenceNumber && (
+                                <div className="text-[10px] font-mono text-slate-400 mt-0.5">#{rec.referenceNumber}</div>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-right font-semibold text-slate-800 tabular-nums">
+                              ₹{formatINR(depAmt)}
+                            </td>
+                            <td className="p-3.5 text-right font-bold text-emerald-700 tabular-nums">
+                              ₹{formatINR(refAmt)}
+                            </td>
+                            <td className="p-3.5 text-right font-black text-purple-800 bg-purple-50/30 tabular-nums text-sm">
+                              ₹{formatINR(pendAmt)}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                pendAmt <= 0
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : refAmt > 0
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-purple-100 text-purple-800"
+                              }`}>
+                                {pendAmt <= 0 ? "Refunded" : refAmt > 0 ? "Partial" : "Pending"}
+                              </span>
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {pendAmt > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveRefundRecord(rec);
+                                      setRefundActionData({
+                                        refundedAmount: String(pendAmt),
+                                        refundDate: new Date().toISOString().split("T")[0],
+                                        refundNotes: "",
+                                      });
+                                      setIsRefundModalOpen(true);
+                                    }}
+                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold cursor-pointer"
+                                    title="Record Refund Received"
+                                  >
+                                    Refund
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => openEditRefundable(rec)}
+                                  className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition-colors cursor-pointer"
+                                  title="Edit Refundable Record"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRefundable(rec.id)}
+                                  className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Refundable Record"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2074,7 +2589,7 @@ export default function AdminPage() {
             {/* Filter Toolbar */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl flex-wrap">
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter("ALL")}
@@ -2099,6 +2614,17 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setLedgerTypeFilter("BILL_INVESTMENT")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      ledgerTypeFilter === "BILL_INVESTMENT"
+                        ? "bg-cyan-600 text-white shadow-xs"
+                        : "text-cyan-800 hover:bg-cyan-50"
+                    }`}
+                  >
+                    Bill Investments
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setLedgerTypeFilter("WITHDRAWAL")}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       ledgerTypeFilter === "WITHDRAWAL"
@@ -2119,6 +2645,17 @@ export default function AdminPage() {
                   >
                     Project Allocations
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter("REFUNDABLE")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      ledgerTypeFilter === "REFUNDABLE"
+                        ? "bg-purple-600 text-white shadow-xs"
+                        : "text-purple-800 hover:bg-purple-50"
+                    }`}
+                  >
+                    Refundables
+                  </button>
                 </div>
 
                 {/* Investor Filter Dropdown */}
@@ -2127,7 +2664,7 @@ export default function AdminPage() {
                   onChange={(e) => setLedgerInvestorFilter(e.target.value)}
                   className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value="ALL">All Investors</option>
+                  <option value="ALL">All Investors / Parties</option>
                   {investors.map((inv) => (
                     <option key={inv.id} value={inv.id}>{inv.name}</option>
                   ))}
@@ -2154,7 +2691,7 @@ export default function AdminPage() {
                   <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                     <tr>
                       <th className="p-3.5 whitespace-nowrap">Date</th>
-                      <th className="p-3.5">Investor</th>
+                      <th className="p-3.5">Investor / Party</th>
                       <th className="p-3.5">Type</th>
                       <th className="p-3.5">Particulars / Destination</th>
                       <th className="p-3.5 text-center">Payment &amp; Ref</th>
@@ -2173,20 +2710,31 @@ export default function AdminPage() {
                       </tr>
                     ) : (
                       filteredMasterLedger.map((entry) => {
-                        const isDeposit = entry.credit > 0;
                         return (
                           <tr key={entry.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">{entry.date}</td>
+                            <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">{formatDate(entry.date)}</td>
                             <td className="p-3.5 font-bold text-slate-900">{entry.investorName}</td>
                             <td className="p-3.5 whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase inline-flex items-center gap-1 ${
-                                isDeposit
+                                entry.type === "DEPOSIT"
                                   ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : entry.type === "BILL_INVESTMENT"
+                                  ? "bg-cyan-100 text-cyan-800 border border-cyan-300"
                                   : entry.type === "WITHDRAWAL"
                                   ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                  : entry.type === "REFUNDABLE"
+                                  ? "bg-purple-100 text-purple-800 border border-purple-300"
                                   : "bg-blue-100 text-blue-800 border border-blue-300"
                               }`}>
-                                {entry.type === "DEPOSIT" ? "Deposit" : entry.type === "WITHDRAWAL" ? "Withdrawal" : "Allocation"}
+                                {entry.type === "DEPOSIT"
+                                  ? "Deposit"
+                                  : entry.type === "BILL_INVESTMENT"
+                                  ? "Bill Investment"
+                                  : entry.type === "WITHDRAWAL"
+                                  ? "Withdrawal"
+                                  : entry.type === "REFUNDABLE"
+                                  ? "Refundable"
+                                  : "Allocation"}
                               </span>
                             </td>
                             <td className="p-3.5 text-slate-700 max-w-xs">
@@ -2208,13 +2756,13 @@ export default function AdminPage() {
                               )}
                             </td>
                             <td className="p-3.5 text-right font-black text-emerald-700 tabular-nums text-sm bg-emerald-50/20">
-                              {entry.credit > 0 ? `+₹${entry.credit.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                              {entry.credit > 0 ? `+₹${formatINR(entry.credit)}` : <span className="text-slate-300 font-normal">—</span>}
                             </td>
                             <td className="p-3.5 text-right font-black text-rose-700 tabular-nums text-sm bg-rose-50/20">
-                              {entry.debit > 0 ? `-₹${entry.debit.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                              {entry.debit > 0 ? `-₹${formatINR(entry.debit)}` : <span className="text-slate-300 font-normal">—</span>}
                             </td>
                             <td className="p-3.5 text-right font-black text-slate-900 tabular-nums text-sm bg-amber-50/20">
-                              ₹{entry.runningBalance.toLocaleString("en-IN")}
+                              ₹{formatINR(entry.runningBalance)}
                             </td>
                             <td className="p-3.5 text-center">
                               <div className="flex items-center justify-center gap-1">
@@ -2226,25 +2774,19 @@ export default function AdminPage() {
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
-                                {entry.kind === "TRANSACTION" ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteTransaction(entry.rawId)}
-                                    className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                    title="Delete Transaction"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteAllocation(entry.rawId)}
-                                    className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                    title="Delete Allocation"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (entry.kind === "TRANSACTION") handleDeleteTransaction(entry.rawId);
+                                    else if (entry.kind === "BILL_INVESTMENT") handleDeleteBill(entry.rawId);
+                                    else if (entry.kind === "REFUNDABLE") handleDeleteRefundable(entry.rawId);
+                                    else handleDeleteAllocation(entry.rawId);
+                                  }}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                  title="Delete Entry"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -2700,7 +3242,7 @@ export default function AdminPage() {
                   const avail = Number(inv.availableBalance ?? inv.availableCapital ?? 0);
                   return (
                     <option key={inv.id} value={inv.id}>
-                      {inv.name} (Available: ₹{avail.toLocaleString("en-IN")})
+                      {inv.name} (Available: ₹{formatINR(avail)})
                     </option>
                   );
                 })}
@@ -2927,33 +3469,33 @@ export default function AdminPage() {
             <div className="bg-slate-900 text-white rounded-xl p-4 space-y-1.5 text-xs">
               <div className="flex justify-between text-slate-300">
                 <span>Bill Subtotal:</span>
-                <span>₹{billCalc.subtotal.toFixed(2)}</span>
+                <span>₹{formatINR(billCalc.subtotal)}</span>
               </div>
               <div className="flex justify-between text-rose-400">
                 <span>GST ({billData.taxPercentage || 0}% on Bill Subtotal) (-):</span>
-                <span>-₹{billCalc.taxAmount.toFixed(2)}</span>
+                <span>-₹{formatINR(billCalc.taxAmount)}</span>
               </div>
               <div className="flex justify-between text-slate-200 font-semibold border-t border-slate-800 pt-1">
                 <span>Base Amount of TDS (Bill Subtotal - GST):</span>
-                <span>₹{billCalc.tdsBaseAmount.toFixed(2)}</span>
+                <span>₹{formatINR(billCalc.tdsBaseAmount)}</span>
               </div>
               <div className="flex justify-between text-rose-400">
                 <span>TDS ({billData.tdsPercentage || 0}% on Base Amount of TDS) (-):</span>
-                <span>-₹{billCalc.tdsAmount.toFixed(2)}</span>
+                <span>-₹{formatINR(billCalc.tdsAmount)}</span>
               </div>
               <div className="flex justify-between text-slate-300 border-t border-slate-800 pt-1">
                 <span>Amount After TDS (Base Amount of TDS - TDS):</span>
-                <span>₹{billCalc.afterTdsAmount.toFixed(2)}</span>
+                <span>₹{formatINR(billCalc.afterTdsAmount)}</span>
               </div>
               {billCalc.transport > 0 && (
                 <div className="flex justify-between text-amber-300">
                   <span>Transport Fee (Added separately) (+):</span>
-                  <span>+₹{billCalc.transport.toFixed(2)}</span>
+                  <span>+₹{formatINR(billCalc.transport)}</span>
                 </div>
               )}
               <div className="flex justify-between text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
                 <span>Net Total Amount:</span>
-                <span>₹{billCalc.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>₹{formatINR(billCalc.netTotal)}</span>
               </div>
             </div>
 
@@ -3122,7 +3664,7 @@ export default function AdminPage() {
             </div>
 
             <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 text-xs text-purple-900 font-medium">
-              💡 <strong>Note:</strong> After saving, ₹{parseFloat(refundableFormData.amount) || 0} will be deducted from Admin Capital and tracked under Pending Refunds.
+              💡 <strong>Note:</strong> After saving, ₹{formatINR(refundableFormData.amount)} will be deducted from Admin Capital and tracked under Pending Refunds.
             </div>
 
             <button
@@ -3155,16 +3697,16 @@ export default function AdminPage() {
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-500">Total Deposited Amount:</span>
-                <span className="font-bold text-slate-800">₹{Number(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0).toLocaleString()}</span>
+                <span className="font-bold text-slate-800">₹{formatINR(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Previously Refunded:</span>
-                <span className="font-bold text-emerald-700">₹{Number(activeRefundRecord?.refundedAmount || 0).toLocaleString()}</span>
+                <span className="font-bold text-emerald-700">₹{formatINR(activeRefundRecord?.refundedAmount || 0)}</span>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-1">
                 <span className="font-bold text-slate-700">Remaining Pending:</span>
                 <span className="font-black text-amber-800">
-                  ₹{Math.max(0, Number(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0)).toLocaleString()}
+                  ₹{formatINR(Math.max(0, Number(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0)))}
                 </span>
               </div>
             </div>

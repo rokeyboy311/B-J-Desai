@@ -248,7 +248,7 @@ contractorRouter.get('/reconciliation', async (req: AuthRequest, res: Response) 
       ]);
       const fromAllocs = parseFloat(allocs[0]?.total || '0') || 0;
       const fromInvTxs = parseFloat(invTxs[0]?.total || '0') || 0;
-      totalInvestmentCapital = round2(fromAllocs + fromInvTxs);
+      totalInvestmentCapital = round2(fromAllocs > 0 ? fromAllocs : fromInvTxs);
     }
 
     const totalThreeExpenses = round2(totalMaterialSupply + totalSiteSupplyAmount + totalLabourAttendance);

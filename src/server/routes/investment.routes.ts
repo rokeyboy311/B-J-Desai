@@ -1958,15 +1958,16 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       else if (t.type === 'UPAD' || t.type === 'PAYMENT') returnsToInvestors += amt;
     });
     
-    // Capital deployed to this project from investors via 'Add Investment Capital from Investor Capital'
-    const investmentFromInvestorsCapital = Math.round(fromInvestmentKarya * 100) / 100;
+    // Investor Investment Capital allocated to this location from Admin (or legacy INVESTMENT transactions if no direct allocations)
+    const effectiveInvestorCapital = totalFromDirectAllocations > 0 ? totalFromDirectAllocations : fromInvestmentKarya;
+    const investmentFromInvestorsCapital = Math.round(effectiveInvestorCapital * 100) / 100;
     const fromInvestors = investmentFromInvestorsCapital;
 
     // 2. Bill Investments are managed at the Admin level, not per-location
     const fromBills = 0;
     const billCount = 0;
 
-    // Full Capital in Location = Investment from Investors Capital ONLY
+    // Full Capital in Location = Investor Investment Capital
     const fullCapital = Math.round(investmentFromInvestorsCapital * 100) / 100;
     const netInvestmentCapital = Math.round((fullCapital - returnsToInvestors) * 100) / 100;
 
@@ -2022,9 +2023,10 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
 
     // 6. Category 6: Labour Salaries, Team Upad & Other Kharch
     const labourData = await db.select({
-      netSalary: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) not like '%UPAD%' then coalesce(${labourSalaries.netSalary}, ${labourSalaries.grossSalary}, 0) else 0 end)`,
+      netSalary: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) not like '%UPAD%' and upper(${labourSalaries.attendanceType}) not like '%KHARCH%' and upper(${labourSalaries.attendanceType}) not like '%EXPENSE%' then greatest(coalesce(${labourSalaries.netSalary}, 0), coalesce(${labourSalaries.grossSalary}, 0)) else 0 end)`,
       upad: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) like '%UPAD%' then greatest(coalesce(${labourSalaries.upad}, 0), coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0)) else coalesce(${labourSalaries.upad}, 0) end)`,
-      paid: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) like '%UPAD%' then greatest(coalesce(${labourSalaries.upad}, 0), coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0)) else coalesce(${labourSalaries.paymentAmount}, 0) end)`,
+      otherKharch: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) like '%KHARCH%' or upper(${labourSalaries.attendanceType}) like '%EXPENSE%' then greatest(coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0), coalesce(${labourSalaries.netSalary}, 0)) else 0 end)`,
+      paid: sql<string>`sum(case when upper(${labourSalaries.attendanceType}) like '%UPAD%' then greatest(coalesce(${labourSalaries.upad}, 0), coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0)) when upper(${labourSalaries.attendanceType}) like '%KHARCH%' or upper(${labourSalaries.attendanceType}) like '%EXPENSE%' then greatest(coalesce(${labourSalaries.paymentAmount}, 0), coalesce(${labourSalaries.grossSalary}, 0), coalesce(${labourSalaries.netSalary}, 0)) else coalesce(${labourSalaries.paymentAmount}, 0) end)`,
       grossSalary: sql<string>`sum(coalesce(${labourSalaries.grossSalary}, 0))`,
       balance: sql<string>`sum(coalesce(${labourSalaries.balance}, 0))`,
       count: sql<number>`count(*)`
@@ -2037,16 +2039,15 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
 
     const labourNetSalary = parseFloat(labourData[0]?.netSalary || '0');
     const labourUpad = parseFloat(labourData[0]?.upad || '0');
+    const labourOtherKharch = parseFloat(labourData[0]?.otherKharch || '0');
     const labourPaid = parseFloat(labourData[0]?.paid || '0');
     const labourGross = parseFloat(labourData[0]?.grossSalary || '0');
     const labourBalance = parseFloat(labourData[0]?.balance || '0');
     const labourCount = Number(labourData[0]?.count || 0);
 
-    // In Cat 6, total deduction is calculated from gross wages + team upad + other kharch
-    // For records: grossSalary holds attendance / other kharch, upad holds team upad
-    // Note: netSalary + upad accurately represents all labour expenditure
-    const cat6Total = Math.round((labourNetSalary + labourUpad) * 100) / 100;
-    const cat6CashPaid = Math.round((labourPaid + labourUpad) * 100) / 100;
+    // Total Cat 6 operational deduction = Attendance Wages + Team Upad + Other Kharch
+    const cat6Total = Math.round((labourNetSalary + labourUpad + labourOtherKharch) * 100) / 100;
+    const cat6CashPaid = Math.round(labourPaid * 100) / 100;
 
     // Refundable Records are managed at the Admin level, not per-location
     const totalRefundable = 0;
@@ -2244,10 +2245,9 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       .limit(50)
     ]);
 
-    // Merge all location capital inflows (investment transactions only)
-    const recentCapitalInflows = [
-      ...recentLegacyTxs
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Merge location capital inflows (prefer Admin direct allocations if present, else legacy transactions)
+    const recentCapitalInflows = (totalFromDirectAllocations > 0 ? recentDirectAllocs : recentLegacyTxs)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Merge and sort all location deductions chronologically descending
     const itemizedDeductions = [

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Building2, MapPin, ExternalLink } from "lucide-react";
+import { Plus, Building2, MapPin, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerGlobalSync } from "../hooks/useLiveSync";
 import { Modal } from "../components/ui/Modal";
+import { formatINR } from "../lib/formatters";
 
 export default function LocationsPage() {
   const navigate = useNavigate();
-  const { showToast } = useToast();
+  const { showToast, confirmAction } = useToast();
   const [locations, setLocations] = useState<any[]>(() => {
     try {
       const saved = sessionStorage.getItem('bd_erp_locations_breakdown_cache');
@@ -30,6 +31,12 @@ export default function LocationsPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
   const [newLocationAddress, setNewLocationAddress] = useState("");
+
+  // Edit Location Modal
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingLocationId, setEditingLocationId] = useState<number | null>(null);
+  const [editLocationName, setEditLocationName] = useState("");
+  const [editLocationAddress, setEditLocationAddress] = useState("");
 
   const loadLocations = async (isBackground = false) => {
     try {
@@ -83,14 +90,68 @@ export default function LocationsPage() {
     }
   };
 
+  const openEditLocation = (e: React.MouseEvent, loc: any) => {
+    e.stopPropagation();
+    setEditingLocationId(loc.id);
+    setEditLocationName(loc.name || "");
+    setEditLocationAddress(loc.address || "");
+    setIsEditOpen(true);
+  };
+
+  const handleUpdateLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLocationId || !editLocationName.trim()) {
+      showToast("Please enter location name", "error");
+      return;
+    }
+
+    try {
+      await apiFetch(`/locations/${editingLocationId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: editLocationName.trim(),
+          address: editLocationAddress.trim() || null
+        })
+      });
+
+      showToast("Location updated successfully!", "success");
+      setIsEditOpen(false);
+      setEditingLocationId(null);
+      triggerGlobalSync();
+      loadLocations(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to update location", "error");
+    }
+  };
+
+  const handleDeleteLocation = async (e: React.MouseEvent, loc: any) => {
+    e.stopPropagation();
+    const confirmed = await confirmAction({
+      title: "Delete Location",
+      message: `Are you sure you want to delete "${loc.name}"? All associated site records will be removed.`,
+      confirmLabel: "Delete Location",
+      isDanger: true
+    });
+    if (!confirmed) return;
+
+    try {
+      await apiFetch(`/locations/${loc.id}`, { method: "DELETE" });
+      showToast(`Location "${loc.name}" deleted successfully`, "success");
+      triggerGlobalSync();
+      loadLocations(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete location", "error");
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       
-      {/* Page Header matching 03_locations.svg */}
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Locations</h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">Manage all project locations</p>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Manage all project locations &amp; Investor Investment Capital</p>
         </div>
 
         <button
@@ -103,7 +164,7 @@ export default function LocationsPage() {
         </button>
       </div>
 
-      {/* Grid of Location Cards matching 03_locations.svg */}
+      {/* Grid of Location Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {locations.length === 0 ? (
           <div className="col-span-2 bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center text-slate-400 text-xs">
@@ -111,8 +172,8 @@ export default function LocationsPage() {
           </div>
         ) : (
           locations.map((loc) => {
-            const invCap = loc.investorCapital || 0;
-            const remainingInvCap = loc.remainingInvestmentCapital ?? loc.cat2InvestmentCapital?.remainingCapital ?? loc.billInvestment ?? 0;
+            const invCap = loc.investorCapital ?? loc.cat2InvestmentCapital?.investorCapital ?? 0;
+            const remainingInvCap = loc.remainingInvestmentCapital ?? loc.cat2InvestmentCapital?.remainingCapital ?? 0;
             const stockVal = loc.stockValuation || 0;
             const siteSupply = loc.siteSupplies || 0;
             const labour = loc.labourMetrics?.grossSalary || loc.labourTotal || 0;
@@ -125,58 +186,76 @@ export default function LocationsPage() {
                 className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:border-blue-300 hover:shadow-md transition-all duration-200 p-6 space-y-4 cursor-pointer"
               >
                 {/* Location Header */}
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h2 className="text-lg font-black text-slate-900">{loc.name}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-black text-slate-900">{loc.name}</h2>
+                      <button
+                        type="button"
+                        onClick={(e) => openEditLocation(e, loc)}
+                        className="p-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Location Name & Address"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteLocation(e, loc)}
+                        className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Location"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                      Active location &bull; live capital and operating summary
+                      {loc.address ? `${loc.address} • ` : ""}Active location &bull; live capital and operating summary
                     </p>
                   </div>
-                  <ExternalLink className="w-4 h-4 text-slate-400 hover:text-blue-600 transition-colors" />
+                  <ExternalLink className="w-4 h-4 text-slate-400 hover:text-blue-600 transition-colors shrink-0" />
                 </div>
 
-                {/* 6 Key Metrics Grid matching SVG */}
+                {/* 6 Key Metrics Grid */}
                 <div className="grid grid-cols-3 gap-3 pt-2">
                   
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investor Capital</span>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investor Investment Capital</span>
                     <span className="text-sm font-bold text-slate-800 tabular-nums">
-                      ₹{invCap.toLocaleString("en-IN")}
+                      ₹{formatINR(invCap)}
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Remaining Investment Capital</span>
-                    <span className={`text-sm font-bold tabular-nums ${remainingInvCap < 0 ? "text-rose-600" : "text-slate-800"}`}>
-                      ₹{remainingInvCap.toLocaleString("en-IN")}
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Remaining Investor Investment Capital</span>
+                    <span className={`text-sm font-bold tabular-nums ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
+                      ₹{formatINR(remainingInvCap)}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Stock</span>
                     <span className="text-sm font-bold text-slate-800 tabular-nums">
-                      ₹{stockVal.toLocaleString("en-IN")}
+                      ₹{formatINR(stockVal)}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Site Supply</span>
                     <span className="text-sm font-bold text-slate-800 tabular-nums">
-                      ₹{siteSupply.toLocaleString("en-IN")}
+                      ₹{formatINR(siteSupply)}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Labour</span>
                     <span className="text-sm font-bold text-slate-800 tabular-nums">
-                      ₹{labour.toLocaleString("en-IN")}
+                      ₹{formatINR(labour)}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Contractor</span>
                     <span className="text-sm font-bold text-slate-800 tabular-nums">
-                      ₹{contractor.toLocaleString("en-IN")}
+                      ₹{formatINR(contractor)}
                     </span>
                   </div>
 
@@ -231,6 +310,54 @@ export default function LocationsPage() {
               className="px-4 py-2 bg-[#1E88E5] text-white rounded-xl text-xs font-bold cursor-pointer"
             >
               Create Location
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Edit Location */}
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Edit Project Location"
+      >
+        <form onSubmit={handleUpdateLocation} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location Name *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Ahmedabad, Surat, Rajkot"
+              value={editLocationName}
+              onChange={(e) => setEditLocationName(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Site Address / Description</label>
+            <input
+              type="text"
+              placeholder="e.g. Near Science City, Ahmedabad"
+              value={editLocationAddress}
+              onChange={(e) => setEditLocationAddress(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsEditOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Save Changes
             </button>
           </div>
         </form>

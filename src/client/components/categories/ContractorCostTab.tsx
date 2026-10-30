@@ -10,6 +10,7 @@ import {
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
+import { formatINR, formatDate } from "../../lib/formatters";
 
 interface ContractorCost {
   id: number;
@@ -288,19 +289,19 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             </div>
             <div className="text-xs font-bold text-slate-700 flex flex-wrap items-center gap-2 pt-1">
               <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs">
-                Cat 3 Site Supply: <strong className="text-teal-700">₹{(reconciliation?.summary.totalSiteSupplies || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                Cat 3 Site Supply: <strong className="text-teal-700">₹{formatINR(reconciliation?.summary.totalSiteSupplies || 0)}</strong>
               </span>
               <span>+</span>
               <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs">
-                Cat 4 Labour Attendance: <strong className="text-rose-700">₹{(reconciliation?.summary.totalLabourCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                Cat 4 Labour Attendance: <strong className="text-rose-700">₹{formatINR(reconciliation?.summary.totalLabourCost || 0)}</strong>
               </span>
               <span>=</span>
               <span className="px-2.5 py-1 bg-amber-100/80 rounded-lg border border-amber-300 text-amber-950 font-black shadow-xs">
-                Expected: ₹{(reconciliation?.summary.expectedCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                Expected: ₹{formatINR(reconciliation?.summary.expectedCost || 0)}
               </span>
               <span>&harr;</span>
               <span className="px-2.5 py-1 bg-purple-100/80 rounded-lg border border-purple-300 text-purple-950 font-black shadow-xs">
-                Recorded: ₹{(reconciliation?.summary.recordedCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                Recorded: ₹{formatINR(reconciliation?.summary.recordedCost || 0)}
               </span>
             </div>
           </div>
@@ -315,7 +316,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 : "text-amber-700"
             }`}>
               {(reconciliation?.summary.variance || 0) >= 0 ? "+" : ""}
-              ₹{(reconciliation?.summary.variance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{formatINR(reconciliation?.summary.variance || 0)}
             </span>
           </div>
         </div>
@@ -329,7 +330,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <HardHat className="w-4 h-4 text-purple-600" />
           </div>
           <div className="text-2xl font-black text-slate-900 mt-2">
-            ₹{totalNet.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            ₹{formatINR(totalNet)}
           </div>
           <p className="text-[11px] text-purple-600 mt-1 font-medium">{costs.length} records</p>
         </div>
@@ -340,7 +341,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-black text-emerald-900 mt-2">
-            ₹{totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            ₹{formatINR(totalPaid)}
           </div>
           <p className="text-[11px] text-emerald-600 mt-1 font-medium">Fully settled records</p>
         </div>
@@ -351,7 +352,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <Scale className="w-4 h-4 text-amber-600" />
           </div>
           <div className="text-2xl font-black text-amber-900 mt-2">
-            ₹{(reconciliation?.summary.expectedCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            ₹{formatINR(reconciliation?.summary.expectedCost || 0)}
           </div>
           <p className="text-[11px] text-amber-600 mt-1 font-medium">Site Supply + Labour Salaries</p>
         </div>
@@ -365,9 +366,9 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             {reconciliation?.summary.reconciliationStatus === "MATCHED" ? (
               <span className="text-emerald-700">Balanced (₹0)</span>
             ) : reconciliation?.summary.reconciliationStatus === "SURPLUS" ? (
-              <span className="text-blue-700">+₹{Math.abs(reconciliation?.summary.variance || 0).toLocaleString('en-IN')} (Surplus)</span>
+              <span className="text-blue-700">+₹{formatINR(Math.abs(reconciliation?.summary.variance || 0))} (Surplus)</span>
             ) : (
-              <span className="text-rose-700">-₹{Math.abs(reconciliation?.summary.variance || 0).toLocaleString('en-IN')} (Deficit)</span>
+              <span className="text-rose-700">-₹{formatINR(Math.abs(reconciliation?.summary.variance || 0))} (Deficit)</span>
             )}
           </div>
           <p className="text-[11px] text-slate-500 mt-1 font-medium">Recorded vs Expected</p>
@@ -461,7 +462,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                     filteredCosts.map(cost => (
                       <tr key={cost.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">
-                          {cost.date}
+                          {formatDate(cost.date)}
                         </td>
                         <td className="py-3 px-4 font-bold text-slate-900">
                           {cost.contractorName}
@@ -470,13 +471,13 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                           {cost.workDescription || "-"}
                         </td>
                         <td className="py-3 px-4 text-right font-medium text-slate-600">
-                          ₹{parseFloat(cost.amount || "0").toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹{formatINR(cost.amount || "0")}
                         </td>
                         <td className="py-3 px-4 text-right text-rose-600 font-medium">
-                          {parseFloat(cost.deductionAmount || "0") > 0 ? `₹${parseFloat(cost.deductionAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : "-"}
+                          {parseFloat(cost.deductionAmount || "0") > 0 ? `₹${formatINR(cost.deductionAmount)}` : "-"}
                         </td>
                         <td className="py-3 px-4 text-right font-black text-purple-900">
-                          ₹{parseFloat(cost.netAmount || "0").toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹{formatINR(cost.netAmount || "0")}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -576,25 +577,25 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 <div>
                   <span className="text-slate-400 text-[11px] block">Investment Capital:</span>
                   <span className="text-white font-bold text-sm">
-                    ₹{(reconciliation.summary.totalInvestmentCapital || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.totalInvestmentCapital || 0)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[11px] block">Cat 2 Material Supply:</span>
                   <span className="text-blue-300 font-bold">
-                    ₹{(reconciliation.summary.totalCustomerMaterialSupply || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.totalCustomerMaterialSupply || 0)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[11px] block">Cat 3 + Cat 4 Spend:</span>
                   <span className="text-amber-300 font-bold">
-                    ₹{(reconciliation.summary.expectedCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.expectedCost || 0)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[11px] block">Combined 3-Spend Total:</span>
                   <span className="text-emerald-300 font-black text-sm">
-                    ₹{(reconciliation.summary.totalThreeSiteExpenses || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.totalThreeSiteExpenses || 0)}
                   </span>
                 </div>
               </div>
@@ -626,7 +627,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 <div>
                   <p className="text-xs text-slate-400">1. Cat 3 Site Supplies to Labour:</p>
                   <p className="text-xl font-black text-teal-400 mt-0.5">
-                    ₹{reconciliation.summary.totalSiteSupplies.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.totalSiteSupplies)}
                   </p>
                   <p className="text-[10px] text-slate-400">{reconciliation.summary.siteSupplyCount} supply entries</p>
                 </div>
@@ -634,7 +635,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 <div>
                   <p className="text-xs text-slate-400">2. Cat 4 Labour Attendance / Salaries:</p>
                   <p className="text-xl font-black text-amber-400 mt-0.5">
-                    ₹{reconciliation.summary.totalLabourCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.totalLabourCost)}
                   </p>
                   <p className="text-[10px] text-slate-400">{reconciliation.summary.labourCount} wage entries</p>
                 </div>
@@ -642,7 +643,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 <div>
                   <p className="text-xs text-slate-400">3. Expected Contractor Cost:</p>
                   <p className="text-xl font-black text-white mt-0.5">
-                    ₹{reconciliation.summary.expectedCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.expectedCost)}
                   </p>
                   <p className="text-[10px] text-purple-300">Target to match Cat 5 records</p>
                 </div>
@@ -652,7 +653,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 <div className="text-xs">
                   <span className="text-slate-400">Cat 5 Recorded Contractor Cost: </span>
                   <span className="text-base font-bold text-purple-300 ml-1">
-                    ₹{reconciliation.summary.recordedCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatINR(reconciliation.summary.recordedCost)}
                   </span>
                   <span className="text-[11px] text-slate-400 ml-1">({reconciliation.summary.contractorCount} bills)</span>
                 </div>
@@ -664,7 +665,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                       ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                       : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
                   }`}>
-                    {reconciliation.summary.variance >= 0 ? "+" : ""}₹{reconciliation.summary.variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {reconciliation.summary.variance >= 0 ? "+" : ""}₹{formatINR(reconciliation.summary.variance)}
                   </span>
                 </div>
               </div>
@@ -727,7 +728,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                     className="text-[10px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 cursor-pointer"
                     title="Fill exact missing amount to balance contractor cost"
                   >
-                    Auto-Fill Deficit: ₹{Math.abs(reconciliation.summary.variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    Auto-Fill Deficit: ₹{formatINR(Math.abs(reconciliation.summary.variance))}
                   </button>
                 )}
               </div>
@@ -757,7 +758,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Net Payable (₹)</label>
               <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-black text-slate-900">
-                ₹{netAmountCalc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                ₹{formatINR(netAmountCalc)}
               </div>
             </div>
           </div>

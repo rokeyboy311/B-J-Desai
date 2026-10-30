@@ -10,6 +10,7 @@ import {
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
+import { formatINR, formatDate } from "../../lib/formatters";
 
 interface InvestmentParty {
   id: number;
@@ -847,7 +848,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-emerald-800">₹{totalContributed.toLocaleString()}</div>
+            <div className="text-2xl font-black text-emerald-800">₹{formatINR(totalContributed)}</div>
             <p className="text-[11px] text-emerald-600 mt-0.5 font-medium">Total Main Capital Deposited</p>
           </div>
         </div>
@@ -861,7 +862,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-indigo-800">-₹{totalAllocatedToLocations.toLocaleString()}</div>
+            <div className="text-2xl font-black text-indigo-800">-₹{formatINR(totalAllocatedToLocations)}</div>
             <p className="text-[11px] text-indigo-600 mt-0.5 font-medium">Allocated to Project Locations</p>
           </div>
         </div>
@@ -875,7 +876,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-amber-800">-₹{totalPaidOut.toLocaleString()}</div>
+            <div className="text-2xl font-black text-amber-800">-₹{formatINR(totalPaidOut)}</div>
             <p className="text-[11px] text-amber-600 mt-0.5 font-medium">Total Personal Withdrawals</p>
           </div>
         </div>
@@ -889,7 +890,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-white">₹{netBalance.toLocaleString()}</div>
+            <div className="text-2xl font-black text-white">₹{formatINR(netBalance)}</div>
             <p className="text-[11px] text-indigo-300 mt-0.5 font-medium">Main Investor Available Balance</p>
           </div>
         </div>
@@ -1047,19 +1048,19 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                       <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-slate-500 font-medium">Total Capital Contributed:</span>
-                          <span className="font-bold text-emerald-600">₹{partyContributed.toLocaleString()}</span>
+                          <span className="font-bold text-emerald-600">₹{formatINR(partyContributed)}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-slate-500 font-medium">Investment Karya (Deployed):</span>
-                          <span className="font-bold text-indigo-600">₹{partyInvested.toLocaleString()}</span>
+                          <span className="font-bold text-indigo-600">₹{formatINR(partyInvested)}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-slate-500 font-medium">Total Payments / Upad:</span>
-                          <span className="font-bold text-amber-600">₹{partyUpad.toLocaleString()}</span>
+                          <span className="font-bold text-amber-600">₹{formatINR(partyUpad)}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-100 border-dashed">
                           <span className="text-slate-800 font-black">Net Outstanding Balance:</span>
-                          <span className="font-black text-slate-900 text-sm">₹{partyNet.toLocaleString()}</span>
+                          <span className="font-black text-slate-900 text-sm">₹{formatINR(partyNet)}</span>
                         </div>
                       </div>
 
@@ -1140,19 +1141,19 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
                         <div className="text-right">
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Total Capital IN</div>
-                          <div className="text-base sm:text-lg font-black text-emerald-600">₹{selContributed.toLocaleString()}</div>
+                          <div className="text-base sm:text-lg font-black text-emerald-600">₹{formatINR(selContributed)}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-[10px] font-bold text-indigo-400 uppercase">Investment Karya (OUT)</div>
-                          <div className="text-base sm:text-lg font-black text-indigo-600">₹{selInvested.toLocaleString()}</div>
+                          <div className="text-base sm:text-lg font-black text-indigo-600">₹{formatINR(selInvested)}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-[10px] font-bold text-amber-400 uppercase">Total Upad (OUT)</div>
-                          <div className="text-base sm:text-lg font-black text-amber-600">₹{selUpad.toLocaleString()}</div>
+                          <div className="text-base sm:text-lg font-black text-amber-600">₹{formatINR(selUpad)}</div>
                         </div>
                         <div className="text-right pl-2 sm:pl-4 border-l border-slate-200">
                           <div className="text-[10px] font-bold text-slate-500 uppercase">Available Net</div>
-                          <div className="text-lg sm:text-2xl font-black text-slate-900">₹{selNet.toLocaleString()}</div>
+                          <div className="text-lg sm:text-2xl font-black text-slate-900">₹{formatINR(selNet)}</div>
                         </div>
                       </div>
                     </div>
@@ -1178,7 +1179,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                             .map(tx => (
                               <tr key={tx.id} className="hover:bg-slate-50">
-                                <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                                <td className="p-3.5 text-slate-600 font-medium">{formatDate(tx.date)}</td>
                                 <td className="p-3.5">
                                   <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded text-[10px] font-bold flex items-center gap-1 w-fit">
                                     <Building2 className="w-2.5 h-2.5 text-emerald-600" />
@@ -1204,13 +1205,13 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                                   {tx.description || '-'}
                                 </td>
                                 <td className="p-3.5 text-right font-black text-emerald-600">
-                                  {tx.type === 'CONTRIBUTION' ? `+₹${Number(tx.amount).toLocaleString()}` : '-'}
+                                  {tx.type === 'CONTRIBUTION' ? `+₹${formatINR(tx.amount)}` : '-'}
                                 </td>
                                 <td className="p-3.5 text-right font-black text-indigo-600">
-                                  {tx.type === 'INVESTMENT' ? `-₹${Number(tx.amount).toLocaleString()}` : '-'}
+                                  {tx.type === 'INVESTMENT' ? `-₹${formatINR(tx.amount)}` : '-'}
                                 </td>
                                 <td className="p-3.5 text-right font-black text-amber-600">
-                                  {tx.type === 'UPAD' ? `-₹${Number(tx.amount).toLocaleString()}` : '-'}
+                                  {tx.type === 'UPAD' ? `-₹${formatINR(tx.amount)}` : '-'}
                                 </td>
                                 <td className="p-3.5 text-center">
                                   <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-emerald-600 p-1 mr-1 cursor-pointer" title="Edit">
@@ -1278,7 +1279,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .map(alloc => (
                       <tr key={alloc.id} className="hover:bg-slate-50">
-                        <td className="p-3.5 text-slate-600 font-medium">{alloc.date}</td>
+                        <td className="p-3.5 text-slate-600 font-medium">{formatDate(alloc.date)}</td>
                         <td className="p-3.5 font-bold text-slate-900">{alloc.investorName || "Investor"}</td>
                         <td className="p-3.5">
                           <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded text-[11px] font-bold flex items-center gap-1 w-fit">
@@ -1294,7 +1295,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                         <td className="p-3.5 font-mono text-slate-600">{alloc.referenceNumber || "-"}</td>
                         <td className="p-3.5 text-slate-600 max-w-[200px] truncate">{alloc.notes || "-"}</td>
                         <td className="p-3.5 text-right font-black text-indigo-700 text-sm">
-                          ₹{Number(alloc.amount).toLocaleString()}
+                          ₹{formatINR(alloc.amount)}
                         </td>
                         <td className="p-3.5 text-center">
                           <button
@@ -1328,7 +1329,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
               <div className="p-4 bg-indigo-50/50 border-t border-indigo-100 flex justify-between items-center text-xs">
                 <span className="font-bold text-indigo-900">Total Transferred to Locations ({allocations.length} records):</span>
                 <span className="text-base font-black text-indigo-800">
-                  ₹{allocations.reduce((s, a) => s + Number(a.amount || 0), 0).toLocaleString()}
+                  ₹{formatINR(allocations.reduce((s, a) => s + Number(a.amount || 0), 0))}
                 </span>
               </div>
             )}
@@ -1400,7 +1401,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .map(tx => (
                       <tr key={tx.id} className="hover:bg-slate-50">
-                        <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                        <td className="p-3.5 text-slate-600 font-medium">{formatDate(tx.date)}</td>
                         <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
                         <td className="p-3.5">
                           <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-900 rounded text-[11px] font-bold flex items-center gap-1 w-fit">
@@ -1416,7 +1417,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                         <td className="p-3.5 font-mono text-slate-600">{tx.referenceNumber || "-"}</td>
                         <td className="p-3.5 text-slate-600 max-w-[200px] truncate">{tx.description || "-"}</td>
                         <td className="p-3.5 text-right font-black text-indigo-700 text-sm">
-                          ₹{Number(tx.amount).toLocaleString()}
+                          ₹{formatINR(tx.amount)}
                         </td>
                         <td className="p-3.5 text-center">
                           <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-indigo-600 p-1 mr-1 cursor-pointer" title="Edit">
@@ -1437,7 +1438,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             {investmentTransactions.length > 0 && (
               <div className="p-4 bg-indigo-50/50 border-t border-indigo-100 flex justify-between items-center text-xs">
                 <span className="font-bold text-indigo-900">Total Investment Karya Deployed ({investmentTransactions.length} records):</span>
-                <span className="text-base font-black text-indigo-800">₹{investmentTransactions.reduce((s, t) => s + Number(t.amount || 0), 0).toLocaleString()}</span>
+                <span className="text-base font-black text-indigo-800">₹{formatINR(investmentTransactions.reduce((s, t) => s + Number(t.amount || 0), 0))}</span>
               </div>
             )}
           </div>
@@ -1508,7 +1509,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .map(tx => (
                       <tr key={tx.id} className="hover:bg-slate-50">
-                        <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                        <td className="p-3.5 text-slate-600 font-medium">{formatDate(tx.date)}</td>
                         <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
                         <td className="p-3.5">
                           <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-amber-900 rounded text-[11px] font-bold flex items-center gap-1 w-fit">
@@ -1524,7 +1525,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                         <td className="p-3.5 font-mono text-slate-600">{tx.referenceNumber || "-"}</td>
                         <td className="p-3.5 text-slate-600 max-w-[200px] truncate">{tx.description || "-"}</td>
                         <td className="p-3.5 text-right font-black text-amber-700 text-sm">
-                          ₹{Number(tx.amount).toLocaleString()}
+                          ₹{formatINR(tx.amount)}
                         </td>
                         <td className="p-3.5 text-center">
                           <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-amber-600 p-1 mr-1" title="Edit">
@@ -1545,7 +1546,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             {paymentTransactions.length > 0 && (
               <div className="p-4 bg-amber-50/50 border-t border-amber-100 flex justify-between items-center text-xs">
                 <span className="font-bold text-amber-900">Total Investor Payouts ({paymentTransactions.length} records):</span>
-                <span className="text-base font-black text-amber-800">₹{paymentTransactions.reduce((s, t) => s + Number(t.amount || 0), 0).toLocaleString()}</span>
+                <span className="text-base font-black text-amber-800">₹{formatINR(paymentTransactions.reduce((s, t) => s + Number(t.amount || 0), 0))}</span>
               </div>
             )}
           </div>
@@ -1616,7 +1617,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                     .map(tx => (
                       <tr key={tx.id} className="hover:bg-slate-50">
-                        <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                        <td className="p-3.5 text-slate-600 font-medium">{formatDate(tx.date)}</td>
                         <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
                         <td className="p-3.5">
                           <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-900 rounded text-[11px] font-bold flex items-center gap-1 w-fit">
@@ -1632,7 +1633,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                         <td className="p-3.5 font-mono text-slate-600">{tx.referenceNumber || "-"}</td>
                         <td className="p-3.5 text-slate-600 max-w-[200px] truncate">{tx.description || "-"}</td>
                         <td className="p-3.5 text-right font-black text-emerald-700 text-sm">
-                          ₹{Number(tx.amount).toLocaleString()}
+                          ₹{formatINR(tx.amount)}
                         </td>
                         <td className="p-3.5 text-center">
                           <button onClick={() => openEditTx(tx)} className="text-slate-400 hover:text-emerald-600 p-1 mr-1" title="Edit">
@@ -1653,7 +1654,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             {contributionTransactions.length > 0 && (
               <div className="p-4 bg-emerald-50/50 border-t border-emerald-100 flex justify-between items-center text-xs">
                 <span className="font-bold text-emerald-900">Total Capital Contributed ({contributionTransactions.length} records):</span>
-                <span className="text-base font-black text-emerald-800">₹{contributionTransactions.reduce((s, t) => s + Number(t.amount || 0), 0).toLocaleString()}</span>
+                <span className="text-base font-black text-emerald-800">₹{formatINR(contributionTransactions.reduce((s, t) => s + Number(t.amount || 0), 0))}</span>
               </div>
             )}
           </div>
@@ -1745,7 +1746,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             >
               <option value="">-- Choose Investor --</option>
               {parties.map(p => (
-                <option key={p.id} value={p.id.toString()}>{p.partyName} {p.locationName ? `[${p.locationName}]` : ''} (Bal: ₹{Number((p.totalContribution || 0) - (p.totalUpad || 0)).toLocaleString()})</option>
+                <option key={p.id} value={p.id.toString()}>{p.partyName} {p.locationName ? `[${p.locationName}]` : ''} (Bal: ₹{formatINR((p.totalContribution || 0) - (p.totalUpad || 0))})</option>
               ))}
             </select>
           </div>
@@ -1958,7 +1959,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                 const pUpad = Number(p.totalUpad || 0);
                 const pNet = Math.round((pCont - pInv - pUpad) * 100) / 100;
                 return (
-                  <option key={p.id} value={p.id.toString()}>{p.partyName} {p.locationName ? `[${p.locationName}]` : ''} (Available Balance: ₹{pNet.toLocaleString()})</option>
+                  <option key={p.id} value={p.id.toString()}>{p.partyName} {p.locationName ? `[${p.locationName}]` : ''} (Available Balance: ₹{formatINR(pNet)})</option>
                 );
               })}
             </select>
@@ -2071,7 +2072,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
               <option value="">-- Choose Investor from Main Capital Pool --</option>
               {mainInvestors.map(inv => (
                 <option key={inv.id} value={inv.id.toString()}>
-                  {inv.name || inv.partyName} (Avail Balance: ₹{Number(inv.availableBalance !== undefined ? inv.availableBalance : ((inv.totalCapital || 0) - (inv.totalUpad || 0) - (inv.totalAllocated || 0))).toLocaleString()})
+                  {inv.name || inv.partyName} (Avail Balance: ₹{formatINR(inv.availableBalance !== undefined ? inv.availableBalance : ((inv.totalCapital || 0) - (inv.totalUpad || 0) - (inv.totalAllocated || 0)))})
                 </option>
               ))}
             </select>

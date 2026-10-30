@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { History, Search, RefreshCw, Filter } from "lucide-react";
 import { apiFetch } from "../lib/api";
+import { formatDate } from "../lib/formatters";
 
 export default function ActivityLogPage() {
   const [activities, setActivities] = useState<any[]>([]);
@@ -106,7 +107,7 @@ export default function ActivityLogPage() {
               ) : (
                 filtered.map((act) => (
                   <tr key={act.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="p-3.5 text-slate-600 font-medium whitespace-nowrap">{act.date}</td>
+                    <td className="p-3.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(act.date)}</td>
                     <td className="p-3.5 font-bold text-slate-900">{act.user}</td>
                     <td className="p-3.5 font-semibold text-blue-700">{act.module}</td>
                     <td className="p-3.5 font-medium text-slate-800">{act.action}</td>

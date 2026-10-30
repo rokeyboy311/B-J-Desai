@@ -7,6 +7,7 @@ import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerSync } from "../hooks/useLiveSync";
 import { Modal } from "../components/ui/Modal";
 import { downloadExcelReport } from "../lib/excelExport";
+import { formatINR, formatDate } from "../lib/formatters";
 
 export default function CustomerSupplyPage() {
   const { showToast, confirmAction } = useToast();
@@ -215,7 +216,7 @@ export default function CustomerSupplyPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Supply</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{totalSupplyVal.toLocaleString("en-IN")}
+              ₹{formatINR(totalSupplyVal)}
             </span>
           </div>
         </div>
@@ -227,7 +228,7 @@ export default function CustomerSupplyPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Quantity</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              {totalQty.toLocaleString("en-IN")}
+              {formatINR(totalQty)}
             </span>
           </div>
         </div>
@@ -239,7 +240,7 @@ export default function CustomerSupplyPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Taxable Amount</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{totalTaxable.toLocaleString("en-IN")}
+              ₹{formatINR(totalTaxable)}
             </span>
           </div>
         </div>
@@ -251,7 +252,7 @@ export default function CustomerSupplyPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total GST</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{totalGST.toLocaleString("en-IN")}
+              ₹{formatINR(totalGST)}
             </span>
           </div>
         </div>
@@ -263,7 +264,7 @@ export default function CustomerSupplyPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Grand Total</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{grandTotal.toLocaleString("en-IN")}
+              ₹{formatINR(grandTotal)}
             </span>
           </div>
         </div>
@@ -338,21 +339,21 @@ export default function CustomerSupplyPage() {
 
                   return (
                     <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="p-3.5 text-slate-600 font-medium whitespace-nowrap">{s.date}</td>
+                      <td className="p-3.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(s.date)}</td>
                       <td className="p-3.5 font-semibold text-slate-800">{s.locationName || "Project Site"}</td>
                       <td className="p-3.5 font-bold text-slate-900">{s.partyName}</td>
                       <td className="p-3.5 font-semibold text-blue-700">{s.materialName}</td>
                       <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
-                        {s.quantity} {s.unit}
+                        {formatINR(s.quantity)} {s.unit}
                       </td>
                       <td className="p-3.5 text-right font-medium text-slate-700 tabular-nums">
-                        ₹{Number(s.rate || 0).toLocaleString("en-IN")}
+                        ₹{formatINR(s.rate)}
                       </td>
                       <td className="p-3.5 text-center font-semibold text-slate-600">
                         {s.taxPercentage || 18}%
                       </td>
                       <td className="p-3.5 text-right font-black text-slate-900 tabular-nums">
-                        ₹{Number(s.totalAmount || 0).toLocaleString("en-IN")}
+                        ₹{formatINR(s.totalAmount)}
                       </td>
                       <td className="p-3.5 text-center">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${

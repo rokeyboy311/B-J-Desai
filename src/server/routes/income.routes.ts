@@ -2,7 +2,7 @@ import { Router, type Response } from 'express';
 import { requireAuth, requireCategoryAuth, type AuthRequest } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { records, auditLogs } from '../../db/schema.ts';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { assertLocationAccess } from '../lib/locationAuth.ts';
 import { getOrCreateCentralLocation } from '../lib/accounting.ts';
@@ -100,7 +100,7 @@ incomeRouter.get('/', async (req: AuthRequest, res: Response) => {
     const conditions = [
       eq(records.isDeleted, 0),
       eq(records.type, 'INCOME'),
-      eq(records.category, 'BILL_INVESTMENT'),
+      sql`(${records.category} IN ('BILL_INVESTMENT', 'BILL_INCOME') OR ${records.category} IS NULL)`,
     ];
 
     if (locationId && !isNaN(locationId)) {

@@ -10,6 +10,7 @@ import { useLiveSync, triggerSync } from "../hooks/useLiveSync";
 import { Modal } from "../components/ui/Modal";
 import { useGoogleSync } from "../contexts/GoogleSyncContext";
 import { FileSpreadsheet } from "lucide-react";
+import { formatINR, formatDate } from "../lib/formatters";
 
 export default function MaterialPurchasePage() {
   const { showToast, confirmAction } = useToast();
@@ -416,7 +417,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Purchase</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                ₹{totalPurchaseVal.toLocaleString("en-IN")}
+                ₹{formatINR(totalPurchaseVal)}
               </span>
             </div>
           </div>
@@ -428,7 +429,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Purchase Qty</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                {totalPurchaseQty.toLocaleString("en-IN")}
+                {formatINR(totalPurchaseQty)}
               </span>
             </div>
           </div>
@@ -440,7 +441,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">GST</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                ₹{totalPurchaseGST.toLocaleString("en-IN")}
+                ₹{formatINR(totalPurchaseGST)}
               </span>
             </div>
           </div>
@@ -452,7 +453,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Transport Fee</span>
               <span className="text-sm font-bold text-indigo-700 tabular-nums">
-                ₹{totalTransportFee.toLocaleString("en-IN")}
+                ₹{formatINR(totalTransportFee)}
               </span>
             </div>
           </div>
@@ -464,7 +465,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Stock Added</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                ₹{stockAddedVal.toLocaleString("en-IN")}
+                ₹{formatINR(stockAddedVal)}
               </span>
             </div>
           </div>
@@ -476,7 +477,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Pending Payments</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                ₹{pendingPayments.toLocaleString("en-IN")}
+                ₹{formatINR(pendingPayments)}
               </span>
             </div>
           </div>
@@ -503,7 +504,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Purchased Qty</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                {stockPurchasedQty.toLocaleString("en-IN")}
+                {formatINR(stockPurchasedQty)}
               </span>
             </div>
           </div>
@@ -515,7 +516,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Supplied Qty</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                {stockSuppliedQty.toLocaleString("en-IN")}
+                {formatINR(stockSuppliedQty)}
               </span>
             </div>
           </div>
@@ -527,7 +528,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Available Qty</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                {stockAvailableQty.toLocaleString("en-IN")}
+                {formatINR(stockAvailableQty)}
               </span>
             </div>
           </div>
@@ -539,7 +540,7 @@ export default function MaterialPurchasePage() {
             <div>
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Stock Value</span>
               <span className="text-sm font-bold text-slate-800 tabular-nums">
-                ₹{totalStockVal.toLocaleString("en-IN")}
+                ₹{formatINR(totalStockVal)}
               </span>
             </div>
           </div>
@@ -609,7 +610,7 @@ export default function MaterialPurchasePage() {
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="p-3.5 text-slate-600 font-medium whitespace-nowrap">{p.date}</td>
+                        <td className="p-3.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(p.date)}</td>
                         <td className="p-3.5 font-bold text-slate-900">{p.supplierName || p.partyName}</td>
                         
                         {/* Interactive Clickable Material Name Div */}
@@ -626,25 +627,25 @@ export default function MaterialPurchasePage() {
                         </td>
 
                         <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
-                          {p.quantity} {p.unit}
+                          {formatINR(p.quantity)} {p.unit}
                         </td>
                         <td className="p-3.5 text-right font-medium text-slate-700 tabular-nums">
-                          ₹{Number(p.rate || 0).toLocaleString("en-IN")}
+                          ₹{formatINR(p.rate)}
                         </td>
                         <td className="p-3.5 text-center font-semibold text-slate-600">
                           {p.taxPercentage || 18}%
                         </td>
                         <td className="p-3.5 text-right font-bold tabular-nums">
                           {transportAmt > 0 ? (
-                            <span className="text-indigo-700 font-bold">₹{transportAmt.toLocaleString("en-IN")}</span>
+                            <span className="text-indigo-700 font-bold">₹{formatINR(transportAmt)}</span>
                           ) : (
                             <span className="text-slate-400 font-normal">₹0</span>
                           )}
                         </td>
                         <td className="p-3.5 text-right font-black text-slate-900 tabular-nums">
-                          <div>₹{Number(p.totalAmount || 0).toLocaleString("en-IN")}</div>
+                          <div>₹{formatINR(p.totalAmount)}</div>
                           {transportAmt > 0 && (
-                            <div className="text-[10px] text-indigo-600 font-normal">incl. ₹{transportAmt.toLocaleString("en-IN")} transport</div>
+                            <div className="text-[10px] text-indigo-600 font-normal">incl. ₹{formatINR(transportAmt)} transport</div>
                           )}
                         </td>
                         <td className="p-3.5 text-center">
@@ -742,16 +743,16 @@ export default function MaterialPurchasePage() {
 
                       <td className="p-3.5 text-slate-500 font-medium">{stk.unit || "Nos"}</td>
                       <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
-                        {Number(stk.purchasedQty || stk.totalInward || 0).toLocaleString("en-IN")}
+                        {formatINR(stk.purchasedQty || stk.totalInward || 0)}
                       </td>
                       <td className="p-3.5 text-right font-semibold text-amber-700 tabular-nums">
-                        {Number(stk.suppliedQty || stk.totalOutward || 0).toLocaleString("en-IN")}
+                        {formatINR(stk.suppliedQty || stk.totalOutward || 0)}
                       </td>
                       <td className="p-3.5 text-right font-black text-emerald-700 tabular-nums">
-                        {Number(stk.currentStock || stk.currentBalance || 0).toLocaleString("en-IN")}
+                        {formatINR(stk.currentStock || stk.currentBalance || 0)}
                       </td>
                       <td className="p-3.5 text-right font-black text-slate-900 tabular-nums">
-                        ₹{Number(stk.stockValue || 0).toLocaleString("en-IN")}
+                        ₹{formatINR(stk.stockValue || 0)}
                       </td>
                       <td className="p-3.5 text-center">
                         <div className="flex items-center justify-center gap-1.5">
@@ -959,30 +960,30 @@ export default function MaterialPurchasePage() {
             <div className="flex items-center justify-between text-xs text-slate-600">
               <span>Subtotal (Qty &times; Rate):</span>
               <span className="font-semibold tabular-nums">
-                ₹{((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                ₹{formatINR((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0))}
               </span>
             </div>
             <div className="flex items-center justify-between text-xs text-slate-600">
               <span>GST ({formData.taxPercentage}%):</span>
               <span className="font-semibold tabular-nums">
-                ₹{(((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * ((parseFloat(formData.taxPercentage) || 0) / 100)).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                ₹{formatINR(((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * ((parseFloat(formData.taxPercentage) || 0) / 100))}
               </span>
             </div>
             {(parseFloat(formData.transportationFee) || 0) > 0 && (
               <div className="flex items-center justify-between text-xs text-blue-700">
                 <span>Transportation Fee:</span>
                 <span className="font-bold tabular-nums">
-                  + ₹{(parseFloat(formData.transportationFee) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                  + ₹{formatINR(parseFloat(formData.transportationFee) || 0)}
                 </span>
               </div>
             )}
             <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900 uppercase">Grand Total:</span>
               <span className="text-base font-black text-slate-900 tabular-nums">
-                ₹{(
+                ₹{formatINR(
                   ((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * (1 + (parseFloat(formData.taxPercentage) || 0) / 100) +
                   (parseFloat(formData.transportationFee) || 0)
-                ).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                )}
               </span>
             </div>
           </div>
@@ -1022,10 +1023,10 @@ export default function MaterialPurchasePage() {
                   <ArrowDownRight className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="text-lg font-black text-blue-950 mt-1 tabular-nums">
-                  {activeMaterialData.totalInwardQty.toLocaleString("en-IN")} <span className="text-xs font-bold text-blue-700">{activeMaterialData.unit}</span>
+                  {formatINR(activeMaterialData.totalInwardQty)} <span className="text-xs font-bold text-blue-700">{activeMaterialData.unit}</span>
                 </div>
                 <div className="text-[10px] font-semibold text-blue-700 mt-0.5">
-                  Value: ₹{Number(activeMaterialData.totalInwardVal || 0).toLocaleString("en-IN")}
+                  Value: ₹{formatINR(activeMaterialData.totalInwardVal || 0)}
                 </div>
               </div>
 
@@ -1035,7 +1036,7 @@ export default function MaterialPurchasePage() {
                   <MapPin className="w-4 h-4 text-amber-600" />
                 </div>
                 <div className="text-lg font-black text-amber-950 mt-1 tabular-nums">
-                  {activeMaterialData.totalSiteSupplyQty.toLocaleString("en-IN")} <span className="text-xs font-bold text-amber-700">{activeMaterialData.unit}</span>
+                  {formatINR(activeMaterialData.totalSiteSupplyQty)} <span className="text-xs font-bold text-amber-700">{activeMaterialData.unit}</span>
                 </div>
                 <div className="text-[10px] font-semibold text-amber-700 mt-0.5">
                   Across {activeMaterialData.siteBreakdownList.length} Construction Sites
@@ -1048,7 +1049,7 @@ export default function MaterialPurchasePage() {
                   <Users className="w-4 h-4 text-purple-600" />
                 </div>
                 <div className="text-lg font-black text-purple-950 mt-1 tabular-nums">
-                  {activeMaterialData.totalCustSupplyQty.toLocaleString("en-IN")} <span className="text-xs font-bold text-purple-700">{activeMaterialData.unit}</span>
+                  {formatINR(activeMaterialData.totalCustSupplyQty)} <span className="text-xs font-bold text-purple-700">{activeMaterialData.unit}</span>
                 </div>
                 <div className="text-[10px] font-semibold text-purple-700 mt-0.5">
                   Across {activeMaterialData.custBreakdownList.length} Customers
@@ -1061,10 +1062,10 @@ export default function MaterialPurchasePage() {
                   <Package className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div className="text-lg font-black text-emerald-950 mt-1 tabular-nums">
-                  {activeMaterialData.currentBalanceQty.toLocaleString("en-IN")} <span className="text-xs font-bold text-emerald-700">{activeMaterialData.unit}</span>
+                  {formatINR(activeMaterialData.currentBalanceQty)} <span className="text-xs font-bold text-emerald-700">{activeMaterialData.unit}</span>
                 </div>
                 <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
-                  Stock Val: ₹{Number(activeMaterialData.stockValue || 0).toLocaleString("en-IN")}
+                  Stock Val: ₹{formatINR(activeMaterialData.stockValue || 0)}
                 </div>
               </div>
             </div>
@@ -1144,10 +1145,10 @@ export default function MaterialPurchasePage() {
                           </div>
                           <div className="mt-1 flex items-baseline justify-between">
                             <span className="text-sm font-black text-slate-800 tabular-nums">
-                              {site.totalQty.toLocaleString("en-IN")} {activeMaterialData.unit}
+                              {formatINR(site.totalQty)} {activeMaterialData.unit}
                             </span>
                             <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                              ₹{site.totalAmount.toLocaleString("en-IN")}
+                              ₹{formatINR(site.totalAmount)}
                             </span>
                           </div>
                           <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
@@ -1185,13 +1186,13 @@ export default function MaterialPurchasePage() {
                         <tbody className="divide-y divide-slate-100">
                           {activeMaterialData.matSiteSupplies.map((s, idx) => (
                             <tr key={idx} className="hover:bg-slate-50">
-                              <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{s.date}</td>
+                              <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(s.date)}</td>
                               <td className="p-2.5 font-bold text-slate-900">{s.locationName || `Site #${s.locationId}`}</td>
                               <td className="p-2.5 font-semibold text-blue-700">{s.teamName || s.responsiblePerson || "Site Team"}</td>
                               <td className="p-2.5 text-slate-600 max-w-xs truncate">{s.workDescription || "-"}</td>
-                              <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{s.quantity} {activeMaterialData.unit}</td>
-                              <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{Number(s.rate || 0).toLocaleString("en-IN")}</td>
-                              <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{Number(s.amount || 0).toLocaleString("en-IN")}</td>
+                              <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{formatINR(s.quantity)} {activeMaterialData.unit}</td>
+                              <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{formatINR(s.rate)}</td>
+                              <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{formatINR(s.amount)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1237,12 +1238,12 @@ export default function MaterialPurchasePage() {
                             const isPaid = (c.paymentStatus || "").toUpperCase() === "PAID";
                             return (
                               <tr key={idx} className="hover:bg-slate-50">
-                                <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{c.date}</td>
+                                <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(c.date)}</td>
                                 <td className="p-2.5 font-bold text-slate-900">{c.customerName || "Customer"}</td>
                                 <td className="p-2.5 text-slate-600">{c.locationName || "Central"}</td>
-                                <td className="p-2.5 text-right font-bold text-purple-800 tabular-nums">{c.quantity} {c.unit || activeMaterialData.unit}</td>
-                                <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{Number(c.rate || 0).toLocaleString("en-IN")}</td>
-                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{Number(c.totalAmount || 0).toLocaleString("en-IN")}</td>
+                                <td className="p-2.5 text-right font-bold text-purple-800 tabular-nums">{formatINR(c.quantity)} {c.unit || activeMaterialData.unit}</td>
+                                <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{formatINR(c.rate)}</td>
+                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{formatINR(c.totalAmount)}</td>
                                 <td className="p-2.5 text-center">
                                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
                                     isPaid ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
@@ -1300,15 +1301,15 @@ export default function MaterialPurchasePage() {
                             const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
                             return (
                               <tr key={idx} className="hover:bg-slate-50">
-                                <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{p.date}</td>
+                                <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(p.date)}</td>
                                 <td className="p-2.5 font-bold text-slate-900">{p.supplierName || p.partyName}</td>
-                                <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{p.quantity} {p.unit}</td>
-                                <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{Number(p.rate || 0).toLocaleString("en-IN")}</td>
+                                <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{formatINR(p.quantity)} {p.unit}</td>
+                                <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{formatINR(p.rate)}</td>
                                 <td className="p-2.5 text-center text-slate-600">{p.taxPercentage || 18}%</td>
                                 <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">
-                                  <div>₹{Number(p.totalAmount || 0).toLocaleString("en-IN")}</div>
+                                  <div>₹{formatINR(p.totalAmount)}</div>
                                   {Number(p.transportCost || 0) > 0 && (
-                                    <div className="text-[9px] text-indigo-600 font-normal">+₹{Number(p.transportCost).toLocaleString("en-IN")} transport</div>
+                                    <div className="text-[9px] text-indigo-600 font-normal">+₹{formatINR(p.transportCost)} transport</div>
                                   )}
                                 </td>
                                 <td className="p-2.5 text-center">

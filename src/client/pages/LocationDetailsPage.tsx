@@ -2,19 +2,20 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import {
-  ArrowLeft, Download, Trash2, Landmark, Coins, Package, Wrench, CalendarCheck, HardHat, FileSpreadsheet, ExternalLink, RefreshCw
+  ArrowLeft, Download, Trash2, Landmark, Coins, Package, Wrench, CalendarCheck, HardHat, FileSpreadsheet, ExternalLink, RefreshCw, Pencil
 } from "lucide-react";
 import InvestorCapitalTab from "../components/categories/InvestorCapitalTab";
-import InvestmentTab from "../components/categories/InvestmentTab";
 import SiteSupplyTab from "../components/categories/SiteSupplyTab";
 import LabourAttendanceTab from "../components/categories/LabourAttendanceTab";
 import OtherKharchTab from "../components/categories/OtherKharchTab";
 import ContractorCostTab from "../components/categories/ContractorCostTab";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
-import { useLiveSync } from "../hooks/useLiveSync";
+import { Modal } from "../components/ui/Modal";
+import { useLiveSync, triggerGlobalSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
 import { useGoogleSync } from "../contexts/GoogleSyncContext";
 import { downloadExcelReport } from "../lib/excelExport";
+import { formatINR } from "../lib/formatters";
 
 export default function LocationDetailsPage() {
   const { showToast, confirmAction } = useToast();
@@ -31,7 +32,7 @@ export default function LocationDetailsPage() {
   } = useGoogleSync();
 
   const [activeCategory, setActiveCategory] = useState<
-    "investor_capital" | "investment_capital" | "site_supply" | "labour_attendance" | "other_kharch" | "contractor_cost"
+    "investor_capital" | "site_supply" | "labour_attendance" | "other_kharch" | "contractor_cost"
   >("investor_capital");
   
   const [locationName, setLocationName] = useState(() => {
@@ -45,6 +46,10 @@ export default function LocationDetailsPage() {
     } catch {}
     return "Loading...";
   });
+  const [locationAddress, setLocationAddress] = useState("");
+  const [isEditLocationOpen, setIsEditLocationOpen] = useState(false);
+  const [editLocationForm, setEditLocationForm] = useState({ name: "", address: "" });
+
   const [locMetrics, setLocMetrics] = useState<any>(() => {
     try {
       const saved = sessionStorage.getItem('bd_erp_locations_breakdown_cache');
@@ -68,16 +73,53 @@ export default function LocationDetailsPage() {
 
       if (locRes && locRes.name) {
         setLocationName(locRes.name);
+        setLocationAddress(locRes.address || "");
       }
       if (Array.isArray(breakdownRes)) {
         const found = breakdownRes.find((b: any) => b.id.toString() === locationId);
-        if (found) setLocMetrics(found);
+        if (found) {
+          setLocMetrics(found);
+          if (!locRes?.address && found.address) setLocationAddress(found.address);
+        }
       }
       if (utilRes) {
         setProjectUtilization(utilRes);
       }
     } catch (err) {
       console.error("Failed to load location", err);
+    }
+  };
+
+  const handleOpenEditLocation = () => {
+    setEditLocationForm({
+      name: locationName === "Loading..." ? "" : locationName,
+      address: locationAddress || ""
+    });
+    setIsEditLocationOpen(true);
+  };
+
+  const handleUpdateLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editLocationForm.name.trim()) {
+      showToast("Location name is required", "error");
+      return;
+    }
+    try {
+      await apiFetch(`/locations/${locationId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: editLocationForm.name.trim(),
+          address: editLocationForm.address.trim() || null
+        })
+      });
+      setLocationName(editLocationForm.name.trim());
+      setLocationAddress(editLocationForm.address.trim());
+      setIsEditLocationOpen(false);
+      showToast("Location updated successfully", "success");
+      triggerGlobalSync();
+      await loadLocationDetails();
+    } catch (err: any) {
+      showToast(err.message || "Failed to update location", "error");
     }
   };
 
@@ -110,7 +152,9 @@ export default function LocationDetailsPage() {
   }, 3500);
 
   // Top KPI Values
-  const invCap = locMetrics?.investorCapital || 0;
+  const invCap = projectUtilization?.investmentCapital?.fullCapital !== undefined
+    ? Number(projectUtilization.investmentCapital.fullCapital)
+    : (locMetrics?.investorCapital ?? locMetrics?.cat2InvestmentCapital?.investorCapital ?? 0);
   const remainingInvCap = projectUtilization?.budgetBalance?.remainingInvestmentCapital !== undefined
     ? Number(projectUtilization.budgetBalance.remainingInvestmentCapital)
     : (locMetrics?.remainingInvestmentCapital ?? locMetrics?.cat2InvestmentCapital?.remainingCapital ?? 0);
@@ -121,7 +165,7 @@ export default function LocationDetailsPage() {
   return (
     <div className="space-y-6 pb-20">
       
-      {/* Header with Breadcrumb matching 04_location_details.svg */}
+      {/* Header with Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mb-1">
@@ -135,7 +179,21 @@ export default function LocationDetailsPage() {
             <span>&rsaquo;</span>
             <span className="text-slate-800 font-bold">{locationName}</span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Location Details</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{locationName}</h1>
+            <button
+              type="button"
+              onClick={handleOpenEditLocation}
+              className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+              title="Edit Location Name & Address"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Edit Name</span>
+            </button>
+          </div>
+          {locationAddress && (
+            <p className="text-xs text-slate-500 mt-0.5">{locationAddress}</p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -209,13 +267,14 @@ export default function LocationDetailsPage() {
             type="button"
             onClick={handleDeleteLocation}
             className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            title="Delete Location"
           >
             <Trash2 className="w-4 h-4 text-rose-600" />
           </button>
         </div>
       </div>
 
-      {/* Top 5 KPI Cards matching 04_location_details.svg */}
+      {/* Top 5 KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
@@ -223,21 +282,21 @@ export default function LocationDetailsPage() {
             <Landmark className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investor Capital</span>
+            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investor Investment Capital</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{invCap.toLocaleString("en-IN")}
+              ₹{formatINR(invCap)}
             </span>
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl ${remainingInvCap < 0 ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
+          <div className={`p-2.5 rounded-xl ${Number(remainingInvCap) < 0 ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
             <Coins className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Remaining Investment Capital</span>
-            <span className={`text-sm font-bold tabular-nums ${remainingInvCap < 0 ? "text-rose-600" : "text-slate-800"}`}>
-              ₹{remainingInvCap.toLocaleString("en-IN")}
+            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Remaining Investor Investment Capital</span>
+            <span className={`text-sm font-bold tabular-nums ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
+              ₹{formatINR(remainingInvCap)}
             </span>
           </div>
         </div>
@@ -249,7 +308,7 @@ export default function LocationDetailsPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Material Stock</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{stockVal.toLocaleString("en-IN")}
+              ₹{formatINR(stockVal)}
             </span>
           </div>
         </div>
@@ -261,7 +320,7 @@ export default function LocationDetailsPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Site Supply</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{siteSupply.toLocaleString("en-IN")}
+              ₹{formatINR(siteSupply)}
             </span>
           </div>
         </div>
@@ -273,14 +332,14 @@ export default function LocationDetailsPage() {
           <div>
             <span className="text-[10px] text-slate-400 font-semibold uppercase block">Labour</span>
             <span className="text-sm font-bold text-slate-800 tabular-nums">
-              ₹{labour.toLocaleString("en-IN")}
+              ₹{formatINR(labour)}
             </span>
           </div>
         </div>
 
       </div>
 
-      {/* Horizontal Pill Tab Bar matching 04_location_details.svg */}
+      {/* Horizontal Pill Tab Bar (Investment Capital removed; Investor Capital -> Investor Investment Capital) */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar bg-slate-100 p-1.5 rounded-2xl border border-slate-200/70">
         <button
           type="button"
@@ -291,19 +350,7 @@ export default function LocationDetailsPage() {
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          Investor Capital
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveCategory("investment_capital")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeCategory === "investment_capital"
-              ? "bg-[#0B1D3A] text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          Investment Capital
+          Investor Investment Capital
         </button>
 
         <button
@@ -358,13 +405,8 @@ export default function LocationDetailsPage() {
       {/* Tab Panel Content */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 md:p-6 min-h-[500px]">
         {activeCategory === "investor_capital" && (
-          <CategoryPinGate categoryName="Investor Capital" categoryNumber={1}>
+          <CategoryPinGate categoryName="Investor Investment Capital" categoryNumber={1}>
             <InvestorCapitalTab locationId={Number(locationId)} locationName={locationName} />
-          </CategoryPinGate>
-        )}
-        {activeCategory === "investment_capital" && (
-          <CategoryPinGate categoryName="Investment Capital" categoryNumber={2}>
-            <InvestmentTab locationId={Number(locationId)} />
           </CategoryPinGate>
         )}
         {activeCategory === "site_supply" && (
@@ -380,6 +422,54 @@ export default function LocationDetailsPage() {
           <ContractorCostTab locationId={Number(locationId)} />
         )}
       </div>
+
+      {/* Modal: Edit Location Name & Address */}
+      <Modal
+        isOpen={isEditLocationOpen}
+        onClose={() => setIsEditLocationOpen(false)}
+        title="Edit Location Name & Details"
+      >
+        <form onSubmit={handleUpdateLocation} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location Name *</label>
+            <input
+              type="text"
+              required
+              placeholder="Enter location name"
+              value={editLocationForm.name}
+              onChange={(e) => setEditLocationForm(prev => ({ ...prev, name: e.target.value }))}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Site Address / Description</label>
+            <input
+              type="text"
+              placeholder="Enter site address or description"
+              value={editLocationForm.address}
+              onChange={(e) => setEditLocationForm(prev => ({ ...prev, address: e.target.value }))}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsEditLocationOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </Modal>
 
     </div>
   );

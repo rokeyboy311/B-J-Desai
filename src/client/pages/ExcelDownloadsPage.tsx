@@ -8,6 +8,7 @@ import { apiFetch } from '../lib/api';
 import { downloadExcelReport } from '../lib/excelExport';
 import { useToast } from '../contexts/ToastContext';
 import { useGoogleSync } from '../contexts/GoogleSyncContext';
+import { formatINR } from '../lib/formatters';
 
 interface InvestorItem {
   id: number;
@@ -190,7 +191,7 @@ export default function ExcelDownloadsPage() {
         categoryLabel: 'Vendor Bill',
         icon: ShoppingCart,
         description: `All materials purchased from ${v.name}, payment records, and outstanding balance summary.`,
-        stats: `${v.count} bills • ₹${Number(v.total || 0).toLocaleString()}`,
+        stats: `${v.count} bills • ₹${formatINR(v.total)}`,
         endpoint: `/reports/export-vendor-purchases?partyName=${encodeURIComponent(v.name)}${selectedLocation !== 'ALL' ? `&locationId=${selectedLocation}` : ''}`
       });
     });
@@ -206,7 +207,7 @@ export default function ExcelDownloadsPage() {
         categoryLabel: 'Customer Bill',
         icon: Truck,
         description: `Detailed material supply invoices, deliveries, and payment status for customer ${c.name}.`,
-        stats: `${c.count} deliveries • ₹${Number(c.total || 0).toLocaleString()}`,
+        stats: `${c.count} deliveries • ₹${formatINR(c.total)}`,
         endpoint: `/reports/export-customer-supplies?partyName=${encodeURIComponent(c.name)}${selectedLocation !== 'ALL' ? `&locationId=${selectedLocation}` : ''}`
       });
     });

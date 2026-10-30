@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Lock, Unlock, KeyRound, ShieldAlert, ArrowRight, CheckCircle2 } from "lucide-react";
-import { apiFetch, setStoredCategoryPinToken, clearStoredCategoryPinToken } from "../../lib/api";
+import { apiFetch, setStoredCategoryPinToken, clearStoredCategoryPinToken, invalidateClientApiCache } from "../../lib/api";
+import { triggerGlobalSync } from "../../hooks/useLiveSync";
 
 interface CategoryPinGateProps {
   categoryName: string;
@@ -68,6 +69,8 @@ export default function CategoryPinGate({
         setCategoryUnlocked(true);
         setUnlocked(true);
         setPin("");
+        invalidateClientApiCache();
+        triggerGlobalSync();
       } else {
         setErrorMsg(res?.error || "Incorrect Category PIN. Access denied.");
       }

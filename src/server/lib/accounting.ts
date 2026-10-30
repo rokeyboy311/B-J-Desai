@@ -678,7 +678,8 @@ export async function getAdminCapitalSummary(
         .where(
           and(
             sql`${investorLocationAllocations.investorId} IN (${sql.join(investorIds, sql`, `)})`,
-            eq(investorLocationAllocations.isDeleted, 0)
+            eq(investorLocationAllocations.isDeleted, 0),
+            sql`(${locations.isDeleted} = 0 OR ${locations.isDeleted} IS NULL)`
           )
         )
         .orderBy(desc(investorLocationAllocations.date), desc(investorLocationAllocations.id));
@@ -725,7 +726,7 @@ export async function getAdminCapitalSummary(
     let totalRefunded = 0;
 
     for (const r of adminRecords) {
-      if (r.type === 'INCOME' && r.category === 'BILL_INVESTMENT') {
+      if (r.type === 'INCOME' && (r.category === 'BILL_INVESTMENT' || r.category === 'BILL_INCOME' || !r.category)) {
         totalBillInvestments += parseFloat(String(r.amount || 0)) || 0;
       } else if (
         parseFloat(String(r.refundableAmount || 0)) > 0 ||

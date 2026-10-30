@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useLiveSync } from "../hooks/useLiveSync";
+import { formatINR } from "../lib/formatters";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -78,13 +79,7 @@ export default function DashboardPage() {
   }, 3500);
 
   const formatLakhOrCr = (val: number) => {
-    if (!val) return "₹0";
-    if (val >= 10000000) {
-      return `₹${(val / 10000000).toFixed(2)} Cr`;
-    } else if (val >= 100000) {
-      return `₹${(val / 100000).toFixed(2)} L`;
-    }
-    return `₹${Math.round(val).toLocaleString("en-IN")}`;
+    return `₹${formatINR(val)}`;
   };
 
   // Section 8: Authoritative Location-wise Calculations
@@ -199,7 +194,7 @@ export default function DashboardPage() {
                   className="px-2.5 py-1 bg-white border border-rose-300 rounded-lg text-xs font-bold text-rose-700 hover:bg-rose-100 flex items-center gap-1 cursor-pointer transition-colors"
                 >
                   <span>{d.name}:</span>
-                  <span className="tabular-nums">₹{Math.abs(d.remainingInvestmentCapital || 0).toLocaleString("en-IN")} Deficit</span>
+                  <span className="tabular-nums">₹{formatINR(Math.abs(d.remainingInvestmentCapital || 0))} Deficit</span>
                   <ArrowRight className="w-3 h-3 ml-0.5" />
                 </button>
               ))}
@@ -227,11 +222,11 @@ export default function DashboardPage() {
           <div className="w-12 h-1 bg-blue-600 rounded-full mt-4" />
         </div>
 
-        {/* Location Investment Capital */}
+        {/* Location Investor Investment Capital */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Investment Capital</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Investor Investment Capital</span>
               <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
                 <DollarSign className="w-4 h-4" />
               </div>
@@ -244,7 +239,7 @@ export default function DashboardPage() {
           <div className="w-12 h-1 bg-indigo-600 rounded-full mt-4" />
         </div>
 
-        {/* Utilized Investment Capital */}
+        {/* Utilized Investor Investment Capital */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
@@ -261,11 +256,11 @@ export default function DashboardPage() {
           <div className="w-12 h-1 bg-amber-500 rounded-full mt-4" />
         </div>
 
-        {/* Remaining Investment Capital */}
+        {/* Remaining Investor Investment Capital */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Remaining Capital</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Remaining Investor Investment Capital</span>
               <div className={`p-2 rounded-xl ${totalRemainingInvestmentCap < 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"}`}>
                 <CheckCircle2 className="w-4 h-4" />
               </div>
@@ -301,7 +296,7 @@ export default function DashboardPage() {
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">Site Supply</span>
               <span className="text-base font-black text-slate-900 tabular-nums block">
-                ₹{totalSiteSupplySummary.toLocaleString("en-IN")}
+                ₹{formatINR(totalSiteSupplySummary)}
               </span>
               <span className="text-[10px] text-slate-400 font-medium">Materials to Sites</span>
             </div>
@@ -314,7 +309,7 @@ export default function DashboardPage() {
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">Labour Summary</span>
               <span className="text-base font-black text-slate-900 tabular-nums block">
-                ₹{totalLabourSummary.toLocaleString("en-IN")}
+                ₹{formatINR(totalLabourSummary)}
               </span>
               <span className="text-[10px] text-slate-400 font-medium">Attendance & Kharch</span>
             </div>
@@ -327,7 +322,7 @@ export default function DashboardPage() {
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate">Contractor Cost</span>
               <span className="text-base font-black text-slate-900 tabular-nums block">
-                ₹{totalContractorSummary.toLocaleString("en-IN")}
+                ₹{formatINR(totalContractorSummary)}
               </span>
               <span className="text-[10px] text-slate-400 font-medium">Recorded Invoices</span>
             </div>
@@ -393,7 +388,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between text-[11px] mb-1">
                       <span className="text-slate-500 font-medium">Budget Utilized: {pct}%</span>
                       <span className={`font-bold tabular-nums ${isDeficit ? "text-rose-600" : "text-emerald-700"}`}>
-                        ₹{remaining.toLocaleString("en-IN")} Remaining
+                        ₹{formatINR(remaining)} Remaining
                       </span>
                     </div>
                     <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
@@ -408,17 +403,17 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2 flex-wrap shrink-0">
                     <div className="px-2.5 py-1 bg-slate-100 rounded-lg text-center">
                       <span className="text-[9px] uppercase font-bold text-slate-400 block">Site Supply</span>
-                      <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatLakhOrCr(siteSupply)}</span>
+                      <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatINR(siteSupply)}</span>
                     </div>
 
                     <div className="px-2.5 py-1 bg-slate-100 rounded-lg text-center">
                       <span className="text-[9px] uppercase font-bold text-slate-400 block">Labour</span>
-                      <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatLakhOrCr(labourCost)}</span>
+                      <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatINR(labourCost)}</span>
                     </div>
 
                     <div className="px-2.5 py-1 bg-slate-100 rounded-lg text-center">
                       <span className="text-[9px] uppercase font-bold text-slate-400 block">Contractor</span>
-                      <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatLakhOrCr(contractor)}</span>
+                      <span className="text-xs font-bold text-slate-800 tabular-nums">₹{formatINR(contractor)}</span>
                     </div>
 
                     <div className="p-1.5 text-slate-400 hover:text-blue-600">
@@ -454,21 +449,21 @@ export default function DashboardPage() {
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <span className="text-[11px] font-semibold text-slate-500 block uppercase">Expected Cost</span>
             <span className="text-lg font-black text-blue-700 tabular-nums">
-              ₹{(contractorReconciliation?.summary?.expectedCost || 0).toLocaleString("en-IN")}
+              ₹{formatINR(contractorReconciliation?.summary?.expectedCost || 0)}
             </span>
           </div>
 
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <span className="text-[11px] font-semibold text-slate-500 block uppercase">Actual Recorded Cost</span>
             <span className="text-lg font-black text-slate-900 tabular-nums">
-              ₹{(contractorReconciliation?.summary?.recordedCost || 0).toLocaleString("en-IN")}
+              ₹{formatINR(contractorReconciliation?.summary?.recordedCost || 0)}
             </span>
           </div>
 
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <span className="text-[11px] font-semibold text-slate-500 block uppercase">Difference / Variance</span>
             <span className={`text-lg font-black tabular-nums ${(contractorReconciliation?.summary?.variance || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-              ₹{(contractorReconciliation?.summary?.variance || 0).toLocaleString("en-IN")}
+              ₹{formatINR(contractorReconciliation?.summary?.variance || 0)}
             </span>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
 import { useLiveSync, triggerSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
+import { formatINR, formatDate } from "../lib/formatters";
 
 interface GlobalRecord {
   id: number;
@@ -134,8 +135,8 @@ export default function GlobalRecordsPage() {
     fetchRecords(true);
   }, 3500);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+  const formatCurrency = (amount: number | string) => {
+    return `₹${formatINR(amount)}`;
   };
 
   const handleOpenEdit = (record: GlobalRecord, e?: React.MouseEvent) => {
@@ -189,7 +190,7 @@ export default function GlobalRecordsPage() {
     if (e) e.stopPropagation();
     const confirmed = await confirmAction({
       title: "Delete Record",
-      message: `Are you sure you want to delete this ${record.type.toLowerCase()} record of ₹${parseFloat(record.amount).toLocaleString('en-IN')} for ${record.partyName}?`,
+      message: `Are you sure you want to delete this ${record.type.toLowerCase()} record of ₹${formatINR(record.amount)} for ${record.partyName}?`,
       confirmLabel: "Delete",
       isDanger: true
     });
@@ -313,7 +314,7 @@ export default function GlobalRecordsPage() {
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm leading-tight">{record.partyName}</h4>
                   <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
-                    <span>{record.date}</span>
+                    <span>{formatDate(record.date)}</span>
                     <span>•</span>
                     <span className="text-indigo-600 font-medium truncate max-w-[140px]">{record.locationName || 'Location'}</span>
                   </div>
@@ -371,7 +372,7 @@ export default function GlobalRecordsPage() {
                     onClick={() => navigate(`/locations/${record.locationId}`)}
                     className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                   >
-                    <td className="px-6 py-3.5 whitespace-nowrap text-slate-700 font-medium">{record.date}</td>
+                    <td className="px-6 py-3.5 whitespace-nowrap text-slate-700 font-medium">{formatDate(record.date)}</td>
                     <td className="px-6 py-3.5">
                       <div className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">{record.partyName}</div>
                       {record.category && <div className="text-xs text-slate-500 mt-0.5 font-medium bg-slate-100 inline-block px-2 py-0.5 rounded-md">{record.category}</div>}

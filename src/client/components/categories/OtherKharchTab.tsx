@@ -9,6 +9,7 @@ import { Modal } from "../ui/Modal";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
+import { formatINR, formatDate } from "../../lib/formatters";
 
 const EXPENSE_CATEGORIES = [
   "Tea & Refreshments",
@@ -338,7 +339,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-rose-600">
-              ₹{summary.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              ₹{formatINR(summary.totalAmount)}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
               Fully deducted from Category 2 capital
@@ -374,7 +375,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-slate-900">
-              ₹{summary.avgPerRecord.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              ₹{formatINR(summary.avgPerRecord)}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium">
               Average voucher amount
@@ -446,7 +447,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
             </span>
           </div>
           <span className="text-xs font-bold text-slate-500">
-            Total Filtered: ₹{filteredRecords.reduce((sum, r) => sum + (parseFloat(String(r.paymentAmount || r.grossSalary || r.netSalary || r.amount || 0)) || 0), 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            Total Filtered: ₹{formatINR(filteredRecords.reduce((sum, r) => sum + (parseFloat(String(r.paymentAmount || r.grossSalary || r.netSalary || r.amount || 0)) || 0), 0))}
           </span>
         </div>
 
@@ -481,7 +482,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
 
                   return (
                     <tr key={rec.id} className="hover:bg-rose-50/30 transition-colors">
-                      <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">{rec.date}</td>
+                      <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">{formatDate(rec.date)}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
@@ -502,7 +503,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
                       <td className="py-3 px-4 font-mono text-slate-500">{rec.referenceNumber || "-"}</td>
                       <td className="py-3 px-4 text-slate-600 max-w-xs truncate">{rec.notes || "-"}</td>
                       <td className="py-3 px-4 text-right font-black text-rose-600 text-sm whitespace-nowrap">
-                        ₹{amt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        ₹{formatINR(amt)}
                       </td>
                       <td className="py-3 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">

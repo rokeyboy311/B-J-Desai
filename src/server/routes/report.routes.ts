@@ -325,16 +325,15 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
     `);
     const totalAllocations = parseFloat(allocQuery.rows[0]?.amt as string || '0') || 0;
-    totalInvestmentKarya += totalAllocations;
+    const effectiveInvestorCapital = totalAllocations > 0 ? totalAllocations : totalInvestmentKarya;
 
-    // Category 1: Investor Capital Summary
-    // Investor Total Capital = Contributions (or contributions + initial capital)
-    const investorTotalCapital = totalContribution > 0 ? totalContribution : totalInvestmentKarya;
+    // Investor Investment Capital Summary
+    const investorTotalCapital = totalContribution > 0 ? totalContribution : effectiveInvestorCapital;
     const totalInvestorUpad = totalInvestmentUpad + totalInvestmentPayment;
-    const availableInvestorsBalance = Math.max(0, Math.round((investorTotalCapital - totalInvestmentKarya - totalInvestorUpad) * 100) / 100);
+    const availableInvestorsBalance = Math.max(0, Math.round((investorTotalCapital - effectiveInvestorCapital - totalInvestorUpad) * 100) / 100);
 
-    // Category 2: Investment from Investors Capital (Strictly Investment Karya total; Bill Investment is in Admin)
-    const investmentFromInvestorsCapital = Math.round(totalInvestmentKarya * 100) / 100;
+    // Location Investor Investment Capital (Bill Investment is managed in Admin)
+    const investmentFromInvestorsCapital = Math.round(effectiveInvestorCapital * 100) / 100;
     const totalProjectCapital = investmentFromInvestorsCapital;
     const investmentBalance = totalProjectCapital - totalInvestmentPayment;
 
@@ -370,13 +369,19 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
 
     // 6. Labour Salary (Category 6 & 7)
     const lsQuery = await db.execute(sql`
-      SELECT SUM(net_salary) as net, SUM(upad) as upad, SUM(payment_amount) as pd, SUM(balance) as bal
+      SELECT 
+        COALESCE(SUM(CASE WHEN UPPER(attendance_type) NOT LIKE '%UPAD%' AND UPPER(attendance_type) NOT LIKE '%KHARCH%' AND UPPER(attendance_type) NOT LIKE '%EXPENSE%' THEN GREATEST(COALESCE(net_salary, 0), COALESCE(gross_salary, 0)) ELSE 0 END), 0) as net,
+        COALESCE(SUM(CASE WHEN UPPER(attendance_type) LIKE '%UPAD%' THEN GREATEST(COALESCE(upad, 0), COALESCE(payment_amount, 0), COALESCE(gross_salary, 0)) ELSE COALESCE(upad, 0) END), 0) as upad,
+        COALESCE(SUM(CASE WHEN UPPER(attendance_type) LIKE '%KHARCH%' OR UPPER(attendance_type) LIKE '%EXPENSE%' THEN GREATEST(COALESCE(payment_amount, 0), COALESCE(gross_salary, 0), COALESCE(net_salary, 0)) ELSE 0 END), 0) as kharch,
+        COALESCE(SUM(payment_amount), 0) as pd,
+        COALESCE(SUM(balance), 0) as bal
       FROM labour_salaries
       WHERE is_deleted = 0 AND location_id IN (${sql.raw(idList)})
     `);
     const labourMetrics = {
       totalNetSalary: parseFloat(lsQuery.rows[0]?.net as string || '0'),
       totalUpad: parseFloat(lsQuery.rows[0]?.upad as string || '0'),
+      totalOtherKharch: parseFloat(lsQuery.rows[0]?.kharch as string || '0'),
       totalPayment: parseFloat(lsQuery.rows[0]?.pd as string || '0'),
       totalBalance: parseFloat(lsQuery.rows[0]?.bal as string || '0')
     };
@@ -430,8 +435,8 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // 9. Category 2 (Project Investment) Deductions & Analytics Calculation via accounting.ts
-    const labourPaidOut = Math.round((labourMetrics.totalPayment + labourMetrics.totalUpad) * 100) / 100;
+    // 9. Location Investor Investment Capital Deductions & Analytics Calculation via accounting.ts
+    const labourPaidOut = Math.round((labourMetrics.totalNetSalary + labourMetrics.totalUpad + labourMetrics.totalOtherKharch) * 100) / 100;
 
     const cat2Calculation = calculateCategory2Capital({
       investmentFromInvestors: investmentFromInvestorsCapital,
@@ -855,9 +860,9 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
       db.execute(sql`
         SELECT 
           location_id,
-          COALESCE(SUM(CASE WHEN attendance_type IN ('DAY', 'TC') OR (attendance_type != 'OTHER_KHARCH' AND attendance_type != 'UPAD' AND (days > 0 OR tc_quantity > 0 OR gross_salary > 0)) THEN gross_salary ELSE 0 END), 0) as attendance_wages,
-          COALESCE(SUM(CASE WHEN attendance_type = 'UPAD' OR upad > 0 THEN upad ELSE 0 END), 0) as total_upad,
-          COALESCE(SUM(CASE WHEN attendance_type = 'OTHER_KHARCH' THEN payment_amount ELSE 0 END), 0) as total_other_kharch,
+          COALESCE(SUM(CASE WHEN UPPER(attendance_type) NOT LIKE '%UPAD%' AND UPPER(attendance_type) NOT LIKE '%KHARCH%' AND UPPER(attendance_type) NOT LIKE '%EXPENSE%' THEN GREATEST(COALESCE(net_salary, 0), COALESCE(gross_salary, 0)) ELSE 0 END), 0) as attendance_wages,
+          COALESCE(SUM(CASE WHEN UPPER(attendance_type) LIKE '%UPAD%' THEN GREATEST(COALESCE(upad, 0), COALESCE(payment_amount, 0), COALESCE(gross_salary, 0)) ELSE COALESCE(upad, 0) END), 0) as total_upad,
+          COALESCE(SUM(CASE WHEN UPPER(attendance_type) LIKE '%KHARCH%' OR UPPER(attendance_type) LIKE '%EXPENSE%' THEN GREATEST(COALESCE(payment_amount, 0), COALESCE(gross_salary, 0), COALESCE(net_salary, 0)) ELSE 0 END), 0) as total_other_kharch,
           COALESCE(SUM(CASE WHEN attendance_type = 'DAY' THEN days ELSE 0 END), 0) as days,
           COALESCE(SUM(tc_quantity), 0) as work_qty,
           COUNT(id) as record_count
@@ -950,7 +955,7 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
       const investorUpad = parseFloat(invP.total_upad || '0');
       const investorPayment = parseFloat(invP.total_payment || '0');
 
-      const totalInvestorCapital = allocatedCapital + investorKarya;
+      const totalInvestorCapital = allocatedCapital > 0 ? allocatedCapital : investorKarya;
       const investorTotalContribution = investorContribution > 0 ? investorContribution : totalInvestorCapital;
       const investorAvailableBalance = Math.max(0, Math.round((investorTotalContribution - totalInvestorCapital - (investorUpad + investorPayment)) * 100) / 100);
 
@@ -984,7 +989,7 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
       const supervisorCount = parseInt(scData.count || '0', 10);
 
       const fullProjectCapital = Math.round(totalInvestorCapital * 100) / 100;
-      const projectOperationalDeductions = Math.round((siteSupplies + labourUpad + totalOtherKharch) * 100) / 100;
+      const projectOperationalDeductions = Math.round((siteSupplies + attendanceWages + labourUpad + totalOtherKharch) * 100) / 100;
       const remainingProjectCapital = Math.round((fullProjectCapital - projectOperationalDeductions - investorPayment) * 100) / 100;
 
       return {

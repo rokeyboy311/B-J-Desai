@@ -11,6 +11,7 @@ import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
 import { useNavigate } from "react-router-dom";
+import { formatINR, formatDate } from "../../lib/formatters";
 
 interface AllocationRecord {
   id: number;
@@ -81,15 +82,18 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     notes: ""
   });
 
+  const [projectUtilization, setProjectUtilization] = useState<any>(null);
+
   // Load Data
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [allocRes, adminRes, partiesRes, txsRes] = await Promise.all([
+      const [allocRes, adminRes, partiesRes, txsRes, utilRes] = await Promise.all([
         apiFetch(`/investments/location-allocations?locationId=${locationId}`).catch(() => []),
         apiFetch("/investments/admin-capital-summary").catch(() => null),
         apiFetch(`/investments/parties?locationId=${locationId}`).catch(() => []),
-        apiFetch(`/investments/transactions?locationId=${locationId}`).catch(() => [])
+        apiFetch(`/investments/transactions?locationId=${locationId}`).catch(() => []),
+        apiFetch(`/investments/project-utilization?locationId=${locationId}`).catch(() => null)
       ]);
 
       if (Array.isArray(allocRes)) {
@@ -104,10 +108,13 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       if (Array.isArray(txsRes)) {
         setLocationTxs(txsRes);
       }
+      if (utilRes) {
+        setProjectUtilization(utilRes);
+      }
     } catch (err: any) {
-      console.error("Failed to load Investor Capital data", err);
+      console.error("Failed to load Investor Investment Capital data", err);
       if (!silent) {
-        showToast(err.message || "Failed to load investor capital details", "error");
+        showToast(err.message || "Failed to load investor investment capital details", "error");
       }
     } finally {
       if (!silent) setLoading(false);
@@ -148,24 +155,37 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     return Math.max(0, Math.round(Math.min(effectiveInvestorAvail, effectiveAdminAvail) * 100) / 100);
   }, [selectedInvestorObj, adminSummary, editingAllocationObj]);
 
-  // Calculate Aggregates
+  // Calculate Aggregates for Location Investor Investment Capital
   const totalAllocatedAmount = useMemo(() => {
-    return (Array.isArray(allocations) ? allocations : []).reduce((sum, a) => sum + (parseFloat(String(a?.amount)) || 0), 0);
-  }, [allocations]);
+    const fromAllocs = (Array.isArray(allocations) ? allocations : []).reduce((sum, a) => sum + (parseFloat(String(a?.amount)) || 0), 0);
+    if (fromAllocs > 0) return Math.round(fromAllocs * 100) / 100;
+    return Number(projectUtilization?.investmentCapital?.fullCapital || 0);
+  }, [allocations, projectUtilization]);
+
+  const siteSupplyDeduction = useMemo(() => {
+    return Number(projectUtilization?.linkedExpenditures?.category5SiteSupplies?.total || 0);
+  }, [projectUtilization]);
+
+  const labourAndKharchDeduction = useMemo(() => {
+    return Number(projectUtilization?.linkedExpenditures?.category67Labour?.total || 0);
+  }, [projectUtilization]);
 
   const totalDeployedAmount = useMemo(() => {
-    return (Array.isArray(locationParties) ? locationParties : []).reduce((sum, p) => sum + Number(p?.cat7Deployed ?? p?.totalInvestment ?? 0), 0);
-  }, [locationParties]);
+    if (projectUtilization?.budgetBalance?.totalProjectExpenditure !== undefined) {
+      return Number(projectUtilization.budgetBalance.totalProjectExpenditure);
+    }
+    return Math.round((siteSupplyDeduction + labourAndKharchDeduction) * 100) / 100;
+  }, [projectUtilization, siteSupplyDeduction, labourAndKharchDeduction]);
 
   const totalAvailableAmount = useMemo(() => {
-    return Math.max(0, (totalAllocatedAmount || 0) - (totalDeployedAmount || 0));
+    return Math.round(((totalAllocatedAmount || 0) - (totalDeployedAmount || 0)) * 100) / 100;
   }, [totalAllocatedAmount, totalDeployedAmount]);
 
-  // --- Location Investor Capital Passbook Ledger ---
+  // --- Location Investor Investment Capital Passbook Ledger ---
   const locationInvestorNotebook = useMemo(() => {
     const items: any[] = [];
 
-    // 1. Inflows: Allocations from Admin Capital to this Location (Inflows)
+    // 1. Inflows: Allocations from Admin Capital to this Location
     (Array.isArray(allocations) ? allocations : []).forEach(a => {
       const amt = parseFloat(String(a.amount || 0));
       items.push({
@@ -176,7 +196,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         investorId: a.investorId,
         investorName: a.investorName,
         type: 'ADDED',
-        typeLabel: 'Capital Allocation (+ INFLOW)',
+        typeLabel: 'Investor Investment Capital (+ INFLOW)',
         category: 'ADMIN_ALLOCATION',
         particulars: a.notes ? `Allocated from Admin Capital: ${a.notes}` : 'Allocated from Admin Capital Pool',
         paymentMethod: a.paymentMethod || 'Bank Transfer',
@@ -187,29 +207,29 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       });
     });
 
-    // 2. Outflows: Deployed into Category 1 Investment Capital (Outflows)
-    (Array.isArray(locationTxs) ? locationTxs : [])
-      .filter(t => t.type === 'INVESTMENT')
-      .forEach(t => {
-        const amt = parseFloat(String(t.amount || 0));
-        items.push({
-          id: `tx-${t.id}`,
-          rawId: t.id,
-          kind: 'TRANSACTION',
-          date: t.date,
-          investorId: t.partyId,
-          investorName: t.partyName || 'Investor',
-          type: 'REMOVED',
-          typeLabel: 'Investment Deployed (- DEPLOYED)',
-          category: 'INVESTMENT_DEPLOYMENT',
-          particulars: t.description ? `Deployed to Cat 1 Investment: ${t.description}` : 'Transferred to Project Investment Capital (Cat 1)',
-          paymentMethod: t.paymentMethod || 'Bank Transfer',
-          referenceNumber: t.referenceNumber || '-',
-          jama: 0,
-          udhar: amt,
-          amount: amt
-        });
+    // 2. Outflows: Site Operational Deductions (Site Supply + Labour Attendance + Team Upad + Other Kharch)
+    const deductionsList = Array.isArray(projectUtilization?.itemizedDeductions) ? projectUtilization.itemizedDeductions : [];
+    deductionsList.forEach((d: any, idx: number) => {
+      const amt = parseFloat(String(d.amount || 0)) || 0;
+      if (amt <= 0) return;
+      items.push({
+        id: `ded-${d.categoryKey || 'EXP'}-${d.id || idx}`,
+        rawId: d.id || idx,
+        kind: 'OPERATIONAL_DEDUCTION',
+        date: d.date,
+        investorId: 0,
+        investorName: d.partyName || 'Site Operation',
+        type: 'REMOVED',
+        typeLabel: d.categoryName || 'Site Operational Deduction (-)',
+        category: d.category || 'OPERATIONAL',
+        particulars: d.description || 'Site Operational Expense',
+        paymentMethod: d.paymentStatus || 'PAID',
+        referenceNumber: d.referenceNumber || '-',
+        jama: 0,
+        udhar: amt,
+        amount: amt
       });
+    });
 
     // Chronological sort
     items.sort((a, b) => {
@@ -227,7 +247,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     });
 
     return withBal.reverse();
-  }, [allocations, locationTxs]);
+  }, [allocations, projectUtilization]);
 
   // Filtered Location Notebook Entries
   const filteredLocationNotebook = useMemo(() => {
@@ -324,7 +344,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
     }
 
     if (selectedInvestorObj && amt > maxAllocatable) {
-      showToast(`Amount exceeds available capital (Max: ₹${Number(maxAllocatable || 0).toLocaleString("en-IN")})`, "error");
+      showToast(`Amount exceeds available capital (Max: ₹${formatINR(maxAllocatable)})`, "error");
       return;
     }
 
@@ -356,7 +376,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             notes: formData.notes || null
           })
         });
-        showToast(`₹${amt.toLocaleString("en-IN")} Investor Capital successfully allocated from Admin Capital!`, "success");
+        showToast(`₹${formatINR(amt)} Investor Capital successfully allocated from Admin Capital!`, "success");
       }
 
       triggerSync("investments");
@@ -455,7 +475,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
   const handleDeleteAllocation = async (record: AllocationRecord) => {
     const confirmed = await confirmAction({
       title: "Delete Investor Allocation",
-      message: `Are you sure you want to delete allocation of ₹${parseFloat(String(record.amount)).toLocaleString("en-IN")} for ${record.investorName}? This amount will be returned to Admin Capital.`,
+      message: `Are you sure you want to delete allocation of ₹${formatINR(record.amount)} for ${record.investorName}? This amount will be returned to Admin Capital.`,
       confirmLabel: "Delete & Revert",
       isDanger: true,
       requirePassword: false
@@ -516,16 +536,16 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-2">
             <Landmark className="w-3.5 h-3.5" />
-            <span>Location Investor Capital</span>
+            <span>Location Investor Investment Capital</span>
           </div>
-          <h2 className="text-2xl font-black text-white">Investor Capital</h2>
+          <h2 className="text-2xl font-black text-white">Investor Investment Capital</h2>
           <p className="text-xs text-slate-300 mt-1">
-            <strong>Admin Capital (Tier 1) &rarr; Location Investor Capital (Tier 2)</strong> &bull; Allocated project capital management
+            <strong>Admin Capital &rarr; Location Investor Investment Capital</strong> &bull; Site Supply, Labour Attendance &amp; Other Expenses deduct directly from this pool
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Main Action: Add Investor Capital from Admin Capital */}
+          {/* Main Action: Add Investor Investment Capital from Admin Capital */}
           <button
             type="button"
             onClick={() => {
@@ -542,12 +562,12 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Investor Capital from Admin Capital</span>
+            <span>+ Add Investor Investment Capital from Admin</span>
           </button>
 
           <button
             type="button"
-            onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=investor_capital`, `${locationName.replace(/\s+/g, '_')}_Investor_Capital.xlsx`)}
+            onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=investor_capital`, `${locationName.replace(/\s+/g, '_')}_Investor_Investment_Capital.xlsx`)}
             className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer"
             title="Download Excel Report"
           >
@@ -568,51 +588,51 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Allocated at Location */}
+        {/* Card 1: Total Investor Investment Capital */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Total Allocated (Cat 7)</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Investor Investment Capital</span>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
               <Landmark className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight">
-            ₹{Number(totalAllocatedAmount || 0).toLocaleString("en-IN")}
+          <div className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
+            +₹{formatINR(totalAllocatedAmount)}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Total allocated capital ({allocations.length} allocations)
+            Total allocated from Admin ({allocations.length} allocations)
           </div>
         </div>
 
-        {/* Card 2: Deployed to Category 1 */}
+        {/* Card 2: Site Operational Deductions */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Deployed to Cat 1</span>
-            <div className="p-2 rounded-xl bg-purple-50 text-purple-700">
+            <span className="text-xs font-bold uppercase tracking-wider">Site Operational Deductions</span>
+            <div className="p-2 rounded-xl bg-rose-50 text-rose-700">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-purple-900 tracking-tight">
-            ₹{Number(totalDeployedAmount || 0).toLocaleString("en-IN")}
+          <div className="text-2xl font-black text-rose-700 tracking-tight tabular-nums">
+            -₹{formatINR(totalDeployedAmount)}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Transferred to project investment capital
+            Site Supply: ₹{formatINR(siteSupplyDeduction)} &bull; Labour &amp; Kharch: ₹{formatINR(labourAndKharchDeduction)}
           </div>
         </div>
 
-        {/* Card 3: Available Investor Capital (Cat 7) */}
+        {/* Card 3: Remaining Investor Investment Capital */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Available in Cat 7</span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+            <span className="text-xs font-bold uppercase tracking-wider">Remaining Investor Investment Capital</span>
+            <div className={`p-2 rounded-xl ${totalAvailableAmount < 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
               <Landmark className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-emerald-700 tracking-tight">
-            ₹{Number(totalAvailableAmount || 0).toLocaleString("en-IN")}
+          <div className={`text-2xl font-black tracking-tight tabular-nums ${totalAvailableAmount < 0 ? "text-rose-600" : "text-emerald-700"}`}>
+            ₹{formatINR(totalAvailableAmount)}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Available for Cat 1 project deployment
+            Net remaining balance after site operational expenses
           </div>
         </div>
 
@@ -624,11 +644,11 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-indigo-900 tracking-tight">
-            ₹{adminSummary ? Number(adminSummary.availableAdminCapital || 0).toLocaleString("en-IN") : "0"}
+          <div className="text-2xl font-black text-indigo-900 tracking-tight tabular-nums">
+            ₹{adminSummary ? formatINR(adminSummary.availableAdminCapital) : "0"}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Tier 1 central available balance
+            Central Admin balance ready to allocate
           </div>
         </div>
       </div>
@@ -693,13 +713,13 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2">
                   <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Location Investor Passbook</span>
+                  <span>Location Investor Investment Passbook</span>
                 </div>
                 <h3 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                  <span>Capital Passbook Ledger</span>
+                  <span>Investor Investment Capital Passbook Ledger</span>
                 </h3>
                 <p className="text-xs text-amber-200/80 mt-1 max-w-2xl font-medium">
-                  Ledger of Admin Capital allocations (inflows) and project investment deployments (outflows) for {locationName}.
+                  Complete ledger of Admin Capital allocations (+ Inflows) and Site Operational Deductions (- Outflows: Site Supply, Labour &amp; Other Expenses) for {locationName}.
                 </p>
               </div>
 
@@ -726,27 +746,27 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             {/* Quick Metrics in Notebook */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-5 border-t border-white/10">
               <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-emerald-300 block">Total Inflows (Allocations)</span>
+                <span className="text-[10px] uppercase font-bold text-emerald-300 block">Investor Investment Capital</span>
                 <span className="text-xl font-black text-emerald-400 tabular-nums">
-                  +₹{totalAllocatedAmount.toLocaleString("en-IN")}
+                  +₹{formatINR(totalAllocatedAmount)}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Received from central Admin Capital</span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Allocated from central Admin Capital</span>
               </div>
 
               <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-purple-300 block">Total Deployed (Outflows)</span>
-                <span className="text-xl font-black text-purple-300 tabular-nums">
-                  -₹{totalDeployedAmount.toLocaleString("en-IN")}
+                <span className="text-[10px] uppercase font-bold text-rose-300 block">Site Operational Deductions</span>
+                <span className="text-xl font-black text-rose-300 tabular-nums">
+                  -₹{formatINR(totalDeployedAmount)}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Transferred to Cat 1 investment</span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Site Supply + Labour Attendance + Other Expenses</span>
               </div>
 
               <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-cyan-300 block">Available Capital</span>
+                <span className="text-[10px] uppercase font-bold text-cyan-300 block">Remaining Investor Investment Capital</span>
                 <span className="text-xl font-black text-white tabular-nums">
-                  ₹{totalAvailableAmount.toLocaleString("en-IN")}
+                  ₹{formatINR(totalAvailableAmount)}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Remaining available for project deployment</span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Net remaining project capital</span>
               </div>
             </div>
           </div>
@@ -786,11 +806,11 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                 onClick={() => setNotebookFilter("REMOVED")}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                   notebookFilter === "REMOVED"
-                    ? "bg-purple-600 text-white shadow-xs"
-                    : "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200"
+                    ? "bg-rose-600 text-white shadow-xs"
+                    : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
                 }`}
               >
-                <span>Deployed (- OUTFLOW)</span>
+                <span>Site Deductions (- OUTFLOW)</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
                   {locationInvestorNotebook.filter(e => e.type === "REMOVED").length}
                 </span>
@@ -814,7 +834,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             <div className="p-3 bg-amber-100/70 border-b border-amber-200/80 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                <span className="font-black text-amber-950 uppercase tracking-wider">Location Investor Capital Ledger</span>
+                <span className="font-black text-amber-950 uppercase tracking-wider">Location Investor Investment Capital Ledger</span>
               </div>
               <span className="text-amber-900 font-bold">{filteredLocationNotebook.length} Records</span>
             </div>
@@ -824,13 +844,13 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                 <thead className="bg-amber-50 text-amber-900 font-bold border-b border-amber-200">
                   <tr>
                     <th className="p-3.5 whitespace-nowrap">Date</th>
-                    <th className="p-3.5">Investor</th>
+                    <th className="p-3.5">Investor / Team / Party</th>
                     <th className="p-3.5">Entry Type</th>
-                    <th className="p-3.5">Particulars / Destination</th>
-                    <th className="p-3.5 text-center">Payment & Ref</th>
+                    <th className="p-3.5">Particulars</th>
+                    <th className="p-3.5 text-center">Payment &amp; Ref</th>
                     <th className="p-3.5 text-right font-black text-emerald-800">Inflow (+ ALLOCATION)</th>
-                    <th className="p-3.5 text-right font-black text-purple-800">Outflow (- DEPLOYED)</th>
-                    <th className="p-3.5 text-right font-black text-slate-900">Balance Capital</th>
+                    <th className="p-3.5 text-right font-black text-rose-800">Outflow (- DEDUCTION)</th>
+                    <th className="p-3.5 text-right font-black text-slate-900">Running Balance</th>
                     <th className="p-3.5 text-center">Action</th>
                   </tr>
                 </thead>
@@ -838,14 +858,14 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                   {filteredLocationNotebook.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-10 text-center text-slate-400">
-                        {notebookSearch ? "No matching entries found." : "No investor capital entries found."}
+                        {notebookSearch ? "No matching entries found." : "No investor investment capital entries found."}
                       </td>
                     </tr>
                   ) : (
                     filteredLocationNotebook.map((entry) => (
                       <tr key={entry.id} className="hover:bg-amber-50/40 transition-colors">
                         <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">
-                          {entry.date}
+                          {formatDate(entry.date)}
                         </td>
                         <td className="p-3.5 font-bold text-slate-900">
                           {entry.investorName}
@@ -854,7 +874,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-flex items-center gap-1 ${
                             entry.type === 'ADDED'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-purple-100 text-purple-800 border border-purple-300'
+                              : 'bg-rose-100 text-rose-800 border border-rose-300'
                           }`}>
                             {entry.typeLabel}
                           </span>
@@ -873,13 +893,13 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                           )}
                         </td>
                         <td className="p-3.5 text-right font-black text-emerald-700 tabular-nums text-sm">
-                          {entry.jama > 0 ? `+₹${entry.jama.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                          {entry.jama > 0 ? `+₹${formatINR(entry.jama)}` : <span className="text-slate-300 font-normal">—</span>}
                         </td>
-                        <td className="p-3.5 text-right font-black text-purple-700 tabular-nums text-sm">
-                          {entry.udhar > 0 ? `-₹${entry.udhar.toLocaleString("en-IN")}` : <span className="text-slate-300 font-normal">—</span>}
+                        <td className="p-3.5 text-right font-black text-rose-700 tabular-nums text-sm">
+                          {entry.udhar > 0 ? `-₹${formatINR(entry.udhar)}` : <span className="text-slate-300 font-normal">—</span>}
                         </td>
                         <td className="p-3.5 text-right font-black text-slate-900 tabular-nums text-sm bg-amber-50/30">
-                          ₹{entry.runningBalance.toLocaleString("en-IN")}
+                          ₹{formatINR(entry.runningBalance)}
                         </td>
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -903,24 +923,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                                 </button>
                               </>
                             ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditDeployTx(entry)}
-                                  className="p-1 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded transition-colors cursor-pointer"
-                                  title="Edit Deployed Investment"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteTx(entry.rawId)}
-                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                                  title="Revert deployment back to Investor Capital"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
+                              <span className="text-[10px] font-semibold text-slate-400">Site Expense</span>
                             )}
                           </div>
                         </td>
@@ -974,20 +977,20 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                     <div className="mt-3 grid grid-cols-3 gap-1.5 p-2 bg-white rounded-lg border border-slate-200/80 text-center">
                       <div>
                         <span className="text-[9px] font-bold text-slate-400 block uppercase">Allocated</span>
-                        <span className="text-xs font-bold text-slate-800">₹{Number(inv.totalAmount || 0).toLocaleString("en-IN")}</span>
+                        <span className="text-xs font-bold text-slate-800">₹{formatINR(inv.totalAmount)}</span>
                       </div>
                       <div>
                         <span className="text-[9px] font-bold text-purple-500 block uppercase">Deployed (Cat 1)</span>
-                        <span className="text-xs font-bold text-purple-700">₹{Number(inv.deployedAmount || 0).toLocaleString("en-IN")}</span>
+                        <span className="text-xs font-bold text-purple-700">₹{formatINR(inv.deployedAmount)}</span>
                       </div>
                       <div>
                         <span className="text-[9px] font-bold text-emerald-600 block uppercase">Available</span>
-                        <span className="text-xs font-black text-emerald-700">₹{Number(inv.availableAmount || 0).toLocaleString("en-IN")}</span>
+                        <span className="text-xs font-black text-emerald-700">₹{formatINR(inv.availableAmount)}</span>
                       </div>
                     </div>
 
                     <div className="text-[11px] text-slate-500 mt-2">
-                      {inv.count} Allocation{inv.count > 1 ? "s" : ""} &bull; Last: {inv.lastDate}
+                      {inv.count} Allocation{inv.count > 1 ? "s" : ""} &bull; Last: {formatDate(inv.lastDate)}
                     </div>
                   </div>
 
@@ -1031,7 +1034,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <option value="ALL">All Investors ({allocations.length})</option>
               {investorBreakdown.map((inv) => (
                 <option key={inv.id} value={String(inv.id)}>
-                  {inv.name} (₹{inv.totalAmount.toLocaleString("en-IN")})
+                  {inv.name} (₹{formatINR(inv.totalAmount)})
                 </option>
               ))}
             </select>
@@ -1067,7 +1070,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                 filteredAllocations.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3 px-4 text-xs font-medium text-slate-600 whitespace-nowrap">
-                      {item.date}
+                      {formatDate(item.date)}
                     </td>
                     <td className="py-3 px-4 font-bold text-slate-900">
                       {item.investorName}
@@ -1078,7 +1081,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                       )}
                     </td>
                     <td className="py-3 px-4 text-right font-black text-emerald-700 text-sm">
-                      ₹{parseFloat(String(item.amount)).toLocaleString("en-IN")}
+                      ₹{formatINR(item.amount)}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -1140,10 +1143,10 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <span>
                 Available Admin Capital: ₹
                 {adminSummary
-                  ? Number(
+                  ? formatINR(
                       (adminSummary.availableAdminCapital || 0) +
                         (editingAllocationObj ? (parseFloat(String(editingAllocationObj.amount || 0)) || 0) : 0)
-                    ).toLocaleString("en-IN")
+                    )
                   : "0"}
               </span>
             </div>
@@ -1171,7 +1174,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                   const effAvail = Number(inv.availableCapital || 0) + oldAmt;
                   return (
                     <option key={inv.id} value={String(inv.id)}>
-                      {inv.name} &bull; Available in Admin: ₹{effAvail.toLocaleString("en-IN")}
+                      {inv.name} &bull; Available in Admin: ₹{formatINR(effAvail)}
                     </option>
                   );
                 })
@@ -1187,12 +1190,12 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <div className="flex justify-between font-bold text-slate-800">
                 <span>{selectedInvestorObj.name}</span>
                 <span className="text-emerald-700">
-                  Available: ₹{Number(maxAllocatable || 0).toLocaleString("en-IN")}
+                  Available: ₹{formatINR(maxAllocatable)}
                 </span>
               </div>
               <div className="text-[11px] text-slate-500 flex justify-between">
-                <span>Total Contributed: ₹{Number(selectedInvestorObj.totalContributed || 0).toLocaleString("en-IN")}</span>
-                <span>Already Allocated: ₹{Number(selectedInvestorObj.totalAllocated || 0).toLocaleString("en-IN")}</span>
+                <span>Total Contributed: ₹{formatINR(selectedInvestorObj.totalContributed)}</span>
+                <span>Already Allocated: ₹{formatINR(selectedInvestorObj.totalAllocated)}</span>
               </div>
             </div>
           )}
@@ -1209,7 +1212,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                   onClick={() => setFormData({ ...formData, amount: maxAllocatable.toString() })}
                   className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer"
                 >
-                  Use Max (₹{Number(maxAllocatable || 0).toLocaleString("en-IN")})
+                  Use Max (₹{formatINR(maxAllocatable)})
                 </button>
               )}
             </div>
@@ -1225,7 +1228,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             {selectedInvestorObj && parseFloat(formData.amount) > maxAllocatable && (
               <p className="text-[11px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5" />
-                Amount exceeds available capital (Max: ₹{Number(maxAllocatable || 0).toLocaleString("en-IN")})
+                Amount exceeds available capital (Max: ₹{formatINR(maxAllocatable)})
               </p>
             )}
           </div>

@@ -10,6 +10,7 @@ import { Modal } from "../ui/Modal";
 import { ManageTeamsModal } from "../ui/ManageTeamsModal";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
+import { formatINR, formatDate } from "../../lib/formatters";
 
 const COMMON_UNITS = ["Nos", "Brass", "Sq.Ft", "R.Ft", "Cu.Ft", "Bags", "Kg", "Ton", "Hours", "Days", "Units"];
 
@@ -528,7 +529,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
 
-      showToast(`Team Upad of ₹${amt.toLocaleString()} recorded for "${targetTeam}"`, "success");
+      showToast(`Team Upad of ₹${formatINR(amt)} recorded for "${targetTeam}"`, "success");
       setUpadForm(prev => ({
         ...prev,
         amount: "",
@@ -568,7 +569,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         })
       });
 
-      showToast(`Other Kharch of ₹${amt.toLocaleString()} recorded`, "success");
+      showToast(`Other Kharch of ₹${formatINR(amt)} recorded`, "success");
       setKharchForm(prev => ({
         ...prev,
         amount: "",
@@ -720,10 +721,10 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
             <span className="text-xs font-bold uppercase tracking-wider text-amber-800">1. Attendance Wages Earned</span>
             <Calendar className="w-4 h-4 text-amber-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900">₹{summaries.totalAttendanceWages.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-slate-900">₹{formatINR(summaries.totalAttendanceWages)}</p>
           <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            <span>Day: ₹{summaries.totalDayWiseWages.toLocaleString('en-IN')} ({summaries.totalDayWiseDays}d)</span>
-            <span>TC: ₹{summaries.totalTcWiseWages.toLocaleString('en-IN')}</span>
+            <span>Day: ₹{formatINR(summaries.totalDayWiseWages)} ({summaries.totalDayWiseDays}d)</span>
+            <span>TC: ₹{formatINR(summaries.totalTcWiseWages)}</span>
           </div>
         </div>
 
@@ -733,7 +734,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-800">2. Team Upad (Advances Paid)</span>
             <ArrowDownRight className="w-4 h-4 text-indigo-600" />
           </div>
-          <p className="text-2xl font-black text-indigo-700">₹{summaries.totalTeamUpad.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-indigo-700">₹{formatINR(summaries.totalTeamUpad)}</p>
           <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
             Cash & online advances given to teams
           </p>
@@ -747,7 +748,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
               <Calculator className="w-4 h-4" />
             </div>
             <p className="text-2xl font-black text-white">
-              ₹{(summaries.totalAttendanceWages - summaries.totalTeamUpad).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{formatINR(summaries.totalAttendanceWages - summaries.totalTeamUpad)}
             </p>
           </div>
           <p className="text-[11px] text-slate-300 mt-2 pt-2 border-t border-slate-800">
@@ -770,7 +771,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           <CalendarCheck className="w-4 h-4 text-amber-600" />
           <span>1. Add Attendance (Day & TC)</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-black">
-            ₹{summaries.totalAttendanceWages.toLocaleString('en-IN')}
+            ₹{formatINR(summaries.totalAttendanceWages)}
           </span>
         </button>
 
@@ -786,7 +787,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           <ArrowDownRight className="w-4 h-4 text-indigo-600" />
           <span>2. Team Upad (Advances)</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-black">
-            ₹{summaries.totalTeamUpad.toLocaleString('en-IN')}
+            ₹{formatINR(summaries.totalTeamUpad)}
           </span>
         </button>
       </div>
@@ -934,7 +935,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                         ₹{(() => {
                           const days = dayForm.attendanceType === "Half Day" ? 0.5 : 1;
                           const rate = parseFloat(dayForm.dailyRate) || 0;
-                          return (days * rate).toLocaleString();
+                          return formatINR(days * rate);
                         })()}
                       </div>
                     </div>
@@ -1056,7 +1057,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Calculated Total Wages (₹)</label>
                     <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-900">
-                      ₹{((parseFloat(tcForm.quantity) || 0) * (parseFloat(tcForm.rate) || 0)).toLocaleString()}
+                      ₹{formatINR((parseFloat(tcForm.quantity) || 0) * (parseFloat(tcForm.rate) || 0))}
                     </div>
                   </div>
 
@@ -1094,7 +1095,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Total Upad: ₹{summaries.totalTeamUpad.toLocaleString()}
+                Total Upad: ₹{formatINR(summaries.totalTeamUpad)}
               </span>
             </div>
 
@@ -1214,7 +1215,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
-                Total Other Kharch: ₹{summaries.totalOtherKharch.toLocaleString()}
+                Total Other Kharch: ₹{formatINR(summaries.totalOtherKharch)}
               </span>
             </div>
 
@@ -1426,7 +1427,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                   <tr key={r.id || idx} className="hover:bg-slate-50/80 transition-colors">
                     {/* Date */}
                     <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
-                      {r.date}
+                      {formatDate(r.date)}
                     </td>
 
                     {/* Team */}
@@ -1484,9 +1485,9 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                       {activeSubTab === "add_attendance" && (
                         <div>
                           {isWork ? (
-                            <span>{r.tcQuantity || r.quantity || 0} {r.unitOfMeasurement || "Nos"} @ ₹{r.tcRate || r.rate || 0}</span>
+                            <span>{formatINR(r.tcQuantity || r.quantity || 0)} {r.unitOfMeasurement || "Nos"} @ ₹{formatINR(r.tcRate || r.rate || 0)}</span>
                           ) : (
-                            <span>{r.days || 1} Days @ ₹{r.dailyRate || 0}/day</span>
+                            <span>{r.days || 1} Days @ ₹{formatINR(r.dailyRate || 0)}/day</span>
                           )}
                         </div>
                       )}
@@ -1508,7 +1509,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                       <span className={`text-sm font-black ${
                         isUpad ? "text-indigo-700" : isKharch ? "text-rose-700" : "text-amber-800"
                       }`}>
-                        ₹{amount.toLocaleString()}
+                        ₹{formatINR(amount)}
                       </span>
                     </td>
 
