@@ -596,8 +596,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     // Transport fee is NOT included in GST; GST applies strictly to taxable amount (subtotal - discount)
     const baseAmount = Math.max(0, subtotal - discount);
     const taxAmount = (baseAmount * taxPct) / 100;
-    // Transport is counted/added separately to the total
-    const netTotal = baseAmount + taxAmount + transport;
+    // GST is deducted (minus) from base amount; Transport is counted/added separately to the total
+    const netTotal = Math.max(0, baseAmount - taxAmount) + transport;
 
     return {
       subtotal,
@@ -2647,8 +2647,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                       <td className="p-3.5 text-right text-slate-500 text-[11px]">
                         +{Number(bill.transportCost || 0)} / -{Number(bill.discount || 0)}
                       </td>
-                      <td className="p-3.5 text-right text-slate-500 text-[11px]">
-                        {bill.taxPercentage}% (₹{Number(bill.taxAmount || 0).toLocaleString()})
+                      <td className="p-3.5 text-right text-rose-600 font-semibold text-[11px]">
+                        -{bill.taxPercentage}% (-₹{Number(bill.taxAmount || 0).toLocaleString()})
                       </td>
                       <td className="p-3.5 text-right font-black text-blue-700 text-sm">
                         ₹{Number(bill.totalAmount || bill.amount).toLocaleString()}
@@ -3449,7 +3449,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">7. Tax / GST (%) (+)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">7. Tax / GST (%) (-)</label>
               <select
                 value={billData.taxPercentage}
                 onChange={e => setBillData({ ...billData, taxPercentage: e.target.value })}
@@ -3478,9 +3478,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               <span>Taxable Base Amount (for GST):</span>
               <span>₹{billCalc.baseAmount.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-slate-300">
-              <span>GST ({billData.taxPercentage}% on base amount):</span>
-              <span>+₹{billCalc.taxAmount.toFixed(2)}</span>
+            <div className="flex justify-between text-rose-400">
+              <span>GST ({billData.taxPercentage}% on base amount) (-):</span>
+              <span>-₹{billCalc.taxAmount.toFixed(2)}</span>
             </div>
             {billCalc.transport > 0 && (
               <div className="flex justify-between text-amber-300">

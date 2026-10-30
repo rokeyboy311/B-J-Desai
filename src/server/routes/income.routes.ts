@@ -41,22 +41,34 @@ function parseRecordToBill(r: any) {
     }
   }
 
+  const quantity = extra.quantity !== undefined ? Number(extra.quantity) : 1;
+  const rate = extra.rate !== undefined ? Number(extra.rate) : Number(r.amount);
+  const subtotal = extra.subtotal !== undefined ? Number(extra.subtotal) : Math.round(quantity * rate * 100) / 100;
+  const transportCost = extra.transportCost !== undefined ? Number(extra.transportCost) : 0;
+  const discount = extra.discount !== undefined ? Number(extra.discount) : 0;
+  const taxPercentage = extra.taxPercentage !== undefined ? Number(extra.taxPercentage) : 0;
+  const taxableAmount = Math.max(0, subtotal - discount);
+  const taxAmount = extra.taxAmount !== undefined ? Number(extra.taxAmount) : Math.round(taxableAmount * (taxPercentage / 100) * 100) / 100;
+  const calculatedTotal = subtotal > 0
+    ? Math.round((Math.max(0, taxableAmount - taxAmount) + transportCost) * 100) / 100
+    : Number(r.amount);
+
   return {
     id: r.id,
     locationId: r.locationId,
     date: r.date,
     partyName: r.partyName,
     materialName: extra.materialName || r.description?.replace(/^Bill:\s*/, '')?.split(' - ')[0] || 'Material',
-    quantity: extra.quantity !== undefined ? Number(extra.quantity) : 1,
+    quantity,
     unit: extra.unit || 'Nos',
-    rate: extra.rate !== undefined ? Number(extra.rate) : Number(r.amount),
-    subtotal: extra.subtotal !== undefined ? Number(extra.subtotal) : Number(r.amount),
-    transportCost: extra.transportCost !== undefined ? Number(extra.transportCost) : 0,
-    discount: extra.discount !== undefined ? Number(extra.discount) : 0,
-    taxPercentage: extra.taxPercentage !== undefined ? Number(extra.taxPercentage) : 0,
-    taxAmount: extra.taxAmount !== undefined ? Number(extra.taxAmount) : 0,
-    totalAmount: Number(r.amount),
-    amount: Number(r.amount),
+    rate,
+    subtotal,
+    transportCost,
+    discount,
+    taxPercentage,
+    taxAmount,
+    totalAmount: calculatedTotal,
+    amount: calculatedTotal,
     paymentStatus: extra.paymentStatus || 'PAID',
     paymentMethod: r.paymentMethod || 'Bank Transfer',
     referenceNumber: r.referenceNumber,
@@ -89,7 +101,22 @@ incomeRouter.get('/', async (req: AuthRequest, res: Response) => {
       .where(and(...conditions))
       .orderBy(desc(records.date), desc(records.id));
 
-    const result = rows.map(parseRecordToBill);
+    const result = await Promise.all(rows.map(async (r) => {
+      const parsed = parseRecordToBill(r);
+      if (Math.abs(Number(r.amount) - parsed.totalAmount) > 0.01) {
+        try {
+          let extra: any = {};
+          try { extra = r.notes ? JSON.parse(r.notes) : {}; } catch {}
+          extra.totalAmount = parsed.totalAmount;
+          extra.taxAmount = parsed.taxAmount;
+          await db.update(records).set({
+            amount: parsed.totalAmount.toString(),
+            notes: JSON.stringify(extra),
+          }).where(eq(records.id, r.id));
+        } catch {}
+      }
+      return parsed;
+    }));
     res.json(result);
   } catch (error: any) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
@@ -106,11 +133,11 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
     const data = incomeBillSchema.parse(req.body);
     await assertLocationAccess(userId, data.locationId);
 
-    // Ensure transport cost is strictly kept separate from taxable base amount & GST
+    // Ensure transport cost is strictly kept separate from taxable base amount & GST is deducted (-) from base amount
     const subtotal = Math.round(data.quantity * data.rate * 100) / 100;
     const taxableAmount = Math.max(0, subtotal - (data.discount || 0));
     const taxAmount = Math.round(taxableAmount * ((data.taxPercentage || 0) / 100) * 100) / 100;
-    const totalAmount = Math.round((taxableAmount + taxAmount + (data.transportCost || 0)) * 100) / 100;
+    const totalAmount = Math.round((Math.max(0, taxableAmount - taxAmount) + (data.transportCost || 0)) * 100) / 100;
 
     const notesMeta = JSON.stringify({
       materialName: data.materialName,
@@ -187,7 +214,7 @@ incomeRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const subtotal = Math.round(finalQuantity * finalRate * 100) / 100;
     const taxableAmount = Math.max(0, subtotal - finalDiscount);
     const taxAmount = Math.round(taxableAmount * (finalTaxPct / 100) * 100) / 100;
-    const totalAmount = Math.round((taxableAmount + taxAmount + finalTransport) * 100) / 100;
+    const totalAmount = Math.round((Math.max(0, taxableAmount - taxAmount) + finalTransport) * 100) / 100;
 
     const notesMeta = JSON.stringify({
       materialName: data.materialName || prevBill.materialName,
