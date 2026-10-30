@@ -333,9 +333,9 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
     const totalInvestorUpad = totalInvestmentUpad + totalInvestmentPayment;
     const availableInvestorsBalance = Math.max(0, Math.round((investorTotalCapital - totalInvestmentKarya - totalInvestorUpad) * 100) / 100);
 
-    // Category 2: Investment from Investors Capital (Strictly Investment Karya total)
+    // Category 2: Investment from Investors Capital (Strictly Investment Karya total; Bill Investment is in Admin)
     const investmentFromInvestorsCapital = Math.round(totalInvestmentKarya * 100) / 100;
-    const totalProjectCapital = Math.round((investmentFromInvestorsCapital + totalBillInvestment) * 100) / 100;
+    const totalProjectCapital = investmentFromInvestorsCapital;
     const investmentBalance = totalProjectCapital - totalInvestmentPayment;
 
     // 3. Material Purchase (Category 3)
@@ -435,12 +435,12 @@ reportRouter.get('/dashboard', async (req: AuthRequest, res: Response) => {
 
     const cat2Calculation = calculateCategory2Capital({
       investmentFromInvestors: investmentFromInvestorsCapital,
-      billInvestment: totalBillInvestment,
+      billInvestment: 0, // Bill Investments are managed at the Admin level
       cat3Deduction: 0, // Material Purchases completely removed from Category 2 operational deductions as per user request
       cat4Deduction: 0, // Material Supply is customer sales, not project capital deduction
       cat5Deduction: totalMaterialLabourSupply,
       cat6Deduction: labourPaidOut,
-      refundableDeduction: pendingRefundable,
+      refundableDeduction: 0, // Refundable Records are managed at the Admin level
       investorUpadReturn: totalInvestmentPayment
     });
 
@@ -983,8 +983,8 @@ reportRouter.get('/locations-breakdown', async (req: AuthRequest, res: Response)
       const supervisorCost = parseFloat(scData.total || '0');
       const supervisorCount = parseInt(scData.count || '0', 10);
 
-      const fullProjectCapital = Math.round((totalInvestorCapital + billInvestment) * 100) / 100;
-      const projectOperationalDeductions = Math.round((siteSupplies + labourUpad + totalOtherKharch + pendingRefundable) * 100) / 100;
+      const fullProjectCapital = Math.round(totalInvestorCapital * 100) / 100;
+      const projectOperationalDeductions = Math.round((siteSupplies + labourUpad + totalOtherKharch) * 100) / 100;
       const remainingProjectCapital = Math.round((fullProjectCapital - projectOperationalDeductions - investorPayment) * 100) / 100;
 
       return {

@@ -3,19 +3,26 @@ import {
   ShieldCheck, Plus, ArrowRight, Building2, Wallet,
   Search, ArrowDownLeft, ArrowUpRight, Trash2, Edit2, Pencil,
   BookOpen, User, FileSpreadsheet, ChevronDown, ChevronUp,
-  MapPin, DollarSign, ArrowLeftRight
+  MapPin, DollarSign, ArrowLeftRight, FileText, Receipt, Download, Filter
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
+import { downloadExcelReport } from "../lib/excelExport";
 import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerGlobalSync, triggerSync } from "../hooks/useLiveSync";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { Modal } from "../components/ui/Modal";
 
+const GST_PRESETS = ["0", "5", "12", "18", "28"];
+
 interface AdminCapitalSummary {
   totalContributed: number;
+  totalBillInvestments?: number;
   totalWithdrawn: number;
   totalAllocated: number;
   totalPurchases: number;
+  totalRefundable?: number;
+  totalRefunded?: number;
+  pendingRefundable?: number;
   availableAdminCapital: number;
 }
 
@@ -27,15 +34,18 @@ export default function AdminPage() {
   const [investors, setInvestors] = useState<any[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [allAllocations, setAllAllocations] = useState<any[]>([]);
+  const [billIncomes, setBillIncomes] = useState<any[]>([]);
+  const [refundableRecords, setRefundableRecords] = useState<any[]>([]);
+  const [masterParties, setMasterParties] = useState<{ id: number; name: string }[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
   // Unified Workflow Views
-  const [workflowView, setWorkflowView] = useState<"investors_view" | "master_ledger">("investors_view");
+  const [workflowView, setWorkflowView] = useState<"investors_view" | "bill_investments" | "refundable_records" | "master_ledger">("investors_view");
   const [expandedInvestorId, setExpandedInvestorId] = useState<number | null>(null);
   const [investorDetailTab, setInvestorDetailTab] = useState<Record<number, "all" | "deposits" | "withdrawals" | "allocations">>({});
 
   // Master ledger filters
-  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<"ALL" | "DEPOSIT" | "WITHDRAWAL" | "ALLOCATION">("ALL");
+  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<"ALL" | "DEPOSIT" | "BILL_INVESTMENT" | "WITHDRAWAL" | "ALLOCATION" | "REFUNDABLE">("ALL");
   const [ledgerInvestorFilter, setLedgerInvestorFilter] = useState<string>("ALL");
   const [ledgerSearch, setLedgerSearch] = useState("");
 
@@ -98,15 +108,60 @@ export default function AdminPage() {
     notes: ""
   });
 
+  // Bill Investment & Refundable Record Modal States
+  const [isBillModalOpen, setIsBillModalOpen] = useState(false);
+  const [editingBillId, setEditingBillId] = useState<number | null>(null);
+  const [billData, setBillData] = useState({
+    date: new Date().toISOString().split("T")[0],
+    paymentStatus: "PAID",
+    partyName: "",
+    materialName: "",
+    quantity: "1",
+    unit: "N/A",
+    rate: "",
+    transportCost: "0",
+    discount: "0",
+    tdsPercentage: "0",
+    taxPercentage: "18",
+    paymentMethod: "Bank Transfer",
+    referenceNumber: "",
+    notes: "",
+  });
+
+  const [isRefundableModalOpen, setIsRefundableModalOpen] = useState(false);
+  const [editingRefundableId, setEditingRefundableId] = useState<number | null>(null);
+  const [refundableFormData, setRefundableFormData] = useState({
+    partyName: "",
+    amount: "",
+    depositType: "Security Deposit",
+    date: new Date().toISOString().split("T")[0],
+    paymentMethod: "Bank Transfer",
+    referenceNumber: "",
+    notes: "",
+  });
+
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [activeRefundRecord, setActiveRefundRecord] = useState<any>(null);
+  const [refundActionData, setRefundActionData] = useState({
+    refundedAmount: "",
+    refundDate: new Date().toISOString().split("T")[0],
+    refundNotes: "",
+  });
+  const [refundableSearch, setRefundableSearch] = useState("");
+  const [refundableFilter, setRefundableFilter] = useState("ALL");
+
   const loadData = async (isBackground = false) => {
     try {
       if (!isBackground && !adminSummary) setLoading(true);
-      const [summaryRes, locRes, invRes, txsRes, allocsRes] = await Promise.all([
+      const [summaryRes, locRes, invRes, txsRes, allocsRes, billsRes, refRes, masterPRes] = await Promise.all([
         apiFetch("/investments/admin-capital-summary").catch(() => null),
         apiFetch("/locations").catch(() => []),
         apiFetch("/investments/global-investors").catch(() => []),
         apiFetch("/investments/global-transactions").catch(() => []),
-        apiFetch("/investments/location-allocations").catch(() => [])
+        apiFetch("/investments/location-allocations").catch(() => []),
+        apiFetch("/incomes").catch(() => []),
+        apiFetch("/investments/refundable-records").catch(() => ({ records: [] })),
+        apiFetch("/master/parties").catch(() => []),
       ]);
 
       if (summaryRes) setAdminSummary(summaryRes);
@@ -114,6 +169,13 @@ export default function AdminPage() {
       if (Array.isArray(invRes)) setInvestors(invRes);
       if (Array.isArray(txsRes)) setAllTransactions(txsRes);
       if (Array.isArray(allocsRes)) setAllAllocations(allocsRes);
+      if (Array.isArray(billsRes)) setBillIncomes(billsRes);
+      if (Array.isArray(refRes)) {
+        setRefundableRecords(refRes);
+      } else if (refRes && Array.isArray(refRes.records)) {
+        setRefundableRecords(refRes.records);
+      }
+      if (Array.isArray(masterPRes)) setMasterParties(masterPRes);
     } catch (err) {
       console.error("Failed to load admin data", err);
     } finally {
@@ -364,8 +426,273 @@ export default function AdminPage() {
       } else {
         handleOpenEditWithdrawal(entry);
       }
+    } else if (entry.kind === "BILL_INVESTMENT") {
+      const origBill = billIncomes.find(b => b.id === entry.rawId);
+      if (origBill) openEditBill(origBill);
+    } else if (entry.kind === "REFUNDABLE") {
+      const origRef = refundableRecords.find(r => r.id === entry.rawId);
+      if (origRef) openEditRefundable(origRef);
     } else {
       handleOpenEditAllocation(entry);
+    }
+  };
+
+  // Live Bill Calculation Breakdown:
+  // Bill Subtotal - GST = Base Amount of TDS - TDS (+ Transport Fee separately)
+  const billCalc = useMemo(() => {
+    const rate = parseFloat(billData.rate) || 0;
+    const subtotal = rate;
+    const transport = parseFloat(billData.transportCost) || 0;
+    const taxPct = parseFloat(billData.taxPercentage) || 0;
+    const tdsPct = parseFloat(billData.tdsPercentage) || 0;
+
+    // 1. GST is calculated on Bill Subtotal and deducted (-)
+    const taxAmount = (subtotal * taxPct) / 100;
+    // 2. Bill Subtotal - GST = Base Amount of TDS
+    const tdsBaseAmount = Math.max(0, subtotal - taxAmount);
+    // 3. TDS is calculated on Base Amount of TDS and deducted (-)
+    const tdsAmount = (tdsBaseAmount * tdsPct) / 100;
+    const afterTdsAmount = Math.max(0, tdsBaseAmount - tdsAmount);
+    // 4. Transport is added separately to the final total
+    const netTotal = afterTdsAmount + transport;
+
+    return {
+      subtotal,
+      transport,
+      taxPct,
+      taxAmount,
+      tdsPct,
+      tdsBaseAmount,
+      tdsAmount,
+      afterTdsAmount,
+      discount: tdsAmount,
+      baseAmount: tdsBaseAmount,
+      netTotal,
+    };
+  }, [billData]);
+
+  const resetBillForm = () => {
+    setEditingBillId(null);
+    setBillData({
+      date: new Date().toISOString().split("T")[0],
+      paymentStatus: "PAID",
+      partyName: "",
+      materialName: "",
+      quantity: "1",
+      unit: "N/A",
+      rate: "",
+      transportCost: "0",
+      discount: "0",
+      tdsPercentage: "0",
+      taxPercentage: "18",
+      paymentMethod: "Bank Transfer",
+      referenceNumber: "",
+      notes: "",
+    });
+  };
+
+  const openEditBill = (bill: any) => {
+    setEditingBillId(bill.id);
+    setBillData({
+      date: bill.date || new Date().toISOString().split("T")[0],
+      paymentStatus: bill.paymentStatus || "PAID",
+      partyName: bill.partyName || "",
+      materialName: bill.materialName || "",
+      quantity: "1",
+      unit: "N/A",
+      rate: String(bill.rate || bill.subtotal || bill.amount || ""),
+      transportCost: String(bill.transportCost || "0"),
+      discount: String(bill.discount || "0"),
+      tdsPercentage: String(bill.tdsPercentage !== undefined ? bill.tdsPercentage : "0"),
+      taxPercentage: String(bill.taxPercentage || "0"),
+      paymentMethod: bill.paymentMethod || "Bank Transfer",
+      referenceNumber: bill.referenceNumber || "",
+      notes: bill.notes || "",
+    });
+    setIsBillModalOpen(true);
+  };
+
+  const handleCreateBill = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!billData.partyName || !billData.rate) {
+      showToast("Please fill in Party/Customer/Company Name and Bill Amount.", "error");
+      return;
+    }
+
+    try {
+      const payload = {
+        date: billData.date,
+        partyName: billData.partyName.trim(),
+        materialName: billData.materialName ? billData.materialName.trim() : "General Bill",
+        quantity: 1,
+        unit: "N/A",
+        rate: parseFloat(billData.rate) || 0,
+        subtotal: billCalc.subtotal,
+        transportCost: billCalc.transport,
+        discount: billCalc.tdsAmount,
+        tdsPercentage: parseFloat(billData.tdsPercentage) || 0,
+        tdsAmount: billCalc.tdsAmount,
+        taxPercentage: parseFloat(billData.taxPercentage) || 0,
+        taxAmount: billCalc.taxAmount,
+        totalAmount: billCalc.netTotal,
+        amount: billCalc.netTotal,
+        paymentStatus: billData.paymentStatus,
+        paymentMethod: billData.paymentMethod,
+        referenceNumber: billData.referenceNumber,
+        notes: billData.notes,
+        isBillIncome: true,
+        type: "BILL_INCOME",
+        title: `Bill: ${billData.partyName.trim()}`,
+      };
+
+      if (editingBillId) {
+        await apiFetch(`/incomes/${editingBillId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/incomes", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+
+      triggerGlobalSync();
+      triggerSync("incomes");
+      resetBillForm();
+      setIsBillModalOpen(false);
+      showToast(editingBillId ? "Bill investment updated" : "Bill investment recorded in Admin", "success");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to save bill investment.", "error");
+    }
+  };
+
+  const handleDeleteBill = async (id: number) => {
+    const confirmed = await confirmAction({
+      title: "Delete Bill Investment",
+      message: "Are you sure you want to delete this bill investment?",
+      confirmLabel: "Delete",
+      isDanger: true,
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/incomes/${id}`, { method: "DELETE" });
+      triggerGlobalSync();
+      triggerSync("incomes");
+      showToast("Bill investment deleted", "success");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete bill investment.", "error");
+    }
+  };
+
+  const handleSaveRefundable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundableFormData.partyName || !refundableFormData.amount) {
+      showToast("Please provide Party Name and Amount", "error");
+      return;
+    }
+    try {
+      const url = editingRefundableId
+        ? `/investments/refundable-records/${editingRefundableId}`
+        : "/investments/refundable-records";
+      const method = editingRefundableId ? "PUT" : "POST";
+
+      await apiFetch(url, {
+        method,
+        body: JSON.stringify({
+          partyName: refundableFormData.partyName.trim(),
+          amount: parseFloat(refundableFormData.amount),
+          depositType: refundableFormData.depositType,
+          date: refundableFormData.date,
+          paymentMethod: refundableFormData.paymentMethod,
+          referenceNumber: refundableFormData.referenceNumber,
+          notes: refundableFormData.notes,
+        }),
+      });
+
+      triggerGlobalSync();
+      triggerSync("investments");
+      setRefundableFormData({
+        partyName: "",
+        amount: "",
+        depositType: "Security Deposit",
+        date: new Date().toISOString().split("T")[0],
+        paymentMethod: "Bank Transfer",
+        referenceNumber: "",
+        notes: "",
+      });
+      setEditingRefundableId(null);
+      setIsRefundableModalOpen(false);
+      showToast(
+        editingRefundableId
+          ? "Refundable record updated"
+          : "Refundable record added and deducted from Admin Capital",
+        "success"
+      );
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to save refundable record.", "error");
+    }
+  };
+
+  const openEditRefundable = (rec: any) => {
+    setEditingRefundableId(rec.id);
+    setRefundableFormData({
+      partyName: rec.partyName || "",
+      amount: String(rec.refundableAmount || rec.amount || ""),
+      depositType: rec.depositType || (rec.description ? rec.description.replace(/^Security Deposit:\s*/, "") : "Security Deposit"),
+      date: rec.date || new Date().toISOString().split("T")[0],
+      paymentMethod: rec.paymentMethod || "Bank Transfer",
+      referenceNumber: rec.referenceNumber || "",
+      notes: rec.notes || "",
+    });
+    setIsRefundableModalOpen(true);
+  };
+
+  const handleProcessRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeRefundRecord || !refundActionData.refundedAmount) return;
+    try {
+      await apiFetch(`/investments/refundable-records/${activeRefundRecord.id}/refund`, {
+        method: "PUT",
+        body: JSON.stringify({
+          refundAmount: parseFloat(refundActionData.refundedAmount),
+          refundedAmount: parseFloat(refundActionData.refundedAmount),
+          refundDate: refundActionData.refundDate,
+          notes: refundActionData.refundNotes,
+          refundNotes: refundActionData.refundNotes,
+        }),
+      });
+
+      triggerGlobalSync();
+      triggerSync("investments");
+      setIsRefundModalOpen(false);
+      setActiveRefundRecord(null);
+      showToast("Refund recorded successfully", "success");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to record refund.", "error");
+    }
+  };
+
+  const handleDeleteRefundable = async (id: number) => {
+    const confirmed = await confirmAction({
+      title: "Delete Refundable Record",
+      message: "Are you sure you want to delete this refundable record?",
+      confirmLabel: "Delete",
+      isDanger: true,
+    });
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/investments/refundable-records/${id}`, { method: "DELETE" });
+      triggerGlobalSync();
+      triggerSync("investments");
+      showToast("Refundable record deleted", "success");
+      await loadData(true);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete refundable record.", "error");
     }
   };
 
@@ -468,12 +795,81 @@ export default function AdminPage() {
     }
   };
 
-  // Top Metric Calculations
+  // Top Metric Calculations (Including Bill Investments & Refundable Records in Admin)
   const totalContributed = adminSummary?.totalContributed || 0;
   const totalWithdrawn = adminSummary?.totalWithdrawn || 0;
   const totalAllocated = adminSummary?.totalAllocated || 0;
   const totalPurchasesCost = adminSummary?.totalPurchases || 0;
-  const availableCapital = adminSummary?.availableAdminCapital ?? (totalContributed - totalWithdrawn - totalAllocated - totalPurchasesCost);
+
+  const totalBillInvestments = useMemo(() => {
+    const list = Array.isArray(billIncomes) ? billIncomes : [];
+    if (list.length > 0) {
+      return Math.round(list.reduce((sum, b) => sum + Number(b.totalAmount || b.amount || 0), 0) * 100) / 100;
+    }
+    return adminSummary?.totalBillInvestments || 0;
+  }, [billIncomes, adminSummary]);
+
+  const totalBillGst = useMemo(() => {
+    const list = Array.isArray(billIncomes) ? billIncomes : [];
+    return Math.round(list.reduce((sum, b) => {
+      const tax = Number(b.taxAmount);
+      if (!isNaN(tax) && tax > 0) return sum + tax;
+      const sub = Number(b.subtotal || (Number(b.quantity || 0) * Number(b.rate || 0)));
+      const pct = Number(b.taxPercentage || 0);
+      return sum + (sub * pct / 100);
+    }, 0) * 100) / 100;
+  }, [billIncomes]);
+
+  const totalBillTds = useMemo(() => {
+    const list = Array.isArray(billIncomes) ? billIncomes : [];
+    return Math.round(list.reduce((sum, b) => {
+      const tds = Number(b.tdsAmount);
+      if (!isNaN(tds) && tds > 0) return sum + tds;
+      const sub = Number(b.subtotal || (Number(b.quantity || 0) * Number(b.rate || 0)));
+      const taxPct = Number(b.taxPercentage || 0);
+      const taxAmt = Number(b.taxAmount) || (sub * taxPct / 100);
+      const tdsBase = Math.max(0, sub - taxAmt);
+      const tdsPct = Number(b.tdsPercentage || 0);
+      return sum + (tdsBase * tdsPct / 100);
+    }, 0) * 100) / 100;
+  }, [billIncomes]);
+
+  const safeRefundableRecords = useMemo(() => {
+    return Array.isArray(refundableRecords) ? refundableRecords : [];
+  }, [refundableRecords]);
+
+  const refundableSummary = useMemo(() => {
+    let totalRefundable = 0;
+    let totalRefunded = 0;
+    for (const r of safeRefundableRecords) {
+      totalRefundable += Number(r.refundableAmount || r.amount || 0);
+      totalRefunded += Number(r.refundedAmount || 0);
+    }
+    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
+    return {
+      totalRefundable: Math.round(totalRefundable * 100) / 100,
+      totalRefunded: Math.round(totalRefunded * 100) / 100,
+      pendingRefundable,
+      count: safeRefundableRecords.length,
+    };
+  }, [safeRefundableRecords]);
+
+  const filteredRefundables = useMemo(() => {
+    return safeRefundableRecords.filter(r => {
+      const statusNorm = r.refundStatus === "FULL" ? "REFUNDED" : r.refundStatus === "PARTIAL" ? "PARTIALLY_REFUNDED" : (r.refundStatus || "PENDING");
+      const matchFilter = refundableFilter === "ALL" || statusNorm === refundableFilter || r.refundStatus === refundableFilter;
+      const matchSearch = !refundableSearch.trim() ||
+        (r.partyName || "").toLowerCase().includes(refundableSearch.toLowerCase()) ||
+        (r.description || "").toLowerCase().includes(refundableSearch.toLowerCase()) ||
+        (r.referenceNumber || "").toLowerCase().includes(refundableSearch.toLowerCase()) ||
+        (r.notes || "").toLowerCase().includes(refundableSearch.toLowerCase());
+      return matchFilter && matchSearch;
+    });
+  }, [safeRefundableRecords, refundableFilter, refundableSearch]);
+
+  const availableCapital = Math.round(
+    (totalContributed + totalBillInvestments - totalWithdrawn - totalAllocated - totalPurchasesCost - refundableSummary.pendingRefundable) * 100
+  ) / 100;
 
   // Helper to compile statement per investor
   const getInvestorStatement = (inv: any) => {
@@ -650,6 +1046,50 @@ export default function AdminPage() {
       });
     });
 
+    (Array.isArray(billIncomes) ? billIncomes : []).forEach(b => {
+      const amt = parseFloat(String(b.totalAmount || b.amount || 0));
+      items.push({
+        id: `bill-${b.id}`,
+        rawId: b.id,
+        kind: "BILL_INVESTMENT",
+        date: b.date,
+        investorId: 0,
+        investorName: b.partyName || "Party / Company",
+        type: "BILL_INVESTMENT",
+        typeLabel: "Bill Investment (+)",
+        particulars: b.notes ? `Bill Invoice: ${b.notes}` : `Bill Invoice (GST: -${b.taxPercentage || 0}%, TDS: -${b.tdsPercentage || 0}%)`,
+        destination: "Central Admin Pool",
+        paymentMethod: b.paymentMethod || "Bank Transfer",
+        referenceNumber: b.referenceNumber || "-",
+        credit: amt,
+        debit: 0,
+        amount: amt
+      });
+    });
+
+    safeRefundableRecords.forEach(r => {
+      const totalAmt = parseFloat(String(r.refundableAmount || r.amount || 0));
+      const refAmt = parseFloat(String(r.refundedAmount || 0));
+      const pendingAmt = Math.max(0, Math.round((totalAmt - refAmt) * 100) / 100);
+      items.push({
+        id: `ref-${r.id}`,
+        rawId: r.id,
+        kind: "REFUNDABLE",
+        date: r.date,
+        investorId: 0,
+        investorName: r.partyName || "Refundable Party",
+        type: "REFUNDABLE",
+        typeLabel: "Refundable Deposit (-)",
+        particulars: `${r.description || "Security Deposit"}${refAmt > 0 ? ` (Refunded: ₹${refAmt.toLocaleString("en-IN")})` : ""}`,
+        destination: "Security Deposit / Advance",
+        paymentMethod: r.paymentMethod || "Bank Transfer",
+        referenceNumber: r.referenceNumber || "-",
+        credit: 0,
+        debit: pendingAmt,
+        amount: pendingAmt
+      });
+    });
+
     items.sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
       return (a.rawId || 0) - (b.rawId || 0);
@@ -665,7 +1105,7 @@ export default function AdminPage() {
     });
 
     return withRunningBalance.reverse();
-  }, [allTransactions, allAllocations, investors, locations]);
+  }, [allTransactions, allAllocations, billIncomes, safeRefundableRecords, investors, locations]);
 
   // Filtered Master Ledger
   const filteredMasterLedger = useMemo(() => {
@@ -768,17 +1208,60 @@ export default function AdminPage() {
                 <ArrowRight className="w-4 h-4" />
                 <span>Transfer to Location</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  resetBillForm();
+                  setIsBillModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>+ Add Bill Investment</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRefundableId(null);
+                  setRefundableFormData({
+                    partyName: "",
+                    amount: "",
+                    depositType: "Security Deposit",
+                    date: new Date().toISOString().split("T")[0],
+                    paymentMethod: "Bank Transfer",
+                    referenceNumber: "",
+                    notes: "",
+                  });
+                  setIsRefundableModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Receipt className="w-4 h-4" />
+                <span>+ Add Refundable Record</span>
+              </button>
             </div>
           </div>
 
-          {/* 5 Core Top Summary Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 pt-5 border-t border-slate-700/80">
+          {/* 7 Core Top Summary Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mt-6 pt-5 border-t border-slate-700/80">
             <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
               <span className="text-[11px] uppercase font-bold text-slate-300 block">Total Capital Added</span>
               <span className="text-lg sm:text-xl font-black text-emerald-400 block tabular-nums mt-0.5">
                 +₹{totalContributed.toLocaleString("en-IN")}
               </span>
-              <span className="text-[10px] text-slate-400">Total Investor Deposits</span>
+              <span className="text-[10px] text-slate-400">Investor Deposits</span>
+            </div>
+
+            <div className="bg-cyan-950/60 backdrop-blur-xs p-3.5 rounded-2xl border border-cyan-500/30">
+              <span className="text-[11px] uppercase font-bold text-cyan-300 block">Bill Investments</span>
+              <span className="text-lg sm:text-xl font-black text-cyan-300 block tabular-nums mt-0.5">
+                +₹{totalBillInvestments.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-cyan-200/80 block">
+                GST: -₹{totalBillGst.toLocaleString("en-IN")} &bull; TDS: -₹{totalBillTds.toLocaleString("en-IN")}
+              </span>
             </div>
 
             <div className="bg-white/10 backdrop-blur-xs p-3.5 rounded-2xl border border-white/15">
@@ -805,6 +1288,16 @@ export default function AdminPage() {
               <span className="text-[10px] text-slate-400">Central Supply Cost</span>
             </div>
 
+            <div className="bg-purple-950/60 backdrop-blur-xs p-3.5 rounded-2xl border border-purple-500/30">
+              <span className="text-[11px] uppercase font-bold text-purple-300 block">Refundable (Pending)</span>
+              <span className="text-lg sm:text-xl font-black text-purple-300 block tabular-nums mt-0.5">
+                -₹{refundableSummary.pendingRefundable.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-purple-200/80 block">
+                Paid: ₹{refundableSummary.totalRefundable.toLocaleString("en-IN")} &bull; Rec: ₹{refundableSummary.totalRefunded.toLocaleString("en-IN")}
+              </span>
+            </div>
+
             <div className="bg-emerald-950/70 p-3.5 rounded-2xl border border-emerald-500/40 col-span-2 sm:col-span-1">
               <span className="text-[11px] uppercase font-bold text-emerald-300 block">Available Capital</span>
               <span className="text-lg sm:text-xl font-black text-emerald-200 block tabular-nums mt-0.5">
@@ -817,7 +1310,7 @@ export default function AdminPage() {
 
         {/* View Switcher & Search Toolbar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => setWorkflowView("investors_view")}
@@ -832,6 +1325,43 @@ export default function AdminPage() {
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/20 text-blue-300">
                 {investors.length}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setWorkflowView("bill_investments")}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                workflowView === "bill_investments"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Bill Investments</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/20 text-current">
+                {billIncomes.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setWorkflowView("refundable_records")}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                workflowView === "refundable_records"
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <Receipt className="w-4 h-4" />
+              <span>Refundable Records</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/20 text-current">
+                {safeRefundableRecords.length}
+              </span>
+              {refundableSummary.pendingRefundable > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 bg-amber-400 text-slate-900 rounded-full text-[10px] font-black">
+                  ₹{refundableSummary.pendingRefundable.toLocaleString("en-IN")}
+                </span>
+              )}
             </button>
 
             <button
@@ -863,7 +1393,7 @@ export default function AdminPage() {
                   className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-            ) : (
+            ) : workflowView === "master_ledger" ? (
               <div className="relative w-full sm:w-64">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -874,7 +1404,7 @@ export default function AdminPage() {
                   className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -2260,6 +2790,430 @@ export default function AdminPage() {
                 Confirm Transfer
               </button>
             </div>
+          </form>
+        </Modal>
+
+        {/* MODAL 6: ADD / EDIT BILL INVESTMENT */}
+        <Modal
+          isOpen={isBillModalOpen}
+          onClose={() => setIsBillModalOpen(false)}
+          maxWidth="xl"
+          title={
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-blue-100 text-blue-800 rounded-lg"><FileText className="w-5 h-5" /></div>
+              <div>
+                <span className="font-black text-slate-900 text-base">{editingBillId ? "Edit Bill Investment" : "Add Bill Investment"}</span>
+                <p className="text-xs text-slate-500 font-normal">Party / Company invoice and billing based investment record in Admin</p>
+              </div>
+            </div>
+          }
+        >
+          <form onSubmit={handleCreateBill} className="space-y-4">
+            {/* 1. Date & Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">1. Bill Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={billData.date}
+                  onChange={e => setBillData({ ...billData, date: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">2. Payment Status *</label>
+                <select
+                  required
+                  value={billData.paymentStatus}
+                  onChange={e => setBillData({ ...billData, paymentStatus: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
+                >
+                  <option value="PAID">PAID</option>
+                  <option value="UNPAID">UNPAID (Pending)</option>
+                  <option value="PARTIAL">PARTIAL</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 2. Party Name */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">3. Party / Customer / Company Name *</label>
+              <div className="space-y-1.5">
+                {masterParties.length > 0 && (
+                  <select
+                    value={billData.partyName}
+                    onChange={e => setBillData({ ...billData, partyName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">-- Select from Master Parties or Type Below --</option>
+                    {masterParties.map(p => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+                <input
+                  type="text"
+                  required
+                  value={billData.partyName}
+                  onChange={e => setBillData({ ...billData, partyName: e.target.value })}
+                  placeholder="Enter party / customer / company name"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium"
+                />
+              </div>
+            </div>
+
+            {/* 3. Bill Amount */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">4. Bill Amount (₹) *</label>
+              <input
+                type="number"
+                step="any"
+                required
+                value={billData.rate}
+                onChange={e => setBillData({ ...billData, rate: e.target.value })}
+                placeholder="0.00"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900"
+              />
+            </div>
+
+            {/* 4. Transport, GST & TDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">5. Transport Fee (₹) (+)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={billData.transportCost}
+                  onChange={e => setBillData({ ...billData, transportCost: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                />
+                <span className="text-[10px] text-slate-500">Added separately to total</span>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">6. Tax / GST (%) (-)</label>
+                <select
+                  value={billData.taxPercentage}
+                  onChange={e => setBillData({ ...billData, taxPercentage: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  {GST_PRESETS.map(g => (
+                    <option key={g} value={g}>{g}% GST</option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-500">Deducted from Bill Subtotal</span>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">7. TDS (%) (-)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="100"
+                    value={billData.tdsPercentage}
+                    onChange={e => setBillData({ ...billData, tdsPercentage: e.target.value })}
+                    placeholder="0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 pr-8 text-sm font-semibold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                </div>
+                <span className="text-[10px] text-slate-500">Applied on (Subtotal - GST)</span>
+              </div>
+            </div>
+
+            {/* Live Calculation Preview Box */}
+            <div className="bg-slate-900 text-white rounded-xl p-4 space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-300">
+                <span>Bill Subtotal:</span>
+                <span>₹{billCalc.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-rose-400">
+                <span>GST ({billData.taxPercentage || 0}% on Bill Subtotal) (-):</span>
+                <span>-₹{billCalc.taxAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-slate-200 font-semibold border-t border-slate-800 pt-1">
+                <span>Base Amount of TDS (Bill Subtotal - GST):</span>
+                <span>₹{billCalc.tdsBaseAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-rose-400">
+                <span>TDS ({billData.tdsPercentage || 0}% on Base Amount of TDS) (-):</span>
+                <span>-₹{billCalc.tdsAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-slate-300 border-t border-slate-800 pt-1">
+                <span>Amount After TDS (Base Amount of TDS - TDS):</span>
+                <span>₹{billCalc.afterTdsAmount.toFixed(2)}</span>
+              </div>
+              {billCalc.transport > 0 && (
+                <div className="flex justify-between text-amber-300">
+                  <span>Transport Fee (Added separately) (+):</span>
+                  <span>+₹{billCalc.transport.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
+                <span>Net Total Amount:</span>
+                <span>₹{billCalc.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            {/* Payment Method & Ref */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">8. Payment Method</label>
+                <select
+                  value={billData.paymentMethod}
+                  onChange={e => setBillData({ ...billData, paymentMethod: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Cash">Cash</option>
+                  <option value="UPI / NEFT">UPI / NEFT</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">9. Ref / Cheque No.</label>
+                <input
+                  type="text"
+                  value={billData.referenceNumber}
+                  onChange={e => setBillData({ ...billData, referenceNumber: e.target.value })}
+                  placeholder="e.g. INV-10492 / CHQ-1002"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">10. Notes / Remarks</label>
+              <input
+                type="text"
+                value={billData.notes}
+                onChange={e => setBillData({ ...billData, notes: e.target.value })}
+                placeholder="Additional specifications or invoice notes"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
+            >
+              {editingBillId ? "Update Bill Investment" : "Save Bill Investment"}
+            </button>
+          </form>
+        </Modal>
+
+        {/* MODAL 7: ADD / EDIT REFUNDABLE RECORD */}
+        <Modal
+          isOpen={isRefundableModalOpen}
+          onClose={() => {
+            setIsRefundableModalOpen(false);
+            setEditingRefundableId(null);
+          }}
+          maxWidth="lg"
+          title={
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-purple-100 text-purple-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
+              <div>
+                <span className="font-black text-slate-900 text-base">
+                  {editingRefundableId ? "Edit Refundable Record" : "Add Refundable Record"}
+                </span>
+                <p className="text-xs text-slate-500 font-normal">
+                  This amount is deducted from Admin Capital and will be credited back when refunded.
+                </p>
+              </div>
+            </div>
+          }
+        >
+          <form onSubmit={handleSaveRefundable} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Party / Company / Beneficiary Name *</label>
+              <input
+                type="text"
+                required
+                value={refundableFormData.partyName}
+                onChange={e => setRefundableFormData({ ...refundableFormData, partyName: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
+                placeholder="e.g. Torrent Power, MGVCL, Cylinder Security, Landlord Advance"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Type</label>
+                <select
+                  value={refundableFormData.depositType}
+                  onChange={e => setRefundableFormData({ ...refundableFormData, depositType: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold"
+                >
+                  <option value="Security Deposit">Security Deposit</option>
+                  <option value="Electricity / Meter Deposit">Electricity / Meter Deposit</option>
+                  <option value="Gas / Cylinder Deposit">Gas / Cylinder Deposit</option>
+                  <option value="Rent Advance Deposit">Rent Advance Deposit</option>
+                  <option value="Tender / EMD Deposit">Tender / EMD Deposit</option>
+                  <option value="Material Security Advance">Material Security Advance</option>
+                  <option value="Other Refundable">Other Refundable</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={refundableFormData.date}
+                  onChange={e => setRefundableFormData({ ...refundableFormData, date: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Amount (₹) *</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.01"
+                  required
+                  value={refundableFormData.amount}
+                  onChange={e => setRefundableFormData({ ...refundableFormData, amount: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-purple-900"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+                <select
+                  value={refundableFormData.paymentMethod}
+                  onChange={e => setRefundableFormData({ ...refundableFormData, paymentMethod: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Cash">Cash</option>
+                  <option value="UPI / NEFT">UPI / NEFT</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Receipt / Reference / Cheque No.</label>
+              <input
+                type="text"
+                value={refundableFormData.referenceNumber}
+                onChange={e => setRefundableFormData({ ...refundableFormData, referenceNumber: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                placeholder="e.g. REC-9921 / UTR..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Refund Terms</label>
+              <textarea
+                value={refundableFormData.notes}
+                onChange={e => setRefundableFormData({ ...refundableFormData, notes: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                rows={2}
+                placeholder="Refundable upon meter removal / completion of project..."
+              />
+            </div>
+
+            <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 text-xs text-purple-900 font-medium">
+              💡 <strong>Note:</strong> After saving, ₹{parseFloat(refundableFormData.amount) || 0} will be deducted from Admin Capital and tracked under Pending Refunds.
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
+            >
+              {editingRefundableId ? "Update Refundable Record" : "Save Refundable Record & Deduct from Admin Capital"}
+            </button>
+          </form>
+        </Modal>
+
+        {/* MODAL 8: RECORD REFUND RECEIVED */}
+        <Modal
+          isOpen={isRefundModalOpen}
+          onClose={() => setIsRefundModalOpen(false)}
+          maxWidth="md"
+          title={
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
+              <div>
+                <span className="font-black text-slate-900 text-base">Record Refund Received</span>
+                <p className="text-xs text-slate-500 font-normal">
+                  {activeRefundRecord?.partyName} ({activeRefundRecord?.depositType || activeRefundRecord?.description || "Deposit"})
+                </p>
+              </div>
+            </div>
+          }
+        >
+          <form onSubmit={handleProcessRefund} className="space-y-4">
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Deposited Amount:</span>
+                <span className="font-bold text-slate-800">₹{Number(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Previously Refunded:</span>
+                <span className="font-bold text-emerald-700">₹{Number(activeRefundRecord?.refundedAmount || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-1">
+                <span className="font-bold text-slate-700">Remaining Pending:</span>
+                <span className="font-black text-amber-800">
+                  ₹{Math.max(0, Number(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0)).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Refund Received Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={refundActionData.refundDate}
+                  onChange={e => setRefundActionData({ ...refundActionData, refundDate: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Amount Received (₹) *</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0.01"
+                  max={Math.max(0, Number(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0))}
+                  required
+                  value={refundActionData.refundedAmount}
+                  onChange={e => setRefundActionData({ ...refundActionData, refundedAmount: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-700"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Refund Notes / Receipt Ref</label>
+              <input
+                type="text"
+                value={refundActionData.refundNotes}
+                onChange={e => setRefundActionData({ ...refundActionData, refundNotes: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                placeholder="e.g. Deposit refunded to Admin bank account"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
+            >
+              Confirm &amp; Record Refund
+            </button>
           </form>
         </Modal>
 

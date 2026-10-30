@@ -5,13 +5,14 @@ import { records, auditLogs } from '../../db/schema.ts';
 import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { assertLocationAccess } from '../lib/locationAuth.ts';
+import { getOrCreateCentralLocation } from '../lib/accounting.ts';
 
 const incomeRouter = Router();
 incomeRouter.use(requireAuth);
 incomeRouter.use(requireCategoryAuth);
 
 const incomeBillSchema = z.object({
-  locationId: z.number().int().positive(),
+  locationId: z.number().int().positive().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   partyName: z.string().min(1).max(100),
   materialName: z.string().min(1).max(100).optional().default('General'),
@@ -144,7 +145,12 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Unauthorized: User authentication required' });
 
     const data = incomeBillSchema.parse(req.body);
-    await assertLocationAccess(userId, data.locationId);
+    let targetLocationId = data.locationId;
+    if (targetLocationId) {
+      await assertLocationAccess(userId, targetLocationId);
+    } else {
+      targetLocationId = await getOrCreateCentralLocation(userId);
+    }
 
     // Formula: Bill Subtotal - GST = Base Amount of TDS - TDS (+ Transport Fee separately)
     const subtotal = Math.round(data.quantity * data.rate * 100) / 100;
@@ -177,7 +183,7 @@ incomeRouter.post('/', async (req: AuthRequest, res: Response) => {
 
     const inserted = await db.insert(records).values({
       userId,
-      locationId: data.locationId,
+      locationId: targetLocationId,
       type: 'INCOME',
       category: 'BILL_INVESTMENT',
       partyName: data.partyName,
@@ -220,7 +226,9 @@ incomeRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Income record not found' });
     }
-    await assertLocationAccess(userId, existing[0].locationId);
+    try {
+      await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+    } catch {}
 
     const data = incomeBillSchema.partial().parse(req.body);
 

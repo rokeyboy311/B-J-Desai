@@ -238,11 +238,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     }, 0);
   }, [billIncomes]);
 
-  // Full Capital = Investment from Investors (Investment Karya + Allocations) + Bill Investment
+  // Full Capital in Location = Investment from Investors Capital ONLY (Bill Investments are in Admin)
   const fullCapital = useMemo(() => {
-    // Mathematically guaranteed: Full Capital = Investment from Investors + Bill Investments
-    return investmentFromInvestorsCapital + totalBillInvestments;
-  }, [investmentFromInvestorsCapital, totalBillInvestments]);
+    return investmentFromInvestorsCapital;
+  }, [investmentFromInvestorsCapital]);
 
   // Category 2 Capital Pool
   const totalGrossInvestment = fullCapital;
@@ -252,22 +251,15 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
   }, [refundableRecords]);
 
   const refundableSummary = useMemo(() => {
-    let totalRefundable = 0;
-    let totalRefunded = 0;
-    for (const r of safeRefundableRecords) {
-      totalRefundable += Number(r.amount || 0);
-      totalRefunded += Number(r.refundedAmount || 0);
-    }
-    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
     return {
-      totalRefundable: Math.round(totalRefundable * 100) / 100,
-      totalRefunded: Math.round(totalRefunded * 100) / 100,
-      pendingRefundable,
-      count: safeRefundableRecords.length,
+      totalRefundable: 0,
+      totalRefunded: 0,
+      pendingRefundable: 0,
+      count: 0,
     };
-  }, [safeRefundableRecords]);
+  }, []);
 
-  // Operational Deductions from Categories 5, 6 and Refundables
+  // Operational Deductions from Categories 5 and 6 (Refundables are in Admin)
   const cat3Data = projectUtilization?.linkedExpenditures?.category3MaterialPurchases || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat4Data = projectUtilization?.linkedExpenditures?.category4MaterialSupplies || { total: 0, paid: 0, outstanding: 0, count: 0 };
   const cat5Data = projectUtilization?.linkedExpenditures?.category5SiteSupplies || { total: 0, count: 0 };
@@ -279,11 +271,10 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
     }
     const cat5Total = Number(cat5Data.total || 0);
     const cat6Total = Number(cat6Data.totalDeduction ?? (Number(cat6Data.totalNetSalary || 0) + Number(cat6Data.totalUpad || 0)));
-    const refPending = Number(refundableSummary.pendingRefundable || 0);
-    return cat5Total + cat6Total + refPending;
-  }, [projectUtilization, cat5Data, cat6Data, refundableSummary]);
+    return cat5Total + cat6Total;
+  }, [projectUtilization, cat5Data, cat6Data]);
 
-  // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Cat 3-6) - Investor Upad / Return
+  // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors) - Deductions (Cat 5-6) - Investor Upad / Return
   const netRemainingCapital = useMemo(() => {
     if (projectUtilization?.budgetBalance?.remainingInvestmentCapital !== undefined) {
       return Number(projectUtilization.budgetBalance.remainingInvestmentCapital || 0);
@@ -394,28 +385,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       });
     });
 
-    // 2. Bill / Asset Investments (+ INFLOWS)
-    (Array.isArray(billIncomes) ? billIncomes : []).forEach(b => {
-      const amt = parseFloat(String(b.totalAmount || b.amount || 0));
-      items.push({
-        id: `bill-${b.id}`,
-        rawId: b.id,
-        kind: 'BILL_INVESTMENT',
-        date: b.date,
-        partyName: b.partyName || 'Party',
-        categoryKey: 'BILL_INVESTMENT',
-        categoryLabel: 'Bill Invoice (+ INFLOW)',
-        type: 'ADDED',
-        particulars: b.materialName ? `Bill: ${b.materialName} (${b.quantity} ${b.unit || ''})` : (b.notes || 'Material / Asset Invoiced Capital'),
-        paymentMethod: b.paymentMethod || 'Bank Transfer',
-        referenceNumber: b.referenceNumber || '-',
-        jama: amt,
-        udhar: 0,
-        amount: amt
-      });
-    });
-
-    // 3. Operational Site Deductions (- DEDUCTIONS)
+    // 2. Operational Site Deductions (- DEDUCTIONS)
     const rawDeductions: any[] = projectUtilization?.itemizedDeductions || [];
     rawDeductions.forEach(d => {
       const amt = parseFloat(String(d.amount || d.paidAmount || 0));
@@ -921,35 +891,6 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           <button
             onClick={() => {
-              resetBillForm();
-              setIsBillModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5" /> + Add Bill Investment
-          </button>
-
-          <button
-            onClick={() => {
-              setEditingRefundableId(null);
-              setRefundableFormData({
-                partyName: "",
-                amount: "",
-                depositType: "Security Deposit",
-                date: new Date().toISOString().split("T")[0],
-                paymentMethod: "Bank Transfer",
-                referenceNumber: "",
-                notes: "",
-              });
-              setIsRefundableModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
-          >
-            <Receipt className="w-3.5 h-3.5" /> + Add Refundable Record
-          </button>
-
-          <button
-            onClick={() => {
               setEditingTxId(null);
               setPaymentFormData({
                 partyId: parties[0]?.id?.toString() || "",
@@ -976,8 +917,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       </div>
 
-      {/* 5 Executive Summary Stat Cards - Category 2 Full Capital & Deductions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+      {/* 4 Executive Summary Stat Cards - Category 2 Full Capital & Deductions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* 1. Investment from Investors Capital */}
         <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-emerald-800">
@@ -992,58 +933,40 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </div>
         </div>
 
-        {/* 2. Bill Investment */}
-        <div className="bg-cyan-50/90 border border-cyan-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-cyan-800">
-            <span className="text-xs font-bold uppercase tracking-wider">2. Bill Investment</span>
-            <div className="p-1.5 bg-cyan-100 rounded-lg"><FileText className="w-4 h-4 text-cyan-700" /></div>
-          </div>
-          <div className="mt-3">
-            <div className="text-xl font-black text-cyan-900">+₹{totalBillInvestments.toLocaleString()}</div>
-            <p className="text-[11px] text-cyan-700 mt-0.5 font-medium">
-              Bill Investments ({billIncomes.length} bills recorded)
-            </p>
-            <div className="mt-2 pt-2 border-t border-cyan-200/80 flex items-center justify-between text-xs">
-              <span className="text-cyan-800 font-bold">Total GST:</span>
-              <span className="font-black text-cyan-950">₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Full Capital */}
+        {/* 2. Full Capital */}
         <div className="bg-blue-50/90 border border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-blue-800">
-            <span className="text-xs font-bold uppercase tracking-wider">3. Full Capital</span>
+            <span className="text-xs font-bold uppercase tracking-wider">2. Full Capital</span>
             <div className="p-1.5 bg-blue-100 rounded-lg"><Building2 className="w-4 h-4 text-blue-700" /></div>
           </div>
           <div className="mt-3">
             <div className="text-xl font-black text-blue-900">₹{fullCapital.toLocaleString()}</div>
             <p className="text-[11px] text-blue-700 mt-0.5 font-medium">
-              Total Capital = Investor Capital + Bills
+              Total Location Investment Capital
             </p>
           </div>
         </div>
 
-        {/* 4. Deductions (Cat 3 to 6 & Upad & Refundable) */}
+        {/* 3. Deductions & Upad */}
         <div className="bg-rose-50/90 border border-rose-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-rose-800">
-            <span className="text-xs font-bold uppercase tracking-wider">4. Deductions & Upad</span>
+            <span className="text-xs font-bold uppercase tracking-wider">3. Deductions & Upad</span>
             <div className="p-1.5 bg-rose-100 rounded-lg"><TrendingUp className="w-4 h-4 text-rose-700" /></div>
           </div>
           <div className="mt-3">
             <div className="text-xl font-black text-rose-900">-₹{(totalDeductions + totalInvestorPayments).toLocaleString()}</div>
             <p className="text-[11px] text-rose-700 mt-0.5 font-medium">
-              Expenses & Deposits: ₹{totalDeductions.toLocaleString()} + Upad: ₹{totalInvestorPayments.toLocaleString()}
+              Site Expenses: ₹{totalDeductions.toLocaleString()} + Upad: ₹{totalInvestorPayments.toLocaleString()}
             </p>
           </div>
         </div>
 
-        {/* 5. Remaining Capital */}
+        {/* 4. Remaining Capital */}
         <div className={`rounded-2xl p-4 shadow-md flex flex-col justify-between text-white ${
           netRemainingCapital >= 0 ? "bg-gradient-to-br from-slate-900 to-indigo-950" : "bg-gradient-to-br from-rose-900 to-slate-900"
         }`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">5. Remaining Capital</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">4. Remaining Capital</span>
             <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
               netRemainingCapital >= 0 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/30 text-rose-200 border border-rose-500/50"
             }`}>
@@ -1059,7 +982,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         </div>
       </div>
 
-      {/* 9 Distinct Sub-Tabs Navigation */}
+      {/* Sub-Tabs Navigation */}
       <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1.5 overflow-x-auto">
         <button
           onClick={() => setActiveSubTab("notebook_hisab")}
@@ -1115,35 +1038,6 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         >
           <ArrowUpRight className="w-4 h-4" />
           Investment from Investor Capital ({capitalInflowTxs.length})
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab("bill_investments")}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-            activeSubTab === "bill_investments"
-              ? "bg-blue-600 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          Bill Investments ({billIncomes.length})
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab("refundable_records")}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-            activeSubTab === "refundable_records"
-              ? "bg-purple-600 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <Receipt className="w-4 h-4" />
-          Refundable Records ({refundableRecords.length})
-          {refundableSummary.pendingRefundable > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 bg-amber-400 text-slate-900 rounded-full text-[10px] font-black">
-              ₹{refundableSummary.pendingRefundable.toLocaleString()}
-            </span>
-          )}
         </button>
 
         <button
@@ -1386,7 +1280,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Category 5: Site Supplies */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-teal-300 transition-colors flex flex-col justify-between">
                 <div>
@@ -1464,48 +1358,6 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   </span>
                 </div>
               </div>
-
-              {/* Category: Refundable Records / Security Deposits */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-purple-300 transition-colors flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                      Refundables
-                    </span>
-                    <Receipt className="w-4 h-4 text-purple-600" />
-                  </div>
-                  <h5 className="font-black text-slate-900 text-sm mt-2">Refundable Records & Deposits</h5>
-                  <p className="text-xs text-slate-500 mt-0.5">{refundableSummary.count} security/advance deposits</p>
-                  
-                  <div className="mt-3 py-2 border-y border-slate-100 flex items-baseline justify-between">
-                    <span className="text-xs font-bold text-slate-600">Pending Outflow:</span>
-                    <span className="text-base font-black text-purple-700">-₹{refundableSummary.pendingRefundable.toLocaleString()}</span>
-                  </div>
-                  
-                  <div className="mt-2 text-xs space-y-1 text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Total Deposited:</span>
-                      <span className="font-semibold text-slate-800">₹{refundableSummary.totalRefundable.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Refunded Received:</span>
-                      <span className="font-semibold text-emerald-600">+₹{refundableSummary.totalRefunded.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Pending Balance:</span>
-                      <span className="font-semibold text-purple-700">₹{refundableSummary.pendingRefundable.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Share of Capital:</span>
-                  <span className="font-bold text-purple-800">
-                    {totalGrossInvestment > 0 ? ((refundableSummary.pendingRefundable / totalGrossInvestment) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
-              </div>
-
             </div>
           </div>
 
@@ -1932,7 +1784,6 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 { key: "ALL", label: "All Deductions" },
                 { key: "CAT5_SITE", label: "Cat 5 Site Supplies" },
                 { key: "CAT6_LABOUR", label: "Cat 6 Labour & Kharch" },
-                { key: "CAT_REFUNDABLE", label: "Security Deposits" },
               ].map(f => (
                 <button
                   key={f.key}
@@ -2073,49 +1924,41 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               </div>
             </div>
 
-            {/* Bill Investments List Preview */}
+            {/* Investor Payments / Upad Preview */}
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    Recent Bill Investments
+                    <ArrowDownLeft className="w-4 h-4 text-amber-600" />
+                    Recent Investor Upad / Returns
                   </h3>
                   <button
-                    onClick={() => setActiveSubTab("bill_investments")}
-                    className="text-xs text-blue-600 font-bold hover:underline"
+                    onClick={() => setActiveSubTab("investor_payments")}
+                    className="text-xs text-amber-600 font-bold hover:underline"
                   >
                     View All &rarr;
                   </button>
                 </div>
 
                 <div className="divide-y divide-slate-100 mt-2">
-                  {billIncomes.slice(0, 5).map(bill => (
-                    <div key={bill.id} className="py-2.5 flex items-center justify-between text-xs">
+                  {investorPaymentTxs.slice(0, 5).map(tx => (
+                    <div key={tx.id} className="py-2.5 flex items-center justify-between text-xs">
                       <div>
-                        <div className="font-bold text-slate-800">{bill.partyName}</div>
-                        <div className="text-[10px] text-slate-500">
-                          {bill.materialName} &bull; {bill.quantity} {bill.unit} @ ₹{bill.rate}
-                        </div>
+                        <span className="font-bold text-slate-800">{tx.partyName}</span>
+                        <div className="text-[10px] text-slate-400">{tx.date} &bull; {tx.paymentMethod}</div>
                       </div>
-                      <span className="font-black text-blue-600">+₹{Number(bill.totalAmount || bill.amount).toLocaleString()}</span>
+                      <span className="font-black text-amber-600">-₹{Number(tx.amount).toLocaleString()}</span>
                     </div>
                   ))}
-                  {billIncomes.length === 0 && (
-                    <div className="py-6 text-center text-slate-400 text-xs">No bill investments recorded yet.</div>
+                  {investorPaymentTxs.length === 0 && (
+                    <div className="py-6 text-center text-slate-400 text-xs">No investor payments recorded yet.</div>
                   )}
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex flex-col gap-1 text-xs font-bold text-blue-800">
-                <div className="flex justify-between items-center">
-                  <span>Total Bill Investments:</span>
-                  <span>₹{totalBillInvestments.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center text-[11px] text-blue-600 font-semibold">
-                  <span>Total GST:</span>
-                  <span>₹{totalBillGst.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
-                </div>
+              <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-amber-800">
+                <span>Total Investor Upad:</span>
+                <span>₹{totalInvestorPayments.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -2137,7 +1980,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   <span>Investment Capital & Site Expenses Ledger</span>
                 </h3>
                 <p className="text-xs text-amber-200/80 mt-1 max-w-2xl font-medium">
-                  Complete record of capital inflows (+ Investor & Bill Capital) and site expenditure outflows (- Site Supplies, Labour, Other Expenses, Security Deposits, and Upad).
+                  Complete record of capital inflows (+ Investor Capital) and site expenditure outflows (- Site Supplies, Labour, Other Expenses, and Upad).
                 </p>
               </div>
 
@@ -2162,18 +2005,6 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 >
                   <Plus className="w-4 h-4" />
                   <span>+ Add Investor Capital</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetBillForm();
-                    setIsBillModalOpen(true);
-                  }}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>+ Add Bill Invoice</span>
                 </button>
 
                 <button
@@ -2205,7 +2036,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <span className="text-xl font-black text-emerald-400 tabular-nums">
                   +₹{fullCapital.toLocaleString("en-IN")}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Investor Capital + Bill Invoices</span>
+                <span className="text-[10px] text-white/60 block mt-0.5">Investor Capital Allocated</span>
               </div>
 
               <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
@@ -2286,10 +2117,8 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
               >
                 <option value="ALL">All Categories</option>
                 <option value="INVESTOR_CAPITAL">Investor Capital</option>
-                <option value="BILL_INVESTMENT">Bill Invoices</option>
                 <option value="CAT5_SUPPLY">Site Supplies</option>
                 <option value="CAT6_LABOUR">Labour & Other Expenses</option>
-                <option value="CAT_REFUNDABLE">Refundables & Deposits</option>
                 <option value="INVESTOR_UPAD">Investor Upad</option>
               </select>
             </div>

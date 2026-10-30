@@ -9,7 +9,8 @@ import {
   investorLocationAllocations,
   materialPurchases,
   locations,
-  users
+  users,
+  records
 } from '../../db/schema.ts';
 
 export const CENTRAL_LOCATION_NAME = 'Central Inventory for All Sites';
@@ -592,9 +593,13 @@ export class StockManager {
 
 export interface AdminCapitalSummaryResult {
   totalContributed: number;
+  totalBillInvestments: number;
   totalWithdrawn: number;
   totalAllocated: number;
   totalPurchases: number;
+  totalRefundable: number;
+  totalRefunded: number;
+  pendingRefundable: number;
   availableAdminCapital: number;
   investors: Array<{
     id: number;
@@ -702,7 +707,42 @@ export async function getAdminCapitalSummary(
       .where(eq(materialPurchases.isDeleted, 0))
       .orderBy(desc(materialPurchases.date), desc(materialPurchases.id));
 
-    // 5. Aggregate overall totals
+    // 5. Fetch Bill Investments & Refundable Records managed in Admin
+    const adminRecords = await dbOrTx
+      .select({
+        id: records.id,
+        type: records.type,
+        category: records.category,
+        amount: records.amount,
+        refundableAmount: records.refundableAmount,
+        refundedAmount: records.refundedAmount,
+      })
+      .from(records)
+      .where(eq(records.isDeleted, 0));
+
+    let totalBillInvestments = 0;
+    let totalRefundable = 0;
+    let totalRefunded = 0;
+
+    for (const r of adminRecords) {
+      if (r.type === 'INCOME' && r.category === 'BILL_INVESTMENT') {
+        totalBillInvestments += parseFloat(String(r.amount || 0)) || 0;
+      } else if (
+        parseFloat(String(r.refundableAmount || 0)) > 0 ||
+        r.category === 'REFUNDABLE_RECORD' ||
+        r.category === 'REFUNDABLE'
+      ) {
+        totalRefundable += parseFloat(String(r.refundableAmount || r.amount || 0)) || 0;
+        totalRefunded += parseFloat(String(r.refundedAmount || 0)) || 0;
+      }
+    }
+
+    totalBillInvestments = round2(totalBillInvestments);
+    totalRefundable = round2(totalRefundable);
+    totalRefunded = round2(totalRefunded);
+    const pendingRefundable = Math.max(0, round2(totalRefundable - totalRefunded));
+
+    // 6. Aggregate overall totals
     const totalContributed = round2(
       allTxs
         .filter((t: any) => t.type === 'CONTRIBUTION' || t.type === 'CAPITAL' || t.type === 'INVESTMENT')
@@ -723,9 +763,12 @@ export async function getAdminCapitalSummary(
       allPurchases.reduce((acc: number, p: any) => acc + (parseFloat(String(p.totalAmount || 0)) || 0), 0)
     );
 
-    const availableAdminCapital = round2(totalContributed - totalWithdrawn - totalAllocated - totalPurchases);
+    // Admin Available Capital = (Investor Contributions + Bill Investments) - (Withdrawn + Allocated + Purchases + Pending Refundable)
+    const availableAdminCapital = round2(
+      totalContributed + totalBillInvestments - totalWithdrawn - totalAllocated - totalPurchases - pendingRefundable
+    );
 
-    // 6. Calculate investor-specific metrics
+    // 7. Calculate investor-specific metrics
     const investorList = activeInvestors.map((inv: any) => {
       const invTxs = allTxs.filter((t: any) => t.investorId === inv.id);
       const invAllocs = allAllocations.filter((a: any) => a.investorId === inv.id);
@@ -764,9 +807,13 @@ export async function getAdminCapitalSummary(
 
     return {
       totalContributed,
+      totalBillInvestments,
       totalWithdrawn,
       totalAllocated,
       totalPurchases,
+      totalRefundable,
+      totalRefunded,
+      pendingRefundable,
       availableAdminCapital,
       investors: investorList,
       recentTransfers: allAllocations,
@@ -776,9 +823,13 @@ export async function getAdminCapitalSummary(
     console.warn('[Admin Capital Summary] Database query error, returning fallback:', error);
     return {
       totalContributed: 0,
+      totalBillInvestments: 0,
       totalWithdrawn: 0,
       totalAllocated: 0,
       totalPurchases: 0,
+      totalRefundable: 0,
+      totalRefunded: 0,
+      pendingRefundable: 0,
       availableAdminCapital: 0,
       investors: [],
       recentTransfers: [],

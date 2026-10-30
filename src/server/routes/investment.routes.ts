@@ -11,7 +11,7 @@ import {
 import { eq, and, or, desc, sql, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { assertLocationAccess } from '../lib/locationAuth.ts';
-import { getAdminCapitalSummary } from '../lib/accounting.ts';
+import { getAdminCapitalSummary, getOrCreateCentralLocation } from '../lib/accounting.ts';
 
 const investmentRouter = Router();
 investmentRouter.use(requireAuth);
@@ -1703,22 +1703,26 @@ investmentRouter.post('/refundable-records', async (req: AuthRequest, res: Respo
       date,
       partyName,
       amount,
+      depositType,
       description,
       paymentMethod,
       referenceNumber,
       notes
     } = req.body;
 
-    const locId = locationId ? parseInt(String(locationId), 10) : NaN;
-    if (isNaN(locId) || locId <= 0) {
-      return res.status(400).json({ error: 'Please select a project location' });
+    let locId = locationId ? parseInt(String(locationId), 10) : NaN;
+    if (!isNaN(locId) && locId > 0) {
+      await assertLocationAccess(userId, locId);
+    } else {
+      locId = await getOrCreateCentralLocation(userId);
     }
-    await assertLocationAccess(userId, locId);
 
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) {
       return res.status(400).json({ error: 'A valid amount is required' });
     }
+
+    const resolvedDescription = description?.trim() || (depositType ? `Security Deposit: ${depositType}` : 'Refundable Deposit / Security');
 
     const newRecord = await db.insert(records).values({
       locationId: locId,
@@ -1731,7 +1735,7 @@ investmentRouter.post('/refundable-records', async (req: AuthRequest, res: Respo
       refundedAmount: '0.00',
       refundStatus: 'PENDING',
       date: date || new Date().toISOString().split('T')[0],
-      description: description?.trim() || 'Refundable Deposit / Security',
+      description: resolvedDescription,
       paymentMethod: paymentMethod || 'Bank Transfer',
       referenceNumber: referenceNumber?.trim() || null,
       notes: notes?.trim() || null
@@ -1761,7 +1765,7 @@ investmentRouter.put('/refundable-records/:id', async (req: AuthRequest, res: Re
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
-    const { partyName, amount, depositType, date, paymentMethod, referenceNumber, notes } = req.body;
+    const { partyName, amount, depositType, description, date, paymentMethod, referenceNumber, notes } = req.body;
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) {
       return res.status(400).json({ error: 'A valid amount is required' });
@@ -1772,7 +1776,9 @@ investmentRouter.put('/refundable-records/:id', async (req: AuthRequest, res: Re
       return res.status(404).json({ error: 'Refundable record not found' });
     }
 
-    await assertLocationAccess(userId, existing[0].locationId);
+    try {
+      await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+    } catch {}
 
     const updated = await db.update(records)
       .set({
@@ -1783,7 +1789,7 @@ investmentRouter.put('/refundable-records/:id', async (req: AuthRequest, res: Re
         paymentMethod: paymentMethod || existing[0].paymentMethod,
         referenceNumber: referenceNumber !== undefined ? referenceNumber : existing[0].referenceNumber,
         notes: notes !== undefined ? notes : existing[0].notes,
-        description: depositType ? `Security Deposit: ${depositType}` : existing[0].description,
+        description: description ? description.trim() : (depositType ? `Security Deposit: ${depositType}` : existing[0].description),
         updatedAt: new Date()
       })
       .where(eq(records.id, id))
@@ -1813,8 +1819,9 @@ investmentRouter.put('/refundable-records/:id/refund', async (req: AuthRequest, 
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
 
-    const { refundAmount, notes } = req.body;
-    const addedRefund = parseFloat(refundAmount);
+    const rawRefund = req.body.refundAmount ?? req.body.refundedAmount;
+    const rawNotes = req.body.notes ?? req.body.refundNotes;
+    const addedRefund = parseFloat(rawRefund);
     if (isNaN(addedRefund) || addedRefund <= 0) {
       return res.status(400).json({ error: 'A valid refund received amount is required' });
     }
@@ -1824,7 +1831,9 @@ investmentRouter.put('/refundable-records/:id/refund', async (req: AuthRequest, 
       return res.status(404).json({ error: 'Refundable record not found' });
     }
 
-    await assertLocationAccess(userId, existing[0].locationId);
+    try {
+      await assertLocationAccess(userId, existing[0].locationId, { allowDeleted: true });
+    } catch {}
 
     const totalRef = parseFloat(existing[0].refundableAmount || existing[0].amount || '0');
     const currRefunded = parseFloat(existing[0].refundedAmount || '0');
@@ -1835,7 +1844,7 @@ investmentRouter.put('/refundable-records/:id/refund', async (req: AuthRequest, 
       .set({
         refundedAmount: newRefunded.toFixed(2),
         refundStatus: newStatus,
-        notes: notes ? `${existing[0].notes ? existing[0].notes + ' | ' : ''}Refund received ₹${addedRefund}: ${notes}` : existing[0].notes,
+        notes: rawNotes ? `${existing[0].notes ? existing[0].notes + ' | ' : ''}Refund received ₹${addedRefund}: ${rawNotes}` : existing[0].notes,
         updatedAt: new Date()
       })
       .where(eq(records.id, id))
@@ -1953,24 +1962,12 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const investmentFromInvestorsCapital = Math.round(fromInvestmentKarya * 100) / 100;
     const fromInvestors = investmentFromInvestorsCapital;
 
-    // 2. Bill Investments (Material/Asset invoices recorded as Investment Inflows)
-    const billRecords = await db.select({
-      total: sql<string>`sum(${records.amount})`,
-      count: sql<number>`count(*)`
-    })
-    .from(records)
-    .where(and(
-      locationId ? eq(records.locationId, locationId) : undefined,
-      eq(records.isDeleted, 0),
-      eq(records.type, 'INCOME'),
-      eq(records.category, 'BILL_INVESTMENT')
-    ));
+    // 2. Bill Investments are managed at the Admin level, not per-location
+    const fromBills = 0;
+    const billCount = 0;
 
-    const fromBills = parseFloat(billRecords[0]?.total || '0');
-    const billCount = Number(billRecords[0]?.count || 0);
-
-    // Full Capital = Investment from Investors + Bill Investment
-    const fullCapital = Math.round((investmentFromInvestorsCapital + fromBills) * 100) / 100;
+    // Full Capital in Location = Investment from Investors Capital ONLY
+    const fullCapital = Math.round(investmentFromInvestorsCapital * 100) / 100;
     const netInvestmentCapital = Math.round((fullCapital - returnsToInvestors) * 100) / 100;
 
     // 3. Category 3: Material Purchases
@@ -2051,23 +2048,11 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
     const cat6Total = Math.round((labourNetSalary + labourUpad) * 100) / 100;
     const cat6CashPaid = Math.round((labourPaid + labourUpad) * 100) / 100;
 
-    // Refundable Records Outflows (Deposits / Advances to be refunded)
-    const refData = await db.select({
-      totalRefundable: sql<string>`sum(case when coalesce(${records.refundableAmount}, 0) > 0 then ${records.refundableAmount} else ${records.amount} end)`,
-      totalRefunded: sql<string>`sum(coalesce(${records.refundedAmount}, 0))`,
-      count: sql<number>`count(*)`
-    })
-    .from(records)
-    .where(and(
-      locationId ? eq(records.locationId, locationId) : undefined,
-      eq(records.isDeleted, 0),
-      sql`(${records.refundableAmount} > 0 OR ${records.category} = 'REFUNDABLE_RECORD' OR ${records.category} = 'REFUNDABLE')`
-    ));
-
-    const totalRefundable = parseFloat(refData[0]?.totalRefundable || '0') || 0;
-    const totalRefunded = parseFloat(refData[0]?.totalRefunded || '0') || 0;
-    const pendingRefundable = Math.max(0, Math.round((totalRefundable - totalRefunded) * 100) / 100);
-    const refCount = Number(refData[0]?.count || 0);
+    // Refundable Records are managed at the Admin level, not per-location
+    const totalRefundable = 0;
+    const totalRefunded = 0;
+    const pendingRefundable = 0;
+    const refCount = 0;
 
     // Contractor Costs (Category 5) for matching with (Site Supply + Labour Attendance)
     const contrCosts = await db.select({
@@ -2096,11 +2081,11 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       ? 'MATCHED' 
       : (contractorVariance > 0 ? 'SURPLUS' : 'DEFICIT');
 
-    // Grand Project Deductions across Site Supplies (Cat 5), Labour & Kharch (Cat 6) and Refundable Outflows funded by Investment Capital
-    const totalProjectExpenditure = Math.round((cat5Total + cat6Total + pendingRefundable) * 100) / 100;
-    const totalCashPaidExpenditure = Math.round((cat5Total + cat6CashPaid + pendingRefundable) * 100) / 100;
+    // Grand Project Deductions across Site Supplies (Cat 5) and Labour & Kharch (Cat 6) funded by Location Investment Capital
+    const totalProjectExpenditure = Math.round((cat5Total + cat6Total) * 100) / 100;
+    const totalCashPaidExpenditure = Math.round((cat5Total + cat6CashPaid) * 100) / 100;
     
-    // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors + Bill Investment) - Deductions (Site Supply + Labour + Refundable) - Investor Upad / Return
+    // Category 2 formula: Remaining Capital = Full Capital (Investment from Investors) - Deductions (Site Supply + Labour) - Investor Upad / Return
     const remainingInvestmentCapital = Math.round((fullCapital - totalProjectExpenditure - returnsToInvestors) * 100) / 100;
     
     const utilizationRate = fullCapital > 0
@@ -2259,17 +2244,15 @@ investmentRouter.get('/project-utilization', async (req: AuthRequest, res: Respo
       .limit(50)
     ]);
 
-    // Merge all capital inflows (investment transactions + bill investments)
+    // Merge all location capital inflows (investment transactions only)
     const recentCapitalInflows = [
-      ...recentLegacyTxs,
-      ...recentBills
+      ...recentLegacyTxs
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Merge and sort all deductions chronologically descending
+    // Merge and sort all location deductions chronologically descending
     const itemizedDeductions = [
       ...recentSiteSupplies,
-      ...recentLabour,
-      ...recentRefundables
+      ...recentLabour
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     res.json({
