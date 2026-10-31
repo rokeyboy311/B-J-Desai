@@ -11,6 +11,7 @@ import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
 import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 interface ContractorCost {
   id: number;
@@ -683,9 +684,8 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={formData.date}
                 onChange={e => setFormData({ ...formData, date: e.target.value })}

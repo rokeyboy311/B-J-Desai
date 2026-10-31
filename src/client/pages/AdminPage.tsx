@@ -11,6 +11,7 @@ import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerGlobalSync, triggerSync } from "../hooks/useLiveSync";
 import CategoryPinGate from "../components/ui/CategoryPinGate";
 import { Modal } from "../components/ui/Modal";
+import { DateInput } from "../components/ui/DateInput";
 import { formatINR, formatDate } from "../lib/formatters";
 
 const GST_PRESETS = ["0", "5", "12", "18", "28"];
@@ -2860,9 +2861,8 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date</label>
-                  <input
-                    type="date"
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY)</label>
+                  <DateInput
                     value={newInvestorForm.initialDate}
                     onChange={(e) => setNewInvestorForm({ ...newInvestorForm, initialDate: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-blue-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
@@ -3045,9 +3045,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
+                <DateInput
                   required
                   value={depositForm.date}
                   onChange={(e) => setDepositForm({ ...depositForm, date: e.target.value })}
@@ -3152,9 +3151,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
+                <DateInput
                   required
                   value={withdrawalForm.date}
                   onChange={(e) => setWithdrawalForm({ ...withdrawalForm, date: e.target.value })}
@@ -3279,9 +3277,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
+                <DateInput
                   required
                   value={allocationForm.date}
                   onChange={(e) => setAllocationForm({ ...allocationForm, date: e.target.value })}
@@ -3354,9 +3351,8 @@ export default function AdminPage() {
             {/* 1. Date & Status */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">1. Bill Date *</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 mb-1">1. Bill Date (DD-MM-YYYY) *</label>
+                <DateInput
                   required
                   value={billData.date}
                   onChange={e => setBillData({ ...billData, date: e.target.value })}
@@ -3600,9 +3596,8 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date (DD-MM-YYYY) *</label>
+                <DateInput
                   required
                   value={refundableFormData.date}
                   onChange={e => setRefundableFormData({ ...refundableFormData, date: e.target.value })}
@@ -3713,9 +3708,8 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Refund Received Date *</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 mb-1">Refund Received Date (DD-MM-YYYY) *</label>
+                <DateInput
                   required
                   value={refundActionData.refundDate}
                   onChange={e => setRefundActionData({ ...refundActionData, refundDate: e.target.value })}

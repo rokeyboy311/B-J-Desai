@@ -3,6 +3,7 @@ import { Modal } from './Modal';
 import { apiFetch } from '../../lib/api';
 import { downloadExcelReport } from '../../lib/excelExport';
 import { useToast } from '../../contexts/ToastContext';
+import { formatINR, formatDate } from '../../lib/formatters';
 import { 
   Receipt, Search, Download, CheckCircle2, Clock, 
   ArrowUpRight, AlertCircle, Building, Filter, RefreshCw
@@ -229,7 +230,7 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
                       <div>
                         <h4 className="font-bold text-slate-900 text-sm">{r.partyName}</h4>
                         <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
-                          <span>{r.date}</span>
+                          <span>{formatDate(r.date)}</span>
                           <span>•</span>
                           <span className="font-medium text-purple-700">{r.locationName}</span>
                         </div>
@@ -296,7 +297,7 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
 
                   return (
                     <tr key={r.id || i} className="hover:bg-purple-50/40 transition-colors">
-                      <td className="p-3.5 font-medium text-slate-600">{r.date}</td>
+                      <td className="p-3.5 font-medium text-slate-600">{formatDate(r.date)}</td>
                       <td className="p-3.5 font-bold text-slate-800">
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[11px]">
                           {r.locationName}

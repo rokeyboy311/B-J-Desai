@@ -8,6 +8,7 @@ import { useLiveSync, triggerSync } from "../hooks/useLiveSync";
 import { Modal } from "../components/ui/Modal";
 import { downloadExcelReport } from "../lib/excelExport";
 import { formatINR, formatDate } from "../lib/formatters";
+import { DateInput } from "../components/ui/DateInput";
 
 export default function CustomerSupplyPage() {
   const { showToast, confirmAction } = useToast();
@@ -415,9 +416,8 @@ export default function CustomerSupplyPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}

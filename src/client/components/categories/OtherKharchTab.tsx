@@ -10,6 +10,7 @@ import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
 import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 const EXPENSE_CATEGORIES = [
   "Tea & Refreshments",
@@ -414,12 +415,14 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
             </select>
           </div>
 
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden"
-          />
+          <div className="w-36">
+            <DateInput
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              placeholder="DD-MM-YYYY"
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden"
+            />
+          </div>
 
           {(searchQuery || categoryFilter !== "ALL" || dateFilter) && (
             <button
@@ -548,10 +551,9 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Date *
+                Date (DD-MM-YYYY) *
               </label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
@@ -717,10 +719,9 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Date *
+                Date (DD-MM-YYYY) *
               </label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={editForm.date}
                 onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}

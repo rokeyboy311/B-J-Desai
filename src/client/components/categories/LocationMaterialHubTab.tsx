@@ -10,6 +10,8 @@ import { ManageTeamsModal } from "../ui/ManageTeamsModal";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { downloadExcelReport } from "../../lib/excelExport";
 import { useToast } from "../../contexts/ToastContext";
+import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 interface LocationMaterialHubProps {
   locationId: number;
@@ -998,7 +1000,7 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                 ) : (
                   displayedRecords.map((r) => (
                     <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-4 text-slate-600 text-xs font-medium">{r.date}</td>
+                      <td className="py-3 px-4 text-slate-600 text-xs font-medium">{formatDate(r.date)}</td>
                       <td className="py-3 px-4">
                         {r.type === "TEAM_SITE_SUPPLY" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
@@ -1084,9 +1086,8 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
         <form onSubmit={handleSaveCustomerSupply} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={customerFormData.date}
                 onChange={(e) => setCustomerFormData({ ...customerFormData, date: e.target.value })}
@@ -1312,9 +1313,8 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
         <form onSubmit={handleSaveSiteSupply} className="space-y-4 max-h-[82vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={siteFormData.date}
                 onChange={e => setSiteFormData({ ...siteFormData, date: e.target.value })}

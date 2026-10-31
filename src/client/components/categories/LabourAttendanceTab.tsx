@@ -11,6 +11,7 @@ import { ManageTeamsModal } from "../ui/ManageTeamsModal";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 const COMMON_UNITS = ["Nos", "Brass", "Sq.Ft", "R.Ft", "Cu.Ft", "Bags", "Kg", "Ton", "Hours", "Days", "Units"];
 
@@ -842,9 +843,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   {/* Date */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
-                    <input
-                      type="date"
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date (DD-MM-YYYY) *</label>
+                    <DateInput
                       required
                       value={dayForm.date}
                       onChange={e => setDayForm({ ...dayForm, date: e.target.value })}
@@ -968,9 +968,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                   {/* Date */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
-                    <input
-                      type="date"
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date (DD-MM-YYYY) *</label>
+                    <DateInput
                       required
                       value={tcForm.date}
                       onChange={e => setTcForm({ ...tcForm, date: e.target.value })}
@@ -1103,9 +1102,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Date */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
-                  <input
-                    type="date"
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date (DD-MM-YYYY) *</label>
+                  <DateInput
                     required
                     value={upadForm.date}
                     onChange={e => setUpadForm({ ...upadForm, date: e.target.value })}
@@ -1223,9 +1221,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Date */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
-                  <input
-                    type="date"
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Date (DD-MM-YYYY) *</label>
+                  <DateInput
                     required
                     value={kharchForm.date}
                     onChange={e => setKharchForm({ ...kharchForm, date: e.target.value })}
@@ -1364,12 +1361,14 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
             </select>
 
             {/* Date Filter */}
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={e => setDateFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
-            />
+            <div className="w-36">
+              <DateInput
+                value={dateFilter}
+                onChange={e => setDateFilter(e.target.value)}
+                placeholder="DD-MM-YYYY"
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
+              />
+            </div>
             {dateFilter && (
               <button
                 type="button"
@@ -1593,9 +1592,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Date</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY)</label>
+                <DateInput
                   required
                   value={editingRecord.date}
                   onChange={e => setEditingRecord({ ...editingRecord, date: e.target.value })}

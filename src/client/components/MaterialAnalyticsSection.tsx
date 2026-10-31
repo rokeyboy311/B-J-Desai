@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { apiFetch, getStoredPinToken, getApiUrl } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { formatINR, formatDate } from '../lib/formatters';
 
 interface MaterialAnalyticsData {
   summary: {
@@ -663,7 +664,7 @@ export default function MaterialAnalyticsSection({
                   {(activeHistoryTab === 'ALL' || activeHistoryTab === 'PURCHASES') &&
                     selectedMaterial.purchases.map((p: any) => (
                       <tr key={`pur-${p.id}`} className="hover:bg-slate-50">
-                        <td className="px-3 py-2.5 text-slate-600">{p.date}</td>
+                        <td className="px-3 py-2.5 text-slate-600">{formatDate(p.date)}</td>
                         <td className="px-3 py-2.5">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-800">
                             PURCHASE (IN)
@@ -671,8 +672,8 @@ export default function MaterialAnalyticsSection({
                         </td>
                         <td className="px-3 py-2.5 font-semibold text-slate-800">{p.partyName || '-'}</td>
                         <td className="px-3 py-2.5 text-right font-bold text-indigo-700">+{p.quantity} {p.unit}</td>
-                        <td className="px-3 py-2.5 text-right text-slate-700">₹{p.rate}</td>
-                        <td className="px-3 py-2.5 text-right font-bold text-slate-900">₹{p.totalAmount.toLocaleString()}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-700">₹{formatINR(p.rate)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-slate-900">₹{formatINR(p.totalAmount)}</td>
                       </tr>
                     ))}
 
@@ -680,7 +681,7 @@ export default function MaterialAnalyticsSection({
                   {(activeHistoryTab === 'ALL' || activeHistoryTab === 'MATERIAL_SUPPLY') &&
                     selectedMaterial.materialSupplies.map((s: any) => (
                       <tr key={`sup-${s.id}`} className="hover:bg-slate-50">
-                        <td className="px-3 py-2.5 text-slate-600">{s.date}</td>
+                        <td className="px-3 py-2.5 text-slate-600">{formatDate(s.date)}</td>
                         <td className="px-3 py-2.5">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-100 text-cyan-800">
                             MAT SUPPLY (OUT)
@@ -688,8 +689,8 @@ export default function MaterialAnalyticsSection({
                         </td>
                         <td className="px-3 py-2.5 font-semibold text-slate-800">{s.partyName || '-'}</td>
                         <td className="px-3 py-2.5 text-right font-bold text-rose-600">-{s.quantity} {s.unit}</td>
-                        <td className="px-3 py-2.5 text-right text-slate-700">₹{s.rate}</td>
-                        <td className="px-3 py-2.5 text-right font-bold text-slate-900">₹{s.totalAmount.toLocaleString()}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-700">₹{formatINR(s.rate)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-slate-900">₹{formatINR(s.totalAmount)}</td>
                       </tr>
                     ))}
 
@@ -697,7 +698,7 @@ export default function MaterialAnalyticsSection({
                   {(activeHistoryTab === 'ALL' || activeHistoryTab === 'SITE_SUPPLY') &&
                     selectedMaterial.siteSupplies.map((st: any) => (
                       <tr key={`site-${st.id}-${st.itemId}`} className="hover:bg-slate-50">
-                        <td className="px-3 py-2.5 text-slate-600">{st.date}</td>
+                        <td className="px-3 py-2.5 text-slate-600">{formatDate(st.date)}</td>
                         <td className="px-3 py-2.5">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800">
                             SITE SUPPLY (OUT)
@@ -707,8 +708,8 @@ export default function MaterialAnalyticsSection({
                           {st.teamName} {st.responsiblePerson ? `(${st.responsiblePerson})` : ''}
                         </td>
                         <td className="px-3 py-2.5 text-right font-bold text-rose-600">-{st.quantity} {st.unit}</td>
-                        <td className="px-3 py-2.5 text-right text-slate-700">₹{st.rate}</td>
-                        <td className="px-3 py-2.5 text-right font-bold text-slate-900">₹{st.totalAmount.toLocaleString()}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-700">₹{formatINR(st.rate)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-slate-900">₹{formatINR(st.totalAmount)}</td>
                       </tr>
                     ))}
                 </tbody>

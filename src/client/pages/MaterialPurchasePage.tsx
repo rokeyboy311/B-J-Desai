@@ -2,15 +2,15 @@ import React, { useState, useEffect, useMemo } from "react";
 import { 
   Package, Plus, Search, Building2, Trash2, Edit3, DollarSign, Wallet, CheckCircle2, AlertCircle, 
   ArrowRight, BarChart2, Eye, MapPin, Users, ShoppingBag, Layers, ArrowUpRight, ArrowDownRight,
-  TrendingUp, Calendar, Info, X, Truck
+  TrendingUp, Calendar, Info, X, Truck, FileSpreadsheet
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { useLiveSync, triggerSync } from "../hooks/useLiveSync";
 import { Modal } from "../components/ui/Modal";
 import { useGoogleSync } from "../contexts/GoogleSyncContext";
-import { FileSpreadsheet } from "lucide-react";
 import { formatINR, formatDate } from "../lib/formatters";
+import { DateInput } from "../components/ui/DateInput";
 
 export default function MaterialPurchasePage() {
   const { showToast, confirmAction } = useToast();
@@ -813,9 +813,8 @@ export default function MaterialPurchasePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Purchase Date *</label>
-            <input
-              type="date"
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Purchase Date (DD-MM-YYYY) *</label>
+            <DateInput
               required
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}

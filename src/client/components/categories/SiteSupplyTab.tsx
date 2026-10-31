@@ -8,6 +8,7 @@ import { ManageTeamsModal } from "../ui/ManageTeamsModal";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
 import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   const { showToast, confirmAction } = useToast();
@@ -522,8 +523,8 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[82vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
-              <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 font-medium" />
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 font-medium" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Site Location *</label>

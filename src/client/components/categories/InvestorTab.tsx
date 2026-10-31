@@ -11,6 +11,7 @@ import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
 import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 interface InvestmentParty {
   id: number;
@@ -1698,9 +1699,8 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Date</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY)</label>
+                <DateInput
                   value={partyForm.initialDate}
                   onChange={e => setPartyForm({ ...partyForm, initialDate: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
@@ -1753,9 +1753,8 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={paymentForm.date}
                 onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })}
@@ -1857,9 +1856,8 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={contributionForm.date}
                 onChange={e => setContributionForm({ ...contributionForm, date: e.target.value })}
@@ -1967,9 +1965,8 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Deployment Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 mb-1">Deployment Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={investmentForm.date}
                 onChange={e => setInvestmentForm({ ...investmentForm, date: e.target.value })}
@@ -2102,9 +2099,8 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Transfer Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 mb-1">Transfer Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={allocationForm.date}
                 onChange={e => setAllocationForm({ ...allocationForm, date: e.target.value })}

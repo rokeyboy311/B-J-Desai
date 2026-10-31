@@ -10,6 +10,8 @@ import {
 import { useLiveSync, triggerGlobalSync } from "../../hooks/useLiveSync";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
+import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 interface AdminInvestor {
   id: number;
@@ -959,7 +961,7 @@ export default function AdminInvestorsListRecord({
                         const isInflow = tx.type === "CONTRIBUTION" || tx.type === "CAPITAL";
                         return (
                           <tr key={idx} className="hover:bg-slate-50">
-                            <td className="p-2.5 pl-3 font-mono text-slate-600">{tx.date}</td>
+                            <td className="p-2.5 pl-3 font-mono text-slate-600">{formatDate(tx.date)}</td>
                             <td className="p-2.5">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                 isInflow ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
@@ -973,7 +975,7 @@ export default function AdminInvestorsListRecord({
                             <td className={`p-2.5 pr-3 text-right font-black font-mono ${
                               isInflow ? "text-emerald-700" : "text-rose-600"
                             }`}>
-                              {isInflow ? "+" : "-"}₹{Number(tx.amount || 0).toLocaleString("en-IN")}
+                              {isInflow ? "+" : "-"}₹{formatINR(tx.amount)}
                             </td>
                           </tr>
                         );
@@ -1007,11 +1009,11 @@ export default function AdminInvestorsListRecord({
                     ) : (
                       selectedInvestor.allocations.map((al: any, idx: number) => (
                         <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-2.5 pl-3 font-mono text-slate-600">{al.date}</td>
+                          <td className="p-2.5 pl-3 font-mono text-slate-600">{formatDate(al.date)}</td>
                           <td className="p-2.5 font-bold text-blue-700">📍 {al.locationName}</td>
                           <td className="p-2.5 text-slate-500 text-[11px]">{al.referenceNumber || al.notes || "-"}</td>
                           <td className="p-2.5 pr-3 text-right font-black font-mono text-blue-600">
-                            ₹{Number(al.amount || 0).toLocaleString("en-IN")}
+                            ₹{formatINR(al.amount)}
                           </td>
                         </tr>
                       ))
@@ -1102,9 +1104,8 @@ export default function AdminInvestorsListRecord({
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date</label>
-                <input
-                  type="date"
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date (DD-MM-YYYY)</label>
+                <DateInput
                   value={investorForm.initialDate}
                   onChange={(e) => setInvestorForm({ ...investorForm, initialDate: e.target.value })}
                   className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
@@ -1230,9 +1231,8 @@ export default function AdminInvestorsListRecord({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={txForm.date}
                 onChange={(e) => setTxForm({ ...txForm, date: e.target.value })}
@@ -1316,9 +1316,8 @@ export default function AdminInvestorsListRecord({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={txForm.date}
                 onChange={(e) => setTxForm({ ...txForm, date: e.target.value })}
@@ -1417,9 +1416,8 @@ export default function AdminInvestorsListRecord({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date *</label>
-              <input
-                type="date"
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
+              <DateInput
                 required
                 value={txForm.date}
                 onChange={(e) => setTxForm({ ...txForm, date: e.target.value })}

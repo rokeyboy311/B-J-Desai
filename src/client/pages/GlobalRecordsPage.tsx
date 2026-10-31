@@ -6,6 +6,7 @@ import { Modal } from "../components/ui/Modal";
 import { useLiveSync, triggerSync } from "../hooks/useLiveSync";
 import { useToast } from "../contexts/ToastContext";
 import { formatINR, formatDate } from "../lib/formatters";
+import { DateInput } from "../components/ui/DateInput";
 
 interface GlobalRecord {
   id: number;
@@ -407,20 +408,18 @@ export default function GlobalRecordsPage() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label htmlFor="exportStartDate" className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">From Date</label>
-              <input
+              <label htmlFor="exportStartDate" className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">From Date (DD-MM-YYYY)</label>
+              <DateInput
                 id="exportStartDate"
-                type="date"
                 value={exportStartDate}
                 onChange={(e) => setExportStartDate(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
               />
             </div>
             <div>
-              <label htmlFor="exportEndDate" className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">To Date</label>
-              <input
+              <label htmlFor="exportEndDate" className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1.5">To Date (DD-MM-YYYY)</label>
+              <DateInput
                 id="exportEndDate"
-                type="date"
                 value={exportEndDate}
                 onChange={(e) => setExportEndDate(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"

@@ -12,6 +12,7 @@ import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
 import { useNavigate } from "react-router-dom";
 import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 interface AllocationRecord {
   id: number;
@@ -1237,10 +1238,9 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Date *
+                Date (DD-MM-YYYY) *
               </label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -1329,9 +1329,8 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Date *</label>
-                <input
-                  type="date"
+                <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY) *</label>
+                <DateInput
                   required
                   value={editingDeployTx.date}
                   onChange={e => setEditingDeployTx({ ...editingDeployTx, date: e.target.value })}

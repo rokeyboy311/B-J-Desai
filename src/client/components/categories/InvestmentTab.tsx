@@ -12,6 +12,8 @@ import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
 import { useToast } from "../../contexts/ToastContext";
 import { downloadExcelReport } from "../../lib/excelExport";
+import { formatINR, formatDate } from "../../lib/formatters";
+import { DateInput } from "../ui/DateInput";
 
 const PRESET_UNITS = [
   "Nos", "Bags", "Ton", "Kg", "Brass", "CFT", "Cum", "Sq.ft", "Sq.m",
@@ -1390,7 +1392,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     <div>
                       <div className="font-bold text-slate-900">{item.partyName}</div>
                       <div className="text-[11px] text-slate-500">
-                        {item.date} &bull; {item.description || "Operational expense"}
+                        {formatDate(item.date)} &bull; {item.description || "Operational expense"}
                       </div>
                     </div>
                   </div>
@@ -1829,7 +1831,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <tbody className="divide-y divide-slate-100">
                   {itemizedDeductionsList.map((item: any, idx: number) => (
                     <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-3.5 text-slate-600 font-medium">{item.date}</td>
+                      <td className="p-3.5 text-slate-600 font-medium">{formatDate(item.date)}</td>
                       <td className="p-3.5">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
                           item.categoryKey === "CAT3_PURCHASE" ? "bg-purple-100 text-purple-800 border border-purple-200" :
@@ -1907,9 +1909,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     <div key={tx.id} className="py-2.5 flex items-center justify-between text-xs">
                       <div>
                         <span className="font-bold text-slate-800">{tx.partyName}</span>
-                        <div className="text-[10px] text-slate-400">{tx.date} &bull; {tx.paymentMethod}</div>
+                        <div className="text-[10px] text-slate-400">{formatDate(tx.date)} &bull; {tx.paymentMethod}</div>
                       </div>
-                      <span className="font-black text-emerald-600">+₹{Number(tx.amount).toLocaleString()}</span>
+                      <span className="font-black text-emerald-600">+₹{formatINR(tx.amount)}</span>
                     </div>
                   ))}
                   {capitalInflowTxs.length === 0 && (
@@ -1920,7 +1922,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
               <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs font-bold text-emerald-800">
                 <span>Total Investor Capital:</span>
-                <span>₹{totalInvestorCapital.toLocaleString()}</span>
+                <span>₹{formatINR(totalInvestorCapital)}</span>
               </div>
             </div>
 
@@ -1945,9 +1947,9 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     <div key={tx.id} className="py-2.5 flex items-center justify-between text-xs">
                       <div>
                         <span className="font-bold text-slate-800">{tx.partyName}</span>
-                        <div className="text-[10px] text-slate-400">{tx.date} &bull; {tx.paymentMethod}</div>
+                        <div className="text-[10px] text-slate-400">{formatDate(tx.date)} &bull; {tx.paymentMethod}</div>
                       </div>
-                      <span className="font-black text-amber-600">-₹{Number(tx.amount).toLocaleString()}</span>
+                      <span className="font-black text-amber-600">-₹{formatINR(tx.amount)}</span>
                     </div>
                   ))}
                   {investorPaymentTxs.length === 0 && (
@@ -2173,7 +2175,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                       return (
                         <tr key={entry.id} className="hover:bg-amber-50/40 transition-colors">
                           <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">
-                            {entry.date}
+                            {formatDate(entry.date)}
                           </td>
                           <td className="p-3.5 whitespace-nowrap">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-flex items-center gap-1 ${
@@ -2372,7 +2374,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <tbody className="divide-y divide-slate-100">
                   {capitalInflowTxs.map(tx => (
                     <tr key={tx.id} className="hover:bg-slate-50">
-                      <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                      <td className="p-3.5 text-slate-600 font-medium">{formatDate(tx.date)}</td>
                       <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
                       <td className="p-3.5">
                         <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded text-[10px] font-bold flex items-center gap-1 w-fit">
@@ -2492,11 +2494,11 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                     const tdsAmt = Number(bill.tdsAmount !== undefined ? bill.tdsAmount : (tdsBase * tdsPct / 100));
                     return (
                     <tr key={bill.id} className="hover:bg-slate-50">
-                      <td className="p-3.5 text-slate-600 font-medium">{bill.date}</td>
+                      <td className="p-3.5 text-slate-600 font-medium">{formatDate(bill.date)}</td>
                       <td className="p-3.5 font-bold text-slate-900">{bill.partyName || "-"}</td>
                       <td className="p-3.5">
                         <div className="font-semibold text-slate-800">
-                          Bill Amount: ₹{Number(bill.rate || bill.subtotal || bill.amount || 0).toLocaleString()}
+                          Bill Amount: ₹{formatINR(bill.rate || bill.subtotal || bill.amount || 0)}
                         </div>
                         {bill.notes && <div className="text-[10px] text-slate-500 truncate max-w-[180px]">{bill.notes}</div>}
                       </td>
@@ -2674,7 +2676,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
                     return (
                       <tr key={rec.id} className="hover:bg-purple-50/30 transition-colors">
-                        <td className="p-3.5 text-slate-600 font-medium">{rec.date}</td>
+                        <td className="p-3.5 text-slate-600 font-medium">{formatDate(rec.date)}</td>
                         <td className="p-3.5 font-bold text-slate-900">
                           <div>{rec.partyName}</div>
                           {rec.notes && <div className="text-[10px] text-slate-400 font-normal truncate max-w-xs">{rec.notes}</div>}
@@ -2818,7 +2820,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 <tbody className="divide-y divide-slate-100">
                   {investorPaymentTxs.map(tx => (
                     <tr key={tx.id} className="hover:bg-slate-50">
-                      <td className="p-3.5 text-slate-600 font-medium">{tx.date}</td>
+                      <td className="p-3.5 text-slate-600 font-medium">{formatDate(tx.date)}</td>
                       <td className="p-3.5 font-bold text-slate-900">{tx.partyName}</td>
                       <td className="p-3.5 text-slate-600">
                         <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-semibold">
@@ -3016,8 +3018,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Investment Date *</label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={capitalFormData.date}
                 onChange={e => setCapitalFormData({ ...capitalFormData, date: e.target.value })}
@@ -3142,8 +3143,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={paymentFormData.date}
                 onChange={e => setPaymentFormData({ ...paymentFormData, date: e.target.value })}
@@ -3230,8 +3230,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">1. Bill Date *</label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={billData.date}
                 onChange={e => setBillData({ ...billData, date: e.target.value })}
@@ -3476,8 +3475,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={refundableFormData.date}
                 onChange={e => setRefundableFormData({ ...refundableFormData, date: e.target.value })}
@@ -3589,8 +3587,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Refund Received Date *</label>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={refundActionData.refundDate}
                 onChange={e => setRefundActionData({ ...refundActionData, refundDate: e.target.value })}
