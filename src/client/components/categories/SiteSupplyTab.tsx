@@ -366,16 +366,22 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                 {r.items && r.items.length > 0 && (
                   <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100 min-w-0">
                     {r.items.map((item: any, i: number) => {
-                      const matName = materials.find(m => m.id === item.materialId)?.name || 'Material #' + item.materialId;
+                      const matName = materials.find(m => m.id === item.materialId)?.name || item.materialName || 'Material #' + item.materialId;
                       const itemQty = parseFloat(item.quantity) || 0;
                       const itemRate = parseFloat(item.rate) || 0;
-                      const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemQty * itemRate);
+                      const itemSub = parseFloat(item.subtotal) || Math.round(itemQty * itemRate * 100) / 100;
+                      const itemGstPct = item.taxPercentage !== undefined && item.taxPercentage !== null ? parseFloat(item.taxPercentage) : 0;
+                      const itemGstAmt = parseFloat(item.taxAmount) || Math.round(itemSub * (itemGstPct / 100) * 100) / 100;
+                      const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemSub + itemGstAmt);
 
                       return (
-                        <div key={i} className="text-xs flex flex-wrap items-center justify-between gap-1 py-1 border-b border-slate-200/60 last:border-none min-w-0">
-                          <div className="min-w-0">
+                        <div key={i} className="text-xs flex flex-wrap items-center justify-between gap-1.5 py-1.5 border-b border-slate-200/60 last:border-none min-w-0">
+                          <div className="min-w-0 flex flex-wrap items-center gap-1.5">
                             <span className="font-bold text-teal-900 break-words">{matName}</span>
-                            <span className="text-slate-600 text-[11px] ml-1.5 font-semibold">({formatINR(itemQty)} {item.unit || 'Nos'})</span>
+                            <span className="text-slate-600 text-[11px] font-semibold">({formatINR(itemQty)} {item.unit || 'Nos'} @ ₹{formatINR(itemRate)})</span>
+                            <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                              GST {itemGstPct}%: +₹{formatINR(itemGstAmt)}
+                            </span>
                           </div>
                           <div className="font-extrabold text-slate-800 tabular-nums whitespace-nowrap">
                             ₹{formatINR(itemTotalAmt)}
@@ -395,7 +401,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                 <div className="grid grid-cols-2 gap-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-100 text-xs min-w-0 items-center">
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase font-bold text-teal-800">Taxable + GST</div>
-                    <div className="font-semibold text-slate-700 tabular-nums whitespace-nowrap">₹{formatINR(subtotalVal)} + ₹{formatINR(taxVal)}</div>
+                    <div className="font-semibold text-slate-700 tabular-nums whitespace-nowrap">₹{formatINR(subtotalVal)} + <span className="text-amber-700 font-bold">₹{formatINR(taxVal)} GST</span></div>
                   </div>
                   <div className="text-right min-w-0">
                     <div className="text-[10px] uppercase font-bold text-teal-800">Grand Total</div>
@@ -438,7 +444,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                 <th className="p-3">Labour Team</th>
                 <th className="p-3">Dispatched Materials (with GST)</th>
                 <th className="p-3 text-right">Taxable Subtotal</th>
-                <th className="p-3 text-right">GST Tax</th>
+                <th className="p-3 text-right text-amber-700">GST Tax (% &amp; ₹)</th>
                 <th className="p-3 text-right">Grand Total</th>
                 <th className="p-3 text-center">Action</th>
               </tr>
@@ -448,10 +454,13 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                 const subtotalVal = parseFloat(r.subtotal || r.totalAmount || 0);
                 const taxVal = parseFloat(r.taxAmount || 0);
                 const totalVal = parseFloat(r.totalAmount || 0);
+                const distinctGstRates = Array.from(
+                  new Set((r.items || []).map((it: any) => Number(it.taxPercentage || 0)))
+                );
 
                 return (
                   <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-3 text-slate-700 font-medium">{formatDate(r.date)}</td>
+                    <td className="p-3 text-slate-700 font-medium whitespace-nowrap">{formatDate(r.date)}</td>
                     <td className="p-3 font-bold text-slate-800">
                        {locations.find(l => l.id === r.locationId)?.name || `Location ${r.locationId}`}
                     </td>
@@ -464,23 +473,22 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                     <td className="p-3">
                       <div className="space-y-1 max-w-md">
                         {r.items && r.items.map((item: any, i: number) => {
-                           const matName = materials.find(m => m.id === item.materialId)?.name || 'Material #' + item.materialId;
+                           const matName = materials.find(m => m.id === item.materialId)?.name || item.materialName || 'Material #' + item.materialId;
                            const itemQty = parseFloat(item.quantity) || 0;
                            const itemRate = parseFloat(item.rate) || 0;
-                           const itemGstPct = parseFloat(item.taxPercentage) || 0;
-                           const itemGstAmt = parseFloat(item.taxAmount) || 0;
-                           const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemQty * itemRate);
+                           const itemSub = parseFloat(item.subtotal) || Math.round(itemQty * itemRate * 100) / 100;
+                           const itemGstPct = item.taxPercentage !== undefined && item.taxPercentage !== null ? parseFloat(item.taxPercentage) : 0;
+                           const itemGstAmt = parseFloat(item.taxAmount) || Math.round(itemSub * (itemGstPct / 100) * 100) / 100;
+                           const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemSub + itemGstAmt);
 
                            return (
                              <div key={i} className="flex flex-wrap gap-1.5 items-center text-[11px] bg-slate-50/90 border border-slate-200/80 rounded px-2 py-1">
                                <span className="font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">{matName}</span>
                                <span className="text-slate-700 font-semibold">{formatINR(itemQty)} {item.unit || 'Nos'}</span>
                                {itemRate > 0 && <span className="text-slate-500 font-medium">@ ₹{formatINR(itemRate)}</span>}
-                               {itemGstPct > 0 && (
-                                 <span className="text-amber-700 font-semibold bg-amber-50 px-1 rounded border border-amber-100">
-                                   +{itemGstPct}% GST (₹{formatINR(itemGstAmt)})
-                                 </span>
-                               )}
+                               <span className="text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                 +{itemGstPct}% GST (₹{formatINR(itemGstAmt)})
+                               </span>
                                <span className="font-bold text-slate-900 ml-auto">= ₹{formatINR(itemTotalAmt)}</span>
                              </div>
                            )
@@ -492,13 +500,18 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                         )}
                       </div>
                     </td>
-                    <td className="p-3 text-right font-medium text-slate-600">
+                    <td className="p-3 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">
                       ₹{formatINR(subtotalVal)}
                     </td>
-                    <td className="p-3 text-right font-bold text-teal-700">
-                      {taxVal > 0 ? `₹${formatINR(taxVal)}` : <span className="text-slate-400 font-normal">₹0</span>}
+                    <td className="p-3 text-right tabular-nums whitespace-nowrap">
+                      <div className="font-bold text-amber-700">+₹{formatINR(taxVal)}</div>
+                      {distinctGstRates.length > 0 && (
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
+                          {distinctGstRates.join("%, ")}% GST
+                        </span>
+                      )}
                     </td>
-                    <td className="p-3 text-right font-black text-slate-900">
+                    <td className="p-3 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
                       <span className="bg-teal-50 text-teal-900 px-2 py-0.5 rounded-md border border-teal-200">
                         ₹{formatINR(totalVal)}
                       </span>
@@ -514,6 +527,25 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
               })}
               {records.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-slate-500">No site supply records found. Click "+ Add Site Supply" above to record a dispatch.</td></tr>}
             </tbody>
+            {records.length > 0 && (
+              <tfoot className="bg-slate-50/90 border-t-2 border-slate-200 font-black text-slate-900 text-xs">
+                <tr>
+                  <td colSpan={4} className="p-3 uppercase tracking-wider text-slate-600">
+                    Total ({records.length} Dispatches &bull; {formatINR(stats.totalDispatchedQty)} Units)
+                  </td>
+                  <td className="p-3 text-right text-slate-800 tabular-nums whitespace-nowrap">
+                    ₹{formatINR(stats.totalSubtotal)}
+                  </td>
+                  <td className="p-3 text-right text-amber-700 tabular-nums whitespace-nowrap">
+                    +₹{formatINR(stats.totalTax)}
+                  </td>
+                  <td className="p-3 text-right text-teal-900 tabular-nums whitespace-nowrap">
+                    ₹{formatINR(stats.grandSupplyValue)}
+                  </td>
+                  <td className="p-3"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

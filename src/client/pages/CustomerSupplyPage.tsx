@@ -80,11 +80,31 @@ export default function CustomerSupplyPage() {
     });
   }, [supplies, selectedLocation, searchQuery, statusFilter]);
 
+  const getSupplyBreakdown = (s: any) => {
+    const qty = parseFloat(String(s.quantity || "0")) || 0;
+    const rate = parseFloat(String(s.rate || "0")) || 0;
+    const rawSub = parseFloat(String(s.subtotal || "0"));
+    const subtotal = rawSub > 0 ? rawSub : Math.round(qty * rate * 100) / 100;
+    const gstPct =
+      s.taxPercentage !== undefined && s.taxPercentage !== null && String(s.taxPercentage) !== ""
+        ? parseFloat(String(s.taxPercentage))
+        : 18;
+    const rawTax = parseFloat(String(s.tax || "0"));
+    const gstAmt =
+      s.tax !== undefined && s.tax !== null && !isNaN(rawTax) && (rawTax > 0 || gstPct === 0)
+        ? rawTax
+        : Math.round(subtotal * (gstPct / 100) * 100) / 100;
+    const totalAmt =
+      parseFloat(String(s.totalAmount || "0")) ||
+      Math.round((subtotal + gstAmt) * 100) / 100;
+    return { qty, rate, subtotal, gstPct, gstAmt, totalAmt };
+  };
+
   // Overall KPI Summaries
-  const totalSupplyVal = filteredSupplies.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
-  const totalQty = filteredSupplies.reduce((acc, s) => acc + Number(s.quantity || 0), 0);
-  const totalTaxable = Math.round(totalSupplyVal * 0.82);
-  const totalGST = Math.round(totalSupplyVal * 0.18);
+  const totalSupplyVal = Math.round(filteredSupplies.reduce((acc, s) => acc + getSupplyBreakdown(s).totalAmt, 0) * 100) / 100;
+  const totalQty = Math.round(filteredSupplies.reduce((acc, s) => acc + getSupplyBreakdown(s).qty, 0) * 100) / 100;
+  const totalTaxable = Math.round(filteredSupplies.reduce((acc, s) => acc + getSupplyBreakdown(s).subtotal, 0) * 100) / 100;
+  const totalGST = Math.round(filteredSupplies.reduce((acc, s) => acc + getSupplyBreakdown(s).gstAmt, 0) * 100) / 100;
   const grandTotal = totalSupplyVal;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,9 +118,9 @@ export default function CustomerSupplyPage() {
       const qty = parseFloat(formData.quantity) || 0;
       const rate = parseFloat(formData.rate) || 0;
       const taxPct = parseFloat(formData.taxPercentage) || 0;
-      const subtotal = qty * rate;
-      const tax = subtotal * (taxPct / 100);
-      const totalAmount = subtotal + tax;
+      const subtotal = Math.round(qty * rate * 100) / 100;
+      const tax = Math.round(subtotal * (taxPct / 100) * 100) / 100;
+      const totalAmount = Math.round((subtotal + tax) * 100) / 100;
 
       const payload = {
         locationId: parseInt(formData.locationId, 10),
@@ -137,6 +157,10 @@ export default function CustomerSupplyPage() {
 
   const handleEdit = (s: any) => {
     setEditingId(s.id);
+    const resolvedTaxPct =
+      s.taxPercentage !== undefined && s.taxPercentage !== null && String(s.taxPercentage) !== ""
+        ? String(s.taxPercentage)
+        : "18";
     setFormData({
       locationId: s.locationId ? s.locationId.toString() : (locations[0]?.id?.toString() || ""),
       date: s.date || new Date().toISOString().split("T")[0],
@@ -146,9 +170,9 @@ export default function CustomerSupplyPage() {
       quantity: s.quantity ? s.quantity.toString() : "",
       unit: s.unit || "Nos",
       rate: s.rate ? s.rate.toString() : "",
-      taxPercentage: s.taxPercentage ? s.taxPercentage.toString() : "18",
+      taxPercentage: resolvedTaxPct,
       paymentStatus: (s.paymentStatus || "PAID").toUpperCase() === "PAID" ? "Paid" : "Pending",
-      notes: s.description || ""
+      notes: s.description || s.notes || ""
     });
     setIsModalOpen(true);
   };
@@ -252,7 +276,7 @@ export default function CustomerSupplyPage() {
           </div>
           <div className="min-w-0 flex-1">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total GST</span>
-            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
+            <span className="text-xs sm:text-sm font-black text-amber-700 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(totalGST)}
             </span>
           </div>
@@ -322,7 +346,8 @@ export default function CustomerSupplyPage() {
                 <th className="p-3.5">Material</th>
                 <th className="p-3.5 text-right">Qty</th>
                 <th className="p-3.5 text-right">Rate</th>
-                <th className="p-3.5 text-center">GST %</th>
+                <th className="p-3.5 text-right">Taxable Subtotal</th>
+                <th className="p-3.5 text-right text-amber-700">GST (% &amp; ₹)</th>
                 <th className="p-3.5 text-right font-black">Grand Total</th>
                 <th className="p-3.5 text-center">Status</th>
                 <th className="p-3.5 text-center">Actions</th>
@@ -331,12 +356,13 @@ export default function CustomerSupplyPage() {
             <tbody className="divide-y divide-slate-100">
               {filteredSupplies.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-400">No customer supply records found.</td>
+                  <td colSpan={11} className="p-8 text-center text-slate-400">No customer supply records found.</td>
                 </tr>
               ) : (
                 filteredSupplies.map((s) => {
                   const status = (s.paymentStatus || "PAID").toUpperCase();
                   const isPaid = status === "PAID";
+                  const bd = getSupplyBreakdown(s);
 
                   return (
                     <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
@@ -344,17 +370,23 @@ export default function CustomerSupplyPage() {
                       <td className="p-3.5 font-semibold text-slate-800">{s.locationName || "Project Site"}</td>
                       <td className="p-3.5 font-bold text-slate-900">{s.partyName}</td>
                       <td className="p-3.5 font-semibold text-blue-700">{s.materialName}</td>
-                      <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
-                        {formatINR(s.quantity)} {s.unit}
+                      <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
+                        {formatINR(bd.qty)} {s.unit}
                       </td>
-                      <td className="p-3.5 text-right font-medium text-slate-700 tabular-nums">
-                        ₹{formatINR(s.rate)}
+                      <td className="p-3.5 text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                        ₹{formatINR(bd.rate)}
                       </td>
-                      <td className="p-3.5 text-center font-semibold text-slate-600">
-                        {s.taxPercentage || 18}%
+                      <td className="p-3.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                        ₹{formatINR(bd.subtotal)}
                       </td>
-                      <td className="p-3.5 text-right font-black text-slate-900 tabular-nums">
-                        ₹{formatINR(s.totalAmount)}
+                      <td className="p-3.5 text-right tabular-nums whitespace-nowrap">
+                        <div className="font-bold text-amber-700">+₹{formatINR(bd.gstAmt)}</div>
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
+                          {bd.gstPct}% GST
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
+                        ₹{formatINR(bd.totalAmt)}
                       </td>
                       <td className="p-3.5 text-center">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
@@ -388,6 +420,29 @@ export default function CustomerSupplyPage() {
                 })
               )}
             </tbody>
+            {filteredSupplies.length > 0 && (
+              <tfoot className="bg-slate-50/90 border-t-2 border-slate-200 font-black text-slate-900">
+                <tr>
+                  <td colSpan={4} className="p-3.5 uppercase tracking-wider text-slate-600">
+                    Total ({filteredSupplies.length} Records)
+                  </td>
+                  <td className="p-3.5 text-right text-slate-800 tabular-nums whitespace-nowrap">
+                    {formatINR(totalQty)}
+                  </td>
+                  <td className="p-3.5 text-right text-slate-400">—</td>
+                  <td className="p-3.5 text-right text-slate-800 tabular-nums whitespace-nowrap">
+                    ₹{formatINR(totalTaxable)}
+                  </td>
+                  <td className="p-3.5 text-right text-amber-700 tabular-nums whitespace-nowrap">
+                    +₹{formatINR(totalGST)}
+                  </td>
+                  <td className="p-3.5 text-right text-slate-900 tabular-nums whitespace-nowrap">
+                    ₹{formatINR(grandTotal)}
+                  </td>
+                  <td colSpan={2} className="p-3.5"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

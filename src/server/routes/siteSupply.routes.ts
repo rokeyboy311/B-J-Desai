@@ -78,29 +78,52 @@ siteSupplyRouter.get('/', async (req: AuthRequest, res: Response) => {
           meta = {};
         }
       }
+      const mappedItems = items.filter(i => i.siteSupplyId === r.id).map(it => {
+        let itemMeta: any = {};
+        if (meta.itemsDetail && meta.itemsDetail[it.id]) {
+          itemMeta = meta.itemsDetail[it.id];
+        }
+        const qty = parseFloat(String(it.quantity || '0')) || 0;
+        const rate = parseFloat(String(it.rate || '0')) || 0;
+        const rawAmt = parseFloat(String(it.amount || '0')) || 0;
+        const calcSub = Math.round(qty * rate * 100) / 100;
+        const itemSub = itemMeta.subtotal !== undefined
+          ? Number(itemMeta.subtotal)
+          : (calcSub > 0 ? calcSub : rawAmt);
+        const itemTaxAmt = itemMeta.taxAmount !== undefined
+          ? Number(itemMeta.taxAmount)
+          : (rawAmt > itemSub && itemSub > 0 ? Math.round((rawAmt - itemSub) * 100) / 100 : 0);
+        const itemTaxPct = itemMeta.taxPercentage !== undefined
+          ? Number(itemMeta.taxPercentage)
+          : (itemTaxAmt > 0 && itemSub > 0 ? Math.round((itemTaxAmt / itemSub) * 100) : 0);
+
+        return {
+          ...it,
+          materialName: it.materialName || `Material #${it.materialId}`,
+          unit: itemMeta.unit || it.defaultUnit || 'Nos',
+          taxPercentage: itemTaxPct,
+          taxAmount: itemTaxAmt,
+          subtotal: itemSub,
+          totalWithGst: rawAmt
+        };
+      });
+
+      const computedSubtotal = mappedItems.reduce((acc, it) => acc + Number(it.subtotal || 0), 0);
+      const computedTax = mappedItems.reduce((acc, it) => acc + Number(it.taxAmount || 0), 0);
+
       return {
         ...r,
         locationName: r.locationName || `Location #${r.locationId}`,
         teamName: r.teamName || r.responsiblePerson || 'Direct Site',
         displayNotes: meta.userNotes !== undefined ? meta.userNotes : r.notes,
-        gstBreakdown: meta.gstBreakdown || null,
-        subtotal: meta.subtotal || r.totalAmount,
-        taxAmount: meta.taxAmount || '0',
-        items: items.filter(i => i.siteSupplyId === r.id).map(it => {
-          let itemMeta: any = {};
-          if (meta.itemsDetail && meta.itemsDetail[it.id]) {
-            itemMeta = meta.itemsDetail[it.id];
-          }
-          return {
-            ...it,
-            materialName: it.materialName || `Material #${it.materialId}`,
-            unit: itemMeta.unit || it.defaultUnit || 'Nos',
-            taxPercentage: itemMeta.taxPercentage || 0,
-            taxAmount: itemMeta.taxAmount || 0,
-            subtotal: itemMeta.subtotal || it.amount,
-            totalWithGst: it.amount
-          };
-        })
+        gstBreakdown: meta.gstBreakdown || {
+          subtotal: Math.round(computedSubtotal * 100) / 100,
+          totalTax: Math.round(computedTax * 100) / 100,
+          grandTotal: parseFloat(String(r.totalAmount || '0'))
+        },
+        subtotal: meta.subtotal !== undefined ? meta.subtotal : (Math.round(computedSubtotal * 100) / 100).toString(),
+        taxAmount: meta.taxAmount !== undefined ? meta.taxAmount : (Math.round(computedTax * 100) / 100).toString(),
+        items: mappedItems
       };
     });
     

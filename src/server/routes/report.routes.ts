@@ -2406,4 +2406,249 @@ reportRouter.get('/download-catalog', async (req: AuthRequest, res: Response) =>
   }
 });
 
+// -------------------------------------------------------------
+// GET /api/reports/gst (Comprehensive GST Report across all GST modules)
+// -------------------------------------------------------------
+reportRouter.get('/gst', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.dbUser?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const locationIdParam = req.query.locationId && req.query.locationId !== 'ALL' && req.query.locationId !== '0'
+      ? parseInt(req.query.locationId as string, 10)
+      : undefined;
+
+    if (locationIdParam && !isNaN(locationIdParam)) {
+      await assertLocationAccess(userId, locationIdParam);
+    }
+
+    const [purchases, customerSupplies, siteSuppliesRows, siteItemsRows, billRows] = await Promise.all([
+      db.select({
+        id: materialPurchases.id,
+        date: materialPurchases.date,
+        partyName: materialPurchases.partyName,
+        materialName: materialPurchases.materialName,
+        quantity: materialPurchases.quantity,
+        unit: materialPurchases.unit,
+        rate: materialPurchases.rate,
+        subtotal: materialPurchases.subtotal,
+        taxPercentage: materialPurchases.taxPercentage,
+        tax: materialPurchases.tax,
+        transportCost: materialPurchases.transportCost,
+        totalAmount: materialPurchases.totalAmount,
+        referenceNumber: materialPurchases.referenceNumber,
+        locationName: locations.name
+      })
+      .from(materialPurchases)
+      .leftJoin(locations, eq(materialPurchases.locationId, locations.id))
+      .where(and(
+        eq(materialPurchases.isDeleted, 0),
+        locationIdParam ? eq(materialPurchases.locationId, locationIdParam) : sql`1=1`
+      ))
+      .orderBy(sql`${materialPurchases.date} DESC`),
+
+      db.select({
+        id: materialSupplies.id,
+        date: materialSupplies.date,
+        partyName: materialSupplies.partyName,
+        materialName: materialSupplies.materialName,
+        quantity: materialSupplies.quantity,
+        unit: materialSupplies.unit,
+        rate: materialSupplies.rate,
+        subtotal: materialSupplies.subtotal,
+        taxPercentage: materialSupplies.taxPercentage,
+        tax: materialSupplies.tax,
+        transportCost: materialSupplies.transportCost,
+        totalAmount: materialSupplies.totalAmount,
+        referenceNumber: materialSupplies.referenceNumber,
+        locationName: locations.name
+      })
+      .from(materialSupplies)
+      .leftJoin(locations, eq(materialSupplies.locationId, locations.id))
+      .where(and(
+        eq(materialSupplies.isDeleted, 0),
+        locationIdParam ? eq(materialSupplies.locationId, locationIdParam) : sql`1=1`
+      ))
+      .orderBy(sql`${materialSupplies.date} DESC`),
+
+      db.select({
+        id: siteSupplies.id,
+        date: siteSupplies.date,
+        responsiblePerson: siteSupplies.responsiblePerson,
+        teamName: labourTeams.name,
+        notes: siteSupplies.notes,
+        totalAmount: siteSupplies.totalAmount,
+        referenceNumber: siteSupplies.referenceNumber,
+        locationName: locations.name
+      })
+      .from(siteSupplies)
+      .leftJoin(locations, eq(siteSupplies.locationId, locations.id))
+      .leftJoin(labourTeams, eq(siteSupplies.teamId, labourTeams.id))
+      .where(and(
+        eq(siteSupplies.isDeleted, 0),
+        locationIdParam ? eq(siteSupplies.locationId, locationIdParam) : sql`1=1`
+      ))
+      .orderBy(sql`${siteSupplies.date} DESC`),
+
+      db.select({
+        id: siteSupplyItems.id,
+        siteSupplyId: siteSupplyItems.siteSupplyId,
+        quantity: siteSupplyItems.quantity,
+        rate: siteSupplyItems.rate,
+        amount: siteSupplyItems.amount,
+        materialName: materials.name,
+        unit: materials.defaultUnit
+      })
+      .from(siteSupplyItems)
+      .leftJoin(materials, eq(siteSupplyItems.materialId, materials.id))
+      .where(eq(siteSupplyItems.isDeleted, 0)),
+
+      db.select()
+      .from(records)
+      .where(and(
+        eq(records.isDeleted, 0),
+        eq(records.type, 'INCOME'),
+        sql`(${records.category} IN ('BILL_INVESTMENT', 'BILL_INCOME'))`,
+        locationIdParam ? eq(records.locationId, locationIdParam) : sql`1=1`
+      ))
+      .orderBy(sql`${records.date} DESC`)
+    ]);
+
+    const gstRecords: any[] = [];
+
+    for (const p of purchases) {
+      const qty = parseFloat(String(p.quantity || '0')) || 0;
+      const rate = parseFloat(String(p.rate || '0')) || 0;
+      const sub = parseFloat(String(p.subtotal || '0')) || Math.round(qty * rate * 100) / 100;
+      const gstPct = p.taxPercentage !== undefined && p.taxPercentage !== null ? parseFloat(String(p.taxPercentage)) : 18;
+      const gstAmt = parseFloat(String(p.tax || '0')) || Math.round(sub * (gstPct / 100) * 100) / 100;
+      const trans = parseFloat(String(p.transportCost || '0')) || 0;
+      const total = parseFloat(String(p.totalAmount || '0')) || Math.round((sub + gstAmt + trans) * 100) / 100;
+      gstRecords.push({
+        id: `PUR-${p.id}`,
+        module: 'Material Purchase',
+        date: p.date,
+        partyName: p.partyName,
+        itemName: p.materialName,
+        quantity: qty,
+        unit: p.unit || 'Nos',
+        rate,
+        subtotal: sub,
+        taxPercentage: gstPct,
+        taxAmount: gstAmt,
+        transportCost: trans,
+        totalAmount: total,
+        referenceNumber: p.referenceNumber || '',
+        locationName: p.locationName || 'Central Stock'
+      });
+    }
+
+    for (const s of customerSupplies) {
+      const qty = parseFloat(String(s.quantity || '0')) || 0;
+      const rate = parseFloat(String(s.rate || '0')) || 0;
+      const sub = parseFloat(String(s.subtotal || '0')) || Math.round(qty * rate * 100) / 100;
+      const gstPct = s.taxPercentage !== undefined && s.taxPercentage !== null ? parseFloat(String(s.taxPercentage)) : 18;
+      const gstAmt = parseFloat(String(s.tax || '0')) || Math.round(sub * (gstPct / 100) * 100) / 100;
+      const trans = parseFloat(String(s.transportCost || '0')) || 0;
+      const total = parseFloat(String(s.totalAmount || '0')) || Math.round((sub + gstAmt + trans) * 100) / 100;
+      gstRecords.push({
+        id: `CUST-${s.id}`,
+        module: 'Customer Supply',
+        date: s.date,
+        partyName: s.partyName,
+        itemName: s.materialName,
+        quantity: qty,
+        unit: s.unit || 'Nos',
+        rate,
+        subtotal: sub,
+        taxPercentage: gstPct,
+        taxAmount: gstAmt,
+        transportCost: trans,
+        totalAmount: total,
+        referenceNumber: s.referenceNumber || '',
+        locationName: s.locationName || ''
+      });
+    }
+
+    for (const sr of siteSuppliesRows) {
+      let meta: any = {};
+      if (sr.notes && sr.notes.startsWith('{') && sr.notes.endsWith('}')) {
+        try { meta = JSON.parse(sr.notes); } catch {}
+      }
+      const items = siteItemsRows.filter(i => i.siteSupplyId === sr.id);
+      for (const it of items) {
+        const itemMeta = meta.itemsDetail?.[it.id] || {};
+        const qty = parseFloat(String(it.quantity || '0')) || 0;
+        const rate = parseFloat(String(it.rate || '0')) || 0;
+        const rawAmt = parseFloat(String(it.amount || '0')) || 0;
+        const calcSub = Math.round(qty * rate * 100) / 100;
+        const sub = itemMeta.subtotal !== undefined ? Number(itemMeta.subtotal) : (calcSub > 0 ? calcSub : rawAmt);
+        const gstAmt = itemMeta.taxAmount !== undefined ? Number(itemMeta.taxAmount) : (rawAmt > sub && sub > 0 ? Math.round((rawAmt - sub) * 100) / 100 : 0);
+        const gstPct = itemMeta.taxPercentage !== undefined ? Number(itemMeta.taxPercentage) : (gstAmt > 0 && sub > 0 ? Math.round((gstAmt / sub) * 100) : 0);
+        gstRecords.push({
+          id: `SITE-${sr.id}-${it.id}`,
+          module: 'Site Material Supply',
+          date: sr.date,
+          partyName: sr.teamName || sr.responsiblePerson || 'Site Team',
+          itemName: it.materialName || 'Material',
+          quantity: qty,
+          unit: itemMeta.unit || it.unit || 'Nos',
+          rate,
+          subtotal: sub,
+          taxPercentage: gstPct,
+          taxAmount: gstAmt,
+          transportCost: 0,
+          totalAmount: rawAmt,
+          referenceNumber: sr.referenceNumber || '',
+          locationName: sr.locationName || ''
+        });
+      }
+    }
+
+    for (const b of billRows) {
+      let extra: any = {};
+      if (b.notes) {
+        try { extra = JSON.parse(b.notes); } catch {}
+      }
+      const sub = extra.subtotal !== undefined ? Number(extra.subtotal) : Number(b.amount || 0);
+      const gstPct = extra.taxPercentage !== undefined ? Number(extra.taxPercentage) : 0;
+      const gstAmt = extra.taxAmount !== undefined ? Number(extra.taxAmount) : Math.round(sub * (gstPct / 100) * 100) / 100;
+      const total = Number(b.amount || 0);
+      gstRecords.push({
+        id: `BILL-${b.id}`,
+        module: 'Admin Bill Investment',
+        date: b.date,
+        partyName: b.partyName,
+        itemName: extra.materialName || b.description || 'Bill Investment',
+        quantity: extra.quantity || 1,
+        unit: extra.unit || 'Nos',
+        rate: extra.rate || sub,
+        subtotal: sub,
+        taxPercentage: gstPct,
+        taxAmount: gstAmt,
+        transportCost: extra.transportCost || 0,
+        totalAmount: total,
+        referenceNumber: b.referenceNumber || '',
+        locationName: 'Central Admin'
+      });
+    }
+
+    const summary = {
+      totalRecords: gstRecords.length,
+      totalTaxableSubtotal: Math.round(gstRecords.reduce((s, r) => s + r.subtotal, 0) * 100) / 100,
+      totalGstAmount: Math.round(gstRecords.reduce((s, r) => s + r.taxAmount, 0) * 100) / 100,
+      totalGrandAmount: Math.round(gstRecords.reduce((s, r) => s + r.totalAmount, 0) * 100) / 100,
+      purchaseGst: Math.round(gstRecords.filter(r => r.module === 'Material Purchase').reduce((s, r) => s + r.taxAmount, 0) * 100) / 100,
+      customerSupplyGst: Math.round(gstRecords.filter(r => r.module === 'Customer Supply').reduce((s, r) => s + r.taxAmount, 0) * 100) / 100,
+      siteSupplyGst: Math.round(gstRecords.filter(r => r.module === 'Site Material Supply').reduce((s, r) => s + r.taxAmount, 0) * 100) / 100,
+      billInvestmentGst: Math.round(gstRecords.filter(r => r.module === 'Admin Bill Investment').reduce((s, r) => s + r.taxAmount, 0) * 100) / 100,
+    };
+
+    res.json({ summary, records: gstRecords });
+  } catch (error: any) {
+    console.error('Failed to generate GST report:', error);
+    res.status(500).json({ error: 'Failed to generate GST report' });
+  }
+});
+
 export default reportRouter;

@@ -152,6 +152,9 @@ materialRouter.get('/customer-supplies-history', async (req: AuthRequest, res: R
       unit: materialSupplies.unit,
       rate: materialSupplies.rate,
       subtotal: materialSupplies.subtotal,
+      transportCost: materialSupplies.transportCost,
+      discount: materialSupplies.discount,
+      taxPercentage: materialSupplies.taxPercentage,
       tax: materialSupplies.tax,
       totalAmount: materialSupplies.totalAmount,
       paidAmount: materialSupplies.paidAmount,
@@ -196,6 +199,7 @@ materialRouter.get('/site-supplies-history', async (req: AuthRequest, res: Respo
       rate: siteSupplyItems.rate,
       amount: siteSupplyItems.amount,
       referenceNumber: siteSupplies.referenceNumber,
+      notes: siteSupplies.notes,
       locationId: siteSupplies.locationId,
       locationName: locations.name,
     })
@@ -211,7 +215,42 @@ materialRouter.get('/site-supplies-history', async (req: AuthRequest, res: Respo
     ))
     .orderBy(desc(siteSupplies.date), desc(siteSupplyItems.id));
 
-    res.json(supplies);
+    const enriched = supplies.map((s) => {
+      let itemMeta: any = {};
+      if (s.notes && s.notes.startsWith('{') && s.notes.endsWith('}')) {
+        try {
+          const meta = JSON.parse(s.notes);
+          if (meta.itemsDetail && meta.itemsDetail[s.id]) {
+            itemMeta = meta.itemsDetail[s.id];
+          }
+        } catch {}
+      }
+      const qty = parseFloat(String(s.quantity || '0')) || 0;
+      const rate = parseFloat(String(s.rate || '0')) || 0;
+      const rawAmt = parseFloat(String(s.amount || '0')) || 0;
+      const calcSub = Math.round(qty * rate * 100) / 100;
+      const subtotal = itemMeta.subtotal !== undefined
+        ? Number(itemMeta.subtotal)
+        : (calcSub > 0 ? calcSub : rawAmt);
+      const taxAmount = itemMeta.taxAmount !== undefined
+        ? Number(itemMeta.taxAmount)
+        : (rawAmt > subtotal && subtotal > 0 ? Math.round((rawAmt - subtotal) * 100) / 100 : 0);
+      const taxPercentage = itemMeta.taxPercentage !== undefined
+        ? Number(itemMeta.taxPercentage)
+        : (taxAmount > 0 && subtotal > 0 ? Math.round((taxAmount / subtotal) * 100) : 0);
+
+      return {
+        ...s,
+        unit: itemMeta.unit || s.unit || 'Nos',
+        subtotal,
+        taxPercentage,
+        taxAmount,
+        tax: taxAmount,
+        totalAmount: rawAmt,
+      };
+    });
+
+    res.json(enriched);
   } catch (error: any) {
     console.warn('[Site Supplies History GET Notice] Database fallback:', error?.message || error);
     res.json([]);

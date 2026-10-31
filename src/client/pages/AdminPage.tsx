@@ -1050,6 +1050,13 @@ export default function AdminPage() {
 
     (Array.isArray(billIncomes) ? billIncomes : []).forEach(b => {
       const amt = parseFloat(String(b.totalAmount || b.amount || 0));
+      const sub = Number(b.subtotal || b.rate || b.amount || 0);
+      const gstPct = Number(b.taxPercentage || 0);
+      const gstAmt = Number(b.taxAmount) || Math.round((sub * gstPct / 100) * 100) / 100;
+      const tdsBase = Math.max(0, Math.round((sub - gstAmt) * 100) / 100);
+      const tdsPct = Number(b.tdsPercentage || 0);
+      const tdsAmt = Number(b.tdsAmount) || Math.round((tdsBase * tdsPct / 100) * 100) / 100;
+      const taxSummary = `Subtotal: ₹${formatINR(sub)} | GST: -₹${formatINR(gstAmt)} (${gstPct}%) | TDS: -₹${formatINR(tdsAmt)} (${tdsPct}%)`;
       items.push({
         id: `bill-${b.id}`,
         rawId: b.id,
@@ -1059,7 +1066,7 @@ export default function AdminPage() {
         investorName: b.partyName || "Party / Company",
         type: "BILL_INVESTMENT",
         typeLabel: "Bill Investment (+)",
-        particulars: b.notes ? `Bill Invoice: ${b.notes}` : `Bill Invoice (GST: -${b.taxPercentage || 0}%, TDS: -${b.tdsPercentage || 0}%)`,
+        particulars: b.notes ? `Bill Invoice: ${b.notes} (${taxSummary})` : `Bill Invoice (${taxSummary})`,
         destination: "Central Admin Pool",
         paymentMethod: b.paymentMethod || "Bank Transfer",
         referenceNumber: b.referenceNumber || "-",
@@ -2413,6 +2420,39 @@ export default function AdminPage() {
                       })
                     )}
                   </tbody>
+                  {billIncomes.length > 0 && (() => {
+                    const totSub = billIncomes.reduce((acc: number, b: any) => acc + Number(b.subtotal || b.rate || b.amount || 0), 0);
+                    const totGst = billIncomes.reduce((acc: number, b: any) => {
+                      const sub = Number(b.subtotal || b.rate || b.amount || 0);
+                      const gstPct = Number(b.taxPercentage || 0);
+                      return acc + (Number(b.taxAmount) || Math.round((sub * gstPct / 100) * 100) / 100);
+                    }, 0);
+                    const totTdsBase = Math.max(0, Math.round((totSub - totGst) * 100) / 100);
+                    const totTds = billIncomes.reduce((acc: number, b: any) => {
+                      const sub = Number(b.subtotal || b.rate || b.amount || 0);
+                      const gstPct = Number(b.taxPercentage || 0);
+                      const gstAmt = Number(b.taxAmount) || Math.round((sub * gstPct / 100) * 100) / 100;
+                      const tdsBase = Math.max(0, Math.round((sub - gstAmt) * 100) / 100);
+                      const tdsPct = Number(b.tdsPercentage || 0);
+                      return acc + (Number(b.tdsAmount) || Math.round((tdsBase * tdsPct / 100) * 100) / 100);
+                    }, 0);
+                    const totTrans = billIncomes.reduce((acc: number, b: any) => acc + Number(b.transportCost || 0), 0);
+                    const totNet = billIncomes.reduce((acc: number, b: any) => acc + Number(b.totalAmount || b.amount || 0), 0);
+                    return (
+                      <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
+                        <tr>
+                          <td colSpan={2} className="p-3.5 text-slate-700 uppercase">Total ({billIncomes.length} Bills)</td>
+                          <td className="p-3.5 text-right text-slate-900 tabular-nums">₹{formatINR(totSub)}</td>
+                          <td className="p-3.5 text-right text-rose-600 tabular-nums">-₹{formatINR(totGst)}</td>
+                          <td className="p-3.5 text-right text-indigo-700 tabular-nums">₹{formatINR(totTdsBase)}</td>
+                          <td className="p-3.5 text-right text-amber-700 tabular-nums">-₹{formatINR(totTds)}</td>
+                          <td className="p-3.5 text-right text-slate-700 tabular-nums">{totTrans > 0 ? `+₹${formatINR(totTrans)}` : "—"}</td>
+                          <td className="p-3.5 text-right font-black text-cyan-800 bg-cyan-50/40 tabular-nums">+₹{formatINR(totNet)}</td>
+                          <td colSpan={2}></td>
+                        </tr>
+                      </tfoot>
+                    );
+                  })()}
                 </table>
               </div>
             </div>

@@ -194,6 +194,10 @@ export default function MaterialPurchasePage() {
     setEditingPurchaseId(p.id);
     setPreselectedVendor(supName || null);
     setIsCustomVendorInput(false);
+    const resolvedTaxPct =
+      p.taxPercentage !== undefined && p.taxPercentage !== null && String(p.taxPercentage) !== ""
+        ? String(p.taxPercentage)
+        : "18";
     setFormData({
       date: p.date || new Date().toISOString().split("T")[0],
       supplierName: supName,
@@ -202,11 +206,32 @@ export default function MaterialPurchasePage() {
       unit: p.unit || "Nos",
       rate: p.rate ? String(p.rate) : "",
       transportationFee: p.transportCost ? String(p.transportCost) : (p.transportationFee ? String(p.transportationFee) : ""),
-      taxPercentage: p.taxPercentage ? String(p.taxPercentage) : "18",
+      taxPercentage: resolvedTaxPct,
       paymentStatus: (p.paymentStatus || "PAID").toUpperCase() === "PAID" ? "Paid" : "Pending",
       notes: p.notes || p.description || ""
     });
     setIsModalOpen(true);
+  };
+
+  const getPurchaseBreakdown = (p: any) => {
+    const qty = Number(p.quantity || 0);
+    const rate = Number(p.rate || 0);
+    const rawSub = Number(p.subtotal || 0);
+    const subtotal = rawSub > 0 ? rawSub : Math.round(qty * rate * 100) / 100;
+    const gstPct =
+      p.taxPercentage !== undefined && p.taxPercentage !== null && String(p.taxPercentage) !== ""
+        ? Number(p.taxPercentage)
+        : 18;
+    const rawTax = Number(p.tax || 0);
+    const gstAmt =
+      p.tax !== undefined && p.tax !== null && !isNaN(rawTax) && (rawTax > 0 || gstPct === 0)
+        ? rawTax
+        : Math.round(subtotal * (gstPct / 100) * 100) / 100;
+    const transportCost = Number(p.transportCost || 0);
+    const totalAmt =
+      Number(p.totalAmount || 0) ||
+      Math.round((subtotal + gstAmt + transportCost) * 100) / 100;
+    return { qty, rate, subtotal, gstPct, gstAmt, transportCost, totalAmt };
   };
 
   const handleDelete = async (id: number) => {
@@ -283,10 +308,11 @@ export default function MaterialPurchasePage() {
         };
       }
       const sup = map[sName];
-      const amt = Number(p.totalAmount || 0);
-      const qty = Number(p.quantity || 0);
-      const tax = Number(p.tax || 0);
-      const trans = Number(p.transportCost || 0);
+      const bd = getPurchaseBreakdown(p);
+      const amt = bd.totalAmt;
+      const qty = bd.qty;
+      const tax = bd.gstAmt;
+      const trans = bd.transportCost;
       const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
 
       sup.totalAmount += amt;
@@ -855,6 +881,10 @@ export default function MaterialPurchasePage() {
                       <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Purchases</span>
                       <span className="text-sm font-black text-emerald-700 tabular-nums whitespace-nowrap">₹{formatINR(sup.totalAmount)}</span>
                     </div>
+                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-amber-200/80 text-xs">
+                      <span className="text-amber-700 block text-[9px] uppercase font-bold">Total GST</span>
+                      <span className="text-sm font-black text-amber-800 tabular-nums whitespace-nowrap">₹{formatINR(sup.totalTax)}</span>
+                    </div>
                     <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
                       <span className="text-slate-500 block text-[9px] uppercase font-bold">Bills</span>
                       <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">{sup.invoicesCount}</span>
@@ -943,7 +973,8 @@ export default function MaterialPurchasePage() {
                   <th className="p-3.5">Material (Click for Supply History)</th>
                   <th className="p-3.5 text-right">Qty</th>
                   <th className="p-3.5 text-right">Rate</th>
-                  <th className="p-3.5 text-center">GST %</th>
+                  <th className="p-3.5 text-right">Taxable Subtotal</th>
+                  <th className="p-3.5 text-right text-amber-700">GST (% &amp; ₹)</th>
                   <th className="p-3.5 text-right">Transport Fee</th>
                   <th className="p-3.5 text-right font-black">Grand Total</th>
                   <th className="p-3.5 text-center">Payment</th>
@@ -953,7 +984,7 @@ export default function MaterialPurchasePage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredPurchases.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-8 text-center text-slate-400">
+                    <td colSpan={11} className="p-8 text-center text-slate-400">
                       {searchQuery || selectedSupplierFilter !== "ALL" 
                         ? "No matching purchase records found." 
                         : "No purchase records found."}
@@ -962,7 +993,8 @@ export default function MaterialPurchasePage() {
                 ) : (
                   filteredPurchases.map((p) => {
                     const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
-                    const transportAmt = Number(p.transportCost || 0);
+                    const bd = getPurchaseBreakdown(p);
+                    const transportAmt = bd.transportCost;
                     const supName = p.supplierName || p.partyName || "General Supplier";
 
                     return (
@@ -995,24 +1027,30 @@ export default function MaterialPurchasePage() {
                           </button>
                         </td>
 
-                        <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
-                          {formatINR(p.quantity)} {p.unit}
+                        <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
+                          {formatINR(bd.qty)} {p.unit}
                         </td>
-                        <td className="p-3.5 text-right font-medium text-slate-700 tabular-nums">
-                          ₹{formatINR(p.rate)}
+                        <td className="p-3.5 text-right font-medium text-slate-700 tabular-nums whitespace-nowrap">
+                          ₹{formatINR(bd.rate)}
                         </td>
-                        <td className="p-3.5 text-center font-semibold text-slate-600">
-                          {p.taxPercentage || 18}%
+                        <td className="p-3.5 text-right font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                          ₹{formatINR(bd.subtotal)}
                         </td>
-                        <td className="p-3.5 text-right font-bold tabular-nums">
+                        <td className="p-3.5 text-right tabular-nums whitespace-nowrap">
+                          <div className="font-bold text-amber-700">+₹{formatINR(bd.gstAmt)}</div>
+                          <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
+                            {bd.gstPct}% GST
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right font-bold tabular-nums whitespace-nowrap">
                           {transportAmt > 0 ? (
                             <span className="text-indigo-700 font-bold">₹{formatINR(transportAmt)}</span>
                           ) : (
                             <span className="text-slate-400 font-normal">₹0</span>
                           )}
                         </td>
-                        <td className="p-3.5 text-right font-black text-slate-900 tabular-nums">
-                          <div>₹{formatINR(p.totalAmount)}</div>
+                        <td className="p-3.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
+                          <div>₹{formatINR(bd.totalAmt)}</div>
                           {transportAmt > 0 && (
                             <div className="text-[10px] text-indigo-600 font-normal">incl. ₹{formatINR(transportAmt)} transport</div>
                           )}
@@ -1087,6 +1125,39 @@ export default function MaterialPurchasePage() {
                   })
                 )}
               </tbody>
+              {filteredPurchases.length > 0 && (() => {
+                const totQty = filteredPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).qty, 0);
+                const totSub = filteredPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).subtotal, 0);
+                const totGst = filteredPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).gstAmt, 0);
+                const totTrans = filteredPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).transportCost, 0);
+                const totGrand = filteredPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).totalAmt, 0);
+                return (
+                  <tfoot className="bg-slate-50/90 border-t-2 border-slate-200 font-black text-slate-900">
+                    <tr>
+                      <td colSpan={3} className="p-3.5 uppercase tracking-wider text-slate-600">
+                        Total ({filteredPurchases.length} Records)
+                      </td>
+                      <td className="p-3.5 text-right text-slate-800 tabular-nums whitespace-nowrap">
+                        {formatINR(totQty)}
+                      </td>
+                      <td className="p-3.5 text-right text-slate-400">—</td>
+                      <td className="p-3.5 text-right text-slate-800 tabular-nums whitespace-nowrap">
+                        ₹{formatINR(totSub)}
+                      </td>
+                      <td className="p-3.5 text-right text-amber-700 tabular-nums whitespace-nowrap">
+                        +₹{formatINR(totGst)}
+                      </td>
+                      <td className="p-3.5 text-right text-indigo-700 tabular-nums whitespace-nowrap">
+                        ₹{formatINR(totTrans)}
+                      </td>
+                      <td className="p-3.5 text-right text-slate-900 tabular-nums whitespace-nowrap">
+                        ₹{formatINR(totGrand)}
+                      </td>
+                      <td colSpan={2} className="p-3.5"></td>
+                    </tr>
+                  </tfoot>
+                );
+              })()}
             </table>
           </div>
         </div>
@@ -1186,14 +1257,18 @@ export default function MaterialPurchasePage() {
                       </div>
 
                       {/* Payment & Tax Stats */}
-                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="grid grid-cols-3 gap-2 text-[11px]">
+                        <div className="bg-amber-50/70 p-2 rounded-lg border border-amber-100">
+                          <span className="text-[10px] font-semibold text-amber-700 block">Total GST</span>
+                          <span className="font-bold text-amber-900 tabular-nums">₹{formatINR(sup.totalTax)}</span>
+                        </div>
                         <div className="bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
-                          <span className="text-[10px] font-semibold text-emerald-700 block">Paid Amount</span>
+                          <span className="text-[10px] font-semibold text-emerald-700 block">Paid</span>
                           <span className="font-bold text-emerald-900 tabular-nums">₹{formatINR(sup.paidAmount)}</span>
                         </div>
                         <div className={`p-2 rounded-lg border ${sup.pendingAmount > 0 ? "bg-rose-50/60 border-rose-100" : "bg-slate-50 border-slate-100"}`}>
                           <span className={`text-[10px] font-semibold block ${sup.pendingAmount > 0 ? "text-rose-700" : "text-slate-500"}`}>
-                            Pending Amount
+                            Pending
                           </span>
                           <span className={`font-bold tabular-nums ${sup.pendingAmount > 0 ? "text-rose-900" : "text-slate-600"}`}>
                             ₹{formatINR(sup.pendingAmount)}
@@ -1273,6 +1348,7 @@ export default function MaterialPurchasePage() {
                     <th className="p-3.5 text-center">Invoices</th>
                     <th className="p-3.5">Materials Supplied</th>
                     <th className="p-3.5 text-right">Total Qty</th>
+                    <th className="p-3.5 text-right text-amber-700">Total GST (₹)</th>
                     <th className="p-3.5 text-right font-black">Total Purchases (₹)</th>
                     <th className="p-3.5 text-right">Paid (₹)</th>
                     <th className="p-3.5 text-right">Pending (₹)</th>
@@ -1298,16 +1374,19 @@ export default function MaterialPurchasePage() {
                       <td className="p-3.5 text-slate-600 max-w-xs truncate">
                         {Object.keys(sup.materials).join(", ") || "-"}
                       </td>
-                      <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
+                      <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
                         {formatINR(sup.totalQty)}
                       </td>
-                      <td className="p-3.5 text-right font-black text-slate-900 tabular-nums text-sm">
+                      <td className="p-3.5 text-right font-bold text-amber-700 tabular-nums whitespace-nowrap">
+                        +₹{formatINR(sup.totalTax)}
+                      </td>
+                      <td className="p-3.5 text-right font-black text-slate-900 tabular-nums text-sm whitespace-nowrap">
                         ₹{formatINR(sup.totalAmount)}
                       </td>
-                      <td className="p-3.5 text-right font-bold text-emerald-700 tabular-nums">
+                      <td className="p-3.5 text-right font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                         ₹{formatINR(sup.paidAmount)}
                       </td>
-                      <td className="p-3.5 text-right font-bold text-rose-700 tabular-nums">
+                      <td className="p-3.5 text-right font-bold text-rose-700 tabular-nums whitespace-nowrap">
                         ₹{formatINR(sup.pendingAmount)}
                       </td>
                       <td className="p-3.5 text-center">
@@ -1591,7 +1670,7 @@ export default function MaterialPurchasePage() {
                     <div className="p-2.5 bg-slate-100/80 border-b border-slate-200 text-xs font-bold text-slate-800">
                       Detailed Site Supply Log
                     </div>
-                    <div className="max-h-60 overflow-y-auto overflow-x-hidden">
+                    <div className="max-h-60 overflow-y-auto overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                           <tr>
@@ -1601,21 +1680,34 @@ export default function MaterialPurchasePage() {
                             <th className="p-2.5">Work Description</th>
                             <th className="p-2.5 text-right">Qty</th>
                             <th className="p-2.5 text-right">Rate</th>
-                            <th className="p-2.5 text-right font-black">Amount</th>
+                            <th className="p-2.5 text-right">Subtotal</th>
+                            <th className="p-2.5 text-right text-amber-700">GST</th>
+                            <th className="p-2.5 text-right font-black">Total Amount</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {activeMaterialData.matSiteSupplies.map((s, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50">
-                              <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(s.date)}</td>
-                              <td className="p-2.5 font-bold text-slate-900">{s.locationName || `Site #${s.locationId}`}</td>
-                              <td className="p-2.5 font-semibold text-blue-700">{s.teamName || s.responsiblePerson || "Site Team"}</td>
-                              <td className="p-2.5 text-slate-600 max-w-xs truncate">{s.workDescription || "-"}</td>
-                              <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{formatINR(s.quantity)} {activeMaterialData.unit}</td>
-                              <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{formatINR(s.rate)}</td>
-                              <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{formatINR(s.amount)}</td>
-                            </tr>
-                          ))}
+                          {activeMaterialData.matSiteSupplies.map((s, idx) => {
+                            const sQty = Number(s.quantity || 0);
+                            const sRate = Number(s.rate || 0);
+                            const sSub = Number(s.subtotal || 0) || Math.round(sQty * sRate * 100) / 100;
+                            const sTaxAmt = Number(s.taxAmount ?? s.tax ?? 0);
+                            const sTaxPct = Number(s.taxPercentage || 0);
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(s.date)}</td>
+                                <td className="p-2.5 font-bold text-slate-900">{s.locationName || `Site #${s.locationId}`}</td>
+                                <td className="p-2.5 font-semibold text-blue-700">{s.teamName || s.responsiblePerson || "Site Team"}</td>
+                                <td className="p-2.5 text-slate-600 max-w-xs truncate">{s.workDescription || "-"}</td>
+                                <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">{formatINR(sQty)} {activeMaterialData.unit}</td>
+                                <td className="p-2.5 text-right text-slate-600 tabular-nums whitespace-nowrap">₹{formatINR(sRate)}</td>
+                                <td className="p-2.5 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">₹{formatINR(sSub)}</td>
+                                <td className="p-2.5 text-right text-amber-700 font-bold tabular-nums whitespace-nowrap">
+                                  +₹{formatINR(sTaxAmt)} <span className="text-[10px] text-slate-500">({sTaxPct}%)</span>
+                                </td>
+                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">₹{formatINR(s.amount)}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1641,7 +1733,7 @@ export default function MaterialPurchasePage() {
 
                 {activeMaterialData.matCustSupplies.length > 0 ? (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="max-h-60 overflow-y-auto overflow-x-hidden">
+                    <div className="max-h-60 overflow-y-auto overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                           <tr>
@@ -1650,6 +1742,8 @@ export default function MaterialPurchasePage() {
                             <th className="p-2.5">Project Location</th>
                             <th className="p-2.5 text-right">Qty</th>
                             <th className="p-2.5 text-right">Rate</th>
+                            <th className="p-2.5 text-right">Subtotal</th>
+                            <th className="p-2.5 text-right text-amber-700">GST</th>
                             <th className="p-2.5 text-right font-black">Amount</th>
                             <th className="p-2.5 text-center">Payment</th>
                           </tr>
@@ -1657,14 +1751,23 @@ export default function MaterialPurchasePage() {
                         <tbody className="divide-y divide-slate-100">
                           {activeMaterialData.matCustSupplies.map((c, idx) => {
                             const isPaid = (c.paymentStatus || "").toUpperCase() === "PAID";
+                            const cQty = Number(c.quantity || 0);
+                            const cRate = Number(c.rate || 0);
+                            const cSub = Number(c.subtotal || 0) || Math.round(cQty * cRate * 100) / 100;
+                            const cGstPct = c.taxPercentage !== undefined && c.taxPercentage !== null ? Number(c.taxPercentage) : 18;
+                            const cGstAmt = Number(c.tax || 0) || Math.round(cSub * (cGstPct / 100) * 100) / 100;
                             return (
                               <tr key={idx} className="hover:bg-slate-50">
                                 <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(c.date)}</td>
                                 <td className="p-2.5 font-bold text-slate-900">{c.customerName || "Customer"}</td>
                                 <td className="p-2.5 text-slate-600">{c.locationName || "Central"}</td>
-                                <td className="p-2.5 text-right font-bold text-purple-800 tabular-nums">{formatINR(c.quantity)} {c.unit || activeMaterialData.unit}</td>
-                                <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{formatINR(c.rate)}</td>
-                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{formatINR(c.totalAmount)}</td>
+                                <td className="p-2.5 text-right font-bold text-purple-800 tabular-nums whitespace-nowrap">{formatINR(cQty)} {c.unit || activeMaterialData.unit}</td>
+                                <td className="p-2.5 text-right text-slate-600 tabular-nums whitespace-nowrap">₹{formatINR(cRate)}</td>
+                                <td className="p-2.5 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">₹{formatINR(cSub)}</td>
+                                <td className="p-2.5 text-right font-bold text-amber-700 tabular-nums whitespace-nowrap">
+                                  +₹{formatINR(cGstAmt)} <span className="text-[10px] text-slate-500">({cGstPct}%)</span>
+                                </td>
+                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">₹{formatINR(c.totalAmount)}</td>
                                 <td className="p-2.5 text-center">
                                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
                                     isPaid ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
@@ -1704,7 +1807,7 @@ export default function MaterialPurchasePage() {
 
                 {activeMaterialData.matPurchases.length > 0 ? (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="max-h-60 overflow-y-auto overflow-x-hidden">
+                    <div className="max-h-60 overflow-y-auto overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                           <tr>
@@ -1712,7 +1815,8 @@ export default function MaterialPurchasePage() {
                             <th className="p-2.5">Supplier / Vendor</th>
                             <th className="p-2.5 text-right">Qty</th>
                             <th className="p-2.5 text-right">Rate</th>
-                            <th className="p-2.5 text-center">GST</th>
+                            <th className="p-2.5 text-right">Subtotal</th>
+                            <th className="p-2.5 text-right text-amber-700">GST (% &amp; ₹)</th>
                             <th className="p-2.5 text-right font-black">Total</th>
                             <th className="p-2.5 text-center">Payment</th>
                           </tr>
@@ -1720,17 +1824,21 @@ export default function MaterialPurchasePage() {
                         <tbody className="divide-y divide-slate-100">
                           {activeMaterialData.matPurchases.map((p, idx) => {
                             const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
+                            const bd = getPurchaseBreakdown(p);
                             return (
                               <tr key={idx} className="hover:bg-slate-50">
                                 <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(p.date)}</td>
                                 <td className="p-2.5 font-bold text-slate-900">{p.supplierName || p.partyName}</td>
-                                <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{formatINR(p.quantity)} {p.unit}</td>
-                                <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{formatINR(p.rate)}</td>
-                                <td className="p-2.5 text-center text-slate-600">{p.taxPercentage || 18}%</td>
-                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">
-                                  <div>₹{formatINR(p.totalAmount)}</div>
-                                  {Number(p.transportCost || 0) > 0 && (
-                                    <div className="text-[9px] text-indigo-600 font-normal">+₹{formatINR(p.transportCost)} transport</div>
+                                <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">{formatINR(bd.qty)} {p.unit}</td>
+                                <td className="p-2.5 text-right text-slate-600 tabular-nums whitespace-nowrap">₹{formatINR(bd.rate)}</td>
+                                <td className="p-2.5 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">₹{formatINR(bd.subtotal)}</td>
+                                <td className="p-2.5 text-right font-bold text-amber-700 tabular-nums whitespace-nowrap">
+                                  +₹{formatINR(bd.gstAmt)} <span className="text-[10px] text-slate-500">({bd.gstPct}%)</span>
+                                </td>
+                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
+                                  <div>₹{formatINR(bd.totalAmt)}</div>
+                                  {bd.transportCost > 0 && (
+                                    <div className="text-[9px] text-indigo-600 font-normal">+₹{formatINR(bd.transportCost)} transport</div>
                                   )}
                                 </td>
                                 <td className="p-2.5 text-center">
@@ -1820,23 +1928,33 @@ export default function MaterialPurchasePage() {
           }
         >
           <div className="space-y-5">
-            {/* 4 Summary Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-stretch">
+            {/* 5 Summary Stats Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
               <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Total Purchase Value
                 </span>
-                <span className="text-xl font-black text-slate-900 tabular-nums whitespace-nowrap">
+                <span className="text-lg font-black text-slate-900 tabular-nums whitespace-nowrap">
                   ₹{formatINR(activeSupplierData.totalAmount)}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">Across all materials</span>
+              </div>
+
+              <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200/80 h-full flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+                  Total GST Paid
+                </span>
+                <span className="text-lg font-black text-amber-800 tabular-nums whitespace-nowrap">
+                  +₹{formatINR(activeSupplierData.totalTax)}
+                </span>
+                <span className="text-[10px] text-amber-700/80 block mt-0.5">GST across bills</span>
               </div>
 
               <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Invoices / Bills
                 </span>
-                <span className="text-xl font-black text-slate-900 tabular-nums whitespace-nowrap">
+                <span className="text-lg font-black text-slate-900 tabular-nums whitespace-nowrap">
                   {activeSupplierData.invoicesCount} {activeSupplierData.invoicesCount === 1 ? "Bill" : "Bills"}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -1848,7 +1966,7 @@ export default function MaterialPurchasePage() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Total Quantity
                 </span>
-                <span className="text-xl font-black text-slate-900 tabular-nums whitespace-nowrap">
+                <span className="text-lg font-black text-slate-900 tabular-nums whitespace-nowrap">
                   {formatINR(activeSupplierData.totalQty)}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -1856,7 +1974,7 @@ export default function MaterialPurchasePage() {
                 </span>
               </div>
 
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between col-span-2 sm:col-span-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Payment Status
                 </span>
@@ -1914,6 +2032,12 @@ export default function MaterialPurchasePage() {
                           setEditingPurchaseId(null);
                           setPreselectedVendor(activeSupplierData.name);
                           setIsCustomVendorInput(false);
+                          const resolvedLastTax =
+                            lastMatchingPurchase?.taxPercentage !== undefined &&
+                            lastMatchingPurchase?.taxPercentage !== null &&
+                            String(lastMatchingPurchase.taxPercentage) !== ""
+                              ? String(lastMatchingPurchase.taxPercentage)
+                              : "18";
                           setFormData({
                             date: new Date().toISOString().split("T")[0],
                             supplierName: activeSupplierData.name,
@@ -1922,7 +2046,7 @@ export default function MaterialPurchasePage() {
                             unit: mat.unit || "Nos",
                             rate: lastMatchingPurchase?.rate ? String(lastMatchingPurchase.rate) : "",
                             transportationFee: "0",
-                            taxPercentage: lastMatchingPurchase?.taxPercentage ? String(lastMatchingPurchase.taxPercentage) : "18",
+                            taxPercentage: resolvedLastTax,
                             paymentStatus: "Paid",
                             notes: ""
                           });
@@ -1995,10 +2119,11 @@ export default function MaterialPurchasePage() {
                   );
                 });
 
-                const modalTotQty = displayPurchases.reduce((s, p) => s + Number(p.quantity || 0), 0);
-                const modalTotTax = displayPurchases.reduce((s, p) => s + Number(p.tax || 0), 0);
-                const modalTotTrans = displayPurchases.reduce((s, p) => s + Number(p.transportCost || 0), 0);
-                const modalTotVal = displayPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+                const modalTotQty = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).qty, 0);
+                const modalTotSub = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).subtotal, 0);
+                const modalTotTax = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).gstAmt, 0);
+                const modalTotTrans = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).transportCost, 0);
+                const modalTotVal = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).totalAmt, 0);
 
                 return (
                   <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
@@ -2010,7 +2135,8 @@ export default function MaterialPurchasePage() {
                             <th className="p-2.5">Material</th>
                             <th className="p-2.5 text-right">Qty</th>
                             <th className="p-2.5 text-right">Rate</th>
-                            <th className="p-2.5 text-center">GST</th>
+                            <th className="p-2.5 text-right">Subtotal</th>
+                            <th className="p-2.5 text-right text-amber-700">GST (% &amp; ₹)</th>
                             <th className="p-2.5 text-right">Transport</th>
                             <th className="p-2.5 text-right font-black">Total (₹)</th>
                             <th className="p-2.5 text-center">Payment</th>
@@ -2021,14 +2147,15 @@ export default function MaterialPurchasePage() {
                         <tbody className="divide-y divide-slate-100">
                           {displayPurchases.length === 0 ? (
                             <tr>
-                              <td colSpan={10} className="p-6 text-center text-slate-400">
+                              <td colSpan={11} className="p-6 text-center text-slate-400">
                                 No purchases matching search for this supplier.
                               </td>
                             </tr>
                           ) : (
                             displayPurchases.map((p, idx) => {
                               const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
-                              const transportAmt = Number(p.transportCost || 0);
+                              const bd = getPurchaseBreakdown(p);
+                              const transportAmt = bd.transportCost;
 
                               return (
                                 <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
@@ -2039,13 +2166,16 @@ export default function MaterialPurchasePage() {
                                     {p.materialName}
                                   </td>
                                   <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
-                                    {formatINR(p.quantity)} {p.unit}
+                                    {formatINR(bd.qty)} {p.unit}
                                   </td>
                                   <td className="p-2.5 text-right text-slate-600 tabular-nums whitespace-nowrap">
-                                    ₹{formatINR(p.rate)}
+                                    ₹{formatINR(bd.rate)}
                                   </td>
-                                  <td className="p-2.5 text-center text-slate-600">
-                                    {p.taxPercentage || 18}%
+                                  <td className="p-2.5 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">
+                                    ₹{formatINR(bd.subtotal)}
+                                  </td>
+                                  <td className="p-2.5 text-right text-amber-700 font-bold tabular-nums whitespace-nowrap">
+                                    +₹{formatINR(bd.gstAmt)} <span className="text-[10px] text-slate-500">({bd.gstPct}%)</span>
                                   </td>
                                   <td className="p-2.5 text-right font-medium tabular-nums whitespace-nowrap">
                                     {transportAmt > 0 ? (
@@ -2055,7 +2185,7 @@ export default function MaterialPurchasePage() {
                                     )}
                                   </td>
                                   <td className="p-2.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
-                                    ₹{formatINR(p.totalAmount)}
+                                    ₹{formatINR(bd.totalAmt)}
                                   </td>
                                   <td className="p-2.5 text-center">
                                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
@@ -2100,7 +2230,8 @@ export default function MaterialPurchasePage() {
                               </td>
                               <td className="p-2.5 text-right tabular-nums whitespace-nowrap">{formatINR(modalTotQty)}</td>
                               <td className="p-2.5"></td>
-                              <td className="p-2.5 text-center tabular-nums whitespace-nowrap">₹{formatINR(modalTotTax)}</td>
+                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">₹{formatINR(modalTotSub)}</td>
+                              <td className="p-2.5 text-right text-amber-800 tabular-nums whitespace-nowrap">+₹{formatINR(modalTotTax)}</td>
                               <td className="p-2.5 text-right tabular-nums whitespace-nowrap">₹{formatINR(modalTotTrans)}</td>
                               <td className="p-2.5 text-right text-emerald-800 tabular-nums whitespace-nowrap">
                                 ₹{formatINR(modalTotVal)}
