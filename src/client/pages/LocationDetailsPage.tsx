@@ -428,6 +428,7 @@ export default function LocationDetailsPage() {
         isOpen={isEditLocationOpen}
         onClose={() => setIsEditLocationOpen(false)}
         title="Edit Location Name & Details"
+        maxWidth="lg"
       >
         <form onSubmit={handleUpdateLocation} className="space-y-4">
           <div>

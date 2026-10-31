@@ -272,6 +272,7 @@ export default function LocationsPage() {
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
         title="+ Add New Project Location"
+        maxWidth="lg"
       >
         <form onSubmit={handleAddLocation} className="space-y-4">
           <div>
@@ -320,6 +321,7 @@ export default function LocationsPage() {
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         title="Edit Project Location"
+        maxWidth="lg"
       >
         <form onSubmit={handleUpdateLocation} className="space-y-4">
           <div>

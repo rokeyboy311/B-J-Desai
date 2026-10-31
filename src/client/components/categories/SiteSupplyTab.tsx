@@ -519,7 +519,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       </div>
 
       {/* Modal with Full GST Calculation */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Site Supply" : "Add Site Supply with GST"} maxWidth="2xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Site Supply" : "Add Site Supply with GST"} maxWidth="3xl">
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[82vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -621,7 +621,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                            </div>
                          )}
                        </div>
-                       <div className="grid grid-cols-4 sm:col-span-7 gap-2">
+                       <div className="grid grid-cols-2 sm:grid-cols-4 sm:col-span-7 gap-2">
                          <div>
                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Qty *</label>
                            <input type="number" step="any" inputMode="decimal" required placeholder="0.00" value={item.quantity} onChange={e => updateItem(index, 'quantity', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-bold text-teal-800" />
@@ -685,18 +685,18 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
 
             {/* Live Form Summary Banner */}
             <div className="bg-teal-900 text-white p-3.5 border-t border-teal-800">
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                 <div>
                   <div className="text-[10px] uppercase font-bold text-teal-300">Base Subtotal</div>
-                  <div className="text-sm font-bold mt-0.5">₹{formatINR(modalCalculations.totalTaxable)}</div>
+                  <div className="text-sm font-bold mt-0.5 font-mono tabular-nums">₹{formatINR(modalCalculations.totalTaxable)}</div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase font-bold text-amber-300">Total GST Tax</div>
-                  <div className="text-sm font-bold text-amber-300 mt-0.5">₹{formatINR(modalCalculations.totalTax)}</div>
+                  <div className="text-sm font-bold text-amber-300 mt-0.5 font-mono tabular-nums">₹{formatINR(modalCalculations.totalTax)}</div>
                 </div>
-                <div className="bg-teal-800/80 rounded-lg p-1">
+                <div className="bg-teal-800/80 rounded-lg p-1.5">
                   <div className="text-[10px] uppercase font-black text-white">Grand Total with GST</div>
-                  <div className="text-base font-black text-white mt-0.5">₹{formatINR(modalCalculations.grandTotal)}</div>
+                  <div className="text-base font-black text-white mt-0.5 font-mono tabular-nums">₹{formatINR(modalCalculations.grandTotal)}</div>
                 </div>
               </div>
             </div>

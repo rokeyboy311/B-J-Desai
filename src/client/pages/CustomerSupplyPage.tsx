@@ -397,9 +397,10 @@ export default function CustomerSupplyPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingId ? "Edit Customer Supply" : "+ Add Customer Supply"}
+        maxWidth="xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location *</label>
               <select
@@ -426,7 +427,7 @@ export default function CustomerSupplyPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Customer Name *</label>
               <input
@@ -577,6 +578,34 @@ export default function CustomerSupplyPage() {
               <option value="Pending">Pending</option>
             </select>
           </div>
+
+          {/* Live Calculation Preview */}
+          {(() => {
+            const q = parseFloat(formData.quantity) || 0;
+            const r = parseFloat(formData.rate) || 0;
+            const sub = q * r;
+            const gstPct = parseFloat(formData.taxPercentage) || 0;
+            const gst = (sub * gstPct) / 100;
+            const tot = sub + gst;
+            return (
+              <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-1.5 shadow-inner">
+                <div className="flex items-center justify-between text-xs text-slate-300 gap-2 min-w-0">
+                  <span className="truncate">Subtotal ({q} × ₹{r}):</span>
+                  <span className="shrink-0 font-mono font-medium tabular-nums">₹{formatINR(sub)}</span>
+                </div>
+                {gstPct > 0 && (
+                  <div className="flex items-center justify-between text-xs text-blue-300 gap-2 min-w-0">
+                    <span className="truncate">GST ({gstPct}%):</span>
+                    <span className="shrink-0 font-mono font-medium tabular-nums">+₹{formatINR(gst)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm font-bold text-emerald-400 pt-1.5 border-t border-slate-800 gap-2 min-w-0">
+                  <span className="truncate">Total Supply Amount:</span>
+                  <span className="shrink-0 font-mono font-black tabular-nums text-base">₹{formatINR(tot)}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="flex justify-end gap-2 pt-2">
             <button

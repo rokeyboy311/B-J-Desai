@@ -1361,6 +1361,7 @@ export default function MaterialPurchasePage() {
           setEditingPurchaseId(null);
         }}
         title={editingPurchaseId ? "Edit Material Purchase" : "+ Add Material Purchase"}
+        maxWidth="2xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Central Inventory Banner */}
@@ -1389,7 +1390,7 @@ export default function MaterialPurchasePage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Supplier / Vendor Name *</label>
               <input
@@ -1415,7 +1416,7 @@ export default function MaterialPurchasePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Quantity *</label>
               <input
@@ -1522,30 +1523,30 @@ export default function MaterialPurchasePage() {
             />
           </div>
 
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span>Subtotal (Qty &times; Rate):</span>
-              <span className="font-semibold tabular-nums">
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-600 gap-2 min-w-0">
+              <span className="truncate">Subtotal (Qty &times; Rate):</span>
+              <span className="font-semibold tabular-nums shrink-0 font-mono">
                 ₹{formatINR((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0))}
               </span>
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span>GST ({formData.taxPercentage}%):</span>
-              <span className="font-semibold tabular-nums">
+            <div className="flex items-center justify-between text-xs text-slate-600 gap-2 min-w-0">
+              <span className="truncate">GST ({formData.taxPercentage}%):</span>
+              <span className="font-semibold tabular-nums shrink-0 font-mono">
                 ₹{formatINR(((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * ((parseFloat(formData.taxPercentage) || 0) / 100))}
               </span>
             </div>
             {(parseFloat(formData.transportationFee) || 0) > 0 && (
-              <div className="flex items-center justify-between text-xs text-blue-700">
-                <span>Transportation Fee:</span>
-                <span className="font-bold tabular-nums">
+              <div className="flex items-center justify-between text-xs text-blue-700 gap-2 min-w-0">
+                <span className="truncate">Transportation Fee:</span>
+                <span className="font-bold tabular-nums shrink-0 font-mono">
                   + ₹{formatINR(parseFloat(formData.transportationFee) || 0)}
                 </span>
               </div>
             )}
-            <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 uppercase">Grand Total:</span>
-              <span className="text-base font-black text-slate-900 tabular-nums">
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 min-w-0">
+              <span className="text-xs font-bold text-slate-900 uppercase truncate">Grand Total:</span>
+              <span className="text-base font-black text-slate-900 tabular-nums shrink-0 font-mono">
                 ₹{formatINR(
                   ((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * (1 + (parseFloat(formData.taxPercentage) || 0) / 100) +
                   (parseFloat(formData.transportationFee) || 0)
@@ -1578,7 +1579,7 @@ export default function MaterialPurchasePage() {
           isOpen={!!selectedMaterialDetail}
           onClose={() => setSelectedMaterialDetail(null)}
           title={`Material Supply & Stock Details: ${activeMaterialData.materialName}`}
-          maxWidth="4xl"
+          maxWidth="5xl"
         >
           <div className="space-y-5">
             {/* Header KPI Cards */}
@@ -1736,8 +1737,8 @@ export default function MaterialPurchasePage() {
                     <div className="p-2.5 bg-slate-100/80 border-b border-slate-200 text-xs font-bold text-slate-800">
                       Detailed Site Supply Log
                     </div>
-                    <div className="max-h-60 overflow-y-auto">
-                      <table className="w-full text-left text-xs border-collapse">
+                    <div className="max-h-60 overflow-y-auto overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse min-w-[620px]">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                           <tr>
                             <th className="p-2.5">Date</th>
@@ -1786,8 +1787,8 @@ export default function MaterialPurchasePage() {
 
                 {activeMaterialData.matCustSupplies.length > 0 ? (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="max-h-60 overflow-y-auto">
-                      <table className="w-full text-left text-xs border-collapse">
+                    <div className="max-h-60 overflow-y-auto overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse min-w-[620px]">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                           <tr>
                             <th className="p-2.5">Date</th>
@@ -1849,8 +1850,8 @@ export default function MaterialPurchasePage() {
 
                 {activeMaterialData.matPurchases.length > 0 ? (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="max-h-60 overflow-y-auto">
-                      <table className="w-full text-left text-xs border-collapse">
+                    <div className="max-h-60 overflow-y-auto overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse min-w-[620px]">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                           <tr>
                             <th className="p-2.5">Date</th>
@@ -2096,8 +2097,8 @@ export default function MaterialPurchasePage() {
 
                 return (
                   <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-                    <div className="max-h-80 overflow-y-auto">
-                      <table className="w-full text-left text-xs border-collapse">
+                    <div className="max-h-80 overflow-y-auto overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
                           <tr>
                             <th className="p-2.5">Date</th>

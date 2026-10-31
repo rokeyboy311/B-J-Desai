@@ -542,6 +542,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         title="Add Other Expense"
+        maxWidth="xl"
       >
         <form onSubmit={handleSaveAdd} className="space-y-4">
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-900">
@@ -714,6 +715,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         title="Edit Other Kharch"
+        maxWidth="xl"
       >
         <form onSubmit={handleSaveEdit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

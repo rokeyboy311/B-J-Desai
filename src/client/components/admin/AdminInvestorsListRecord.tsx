@@ -892,13 +892,14 @@ export default function AdminInvestorsListRecord({
       <Modal
         isOpen={!!selectedInvestor}
         onClose={() => setSelectedInvestor(null)}
+        maxWidth="3xl"
         title={selectedInvestor ? `${selectedInvestor.name} - Passbook Ledger` : "Investor Passbook"}
       >
         {selectedInvestor && (
           <div className="space-y-6">
             {/* Investor Balance Overview Card */}
             <div className="bg-slate-900 text-white p-5 rounded-2xl">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div>
                   <h3 className="text-lg font-black text-white">{selectedInvestor.name}</h3>
                   <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
@@ -906,30 +907,30 @@ export default function AdminInvestorsListRecord({
                     {selectedInvestor.email && <span>✉️ {selectedInvestor.email}</span>}
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right">
                   <span className="text-[10px] uppercase font-bold text-amber-400">Available Net Balance</span>
-                  <p className="text-2xl font-black text-emerald-400">
+                  <p className="text-2xl font-black text-emerald-400 tabular-nums">
                     ₹{Number(selectedInvestor.availableBalance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-800 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800 text-xs">
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase">1. Contributed:</span>
-                  <p className="font-bold text-emerald-300">
+                  <p className="font-bold text-emerald-300 tabular-nums">
                     ₹{Number(selectedInvestor.totalCapital || 0).toLocaleString("en-IN")}
                   </p>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase">2. Upad / Withdrawn:</span>
-                  <p className="font-bold text-rose-300">
+                  <p className="font-bold text-rose-300 tabular-nums">
                     ₹{Number(selectedInvestor.totalUpad || 0).toLocaleString("en-IN")}
                   </p>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase">3. Allocated:</span>
-                  <p className="font-bold text-blue-300">
+                  <p className="font-bold text-blue-300 tabular-nums">
                     ₹{Number(selectedInvestor.totalAllocated || 0).toLocaleString("en-IN")}
                   </p>
                 </div>
@@ -941,7 +942,7 @@ export default function AdminInvestorsListRecord({
               <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">
                 1. Capital Inflows & Upads
               </h4>
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[10px] uppercase">
                     <tr>
@@ -991,7 +992,7 @@ export default function AdminInvestorsListRecord({
               <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">
                 2. Project Site Allocations
               </h4>
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[10px] uppercase">
                     <tr>
@@ -1040,6 +1041,7 @@ export default function AdminInvestorsListRecord({
       <Modal
         isOpen={isAddInvestorModalOpen}
         onClose={() => setIsAddInvestorModalOpen(false)}
+        maxWidth="xl"
         title="Register New Admin Investor"
       >
         <form onSubmit={handleCreateInvestor} className="space-y-4">
@@ -1055,7 +1057,7 @@ export default function AdminInvestorsListRecord({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Mobile Number</label>
               <input
@@ -1091,7 +1093,7 @@ export default function AdminInvestorsListRecord({
 
           <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3">
             <span className="text-xs font-bold text-emerald-900 uppercase block">Optional Initial Inflow</span>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">Initial Amount (₹)</label>
                 <input
@@ -1136,6 +1138,7 @@ export default function AdminInvestorsListRecord({
       <Modal
         isOpen={isEditInvestorModalOpen}
         onClose={() => setIsEditInvestorModalOpen(false)}
+        maxWidth="xl"
         title="Edit Admin Investor Profile"
       >
         <form onSubmit={handleUpdateInvestor} className="space-y-4">
@@ -1150,7 +1153,7 @@ export default function AdminInvestorsListRecord({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Mobile Number</label>
               <input
@@ -1213,6 +1216,7 @@ export default function AdminInvestorsListRecord({
       <Modal
         isOpen={isContributionModalOpen}
         onClose={() => setIsContributionModalOpen(false)}
+        maxWidth="xl"
         title={`Record Inflow for ${txForm.investorName}`}
       >
         <form onSubmit={handleRecordContribution} className="space-y-4">
@@ -1225,11 +1229,11 @@ export default function AdminInvestorsListRecord({
               placeholder="500000"
               value={txForm.amount}
               onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
               <DateInput
@@ -1298,6 +1302,7 @@ export default function AdminInvestorsListRecord({
       <Modal
         isOpen={isWithdrawalModalOpen}
         onClose={() => setIsWithdrawalModalOpen(false)}
+        maxWidth="xl"
         title={`Record Upad / Return for ${txForm.investorName}`}
       >
         <form onSubmit={handleRecordWithdrawal} className="space-y-4">
@@ -1310,11 +1315,11 @@ export default function AdminInvestorsListRecord({
               placeholder="100000"
               value={txForm.amount}
               onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500"
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 font-mono"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
               <DateInput
@@ -1383,6 +1388,7 @@ export default function AdminInvestorsListRecord({
       <Modal
         isOpen={isAllocationModalOpen}
         onClose={() => setIsAllocationModalOpen(false)}
+        maxWidth="xl"
         title={`Allocate Capital from ${txForm.investorName} to Location`}
       >
         <form onSubmit={handleRecordAllocation} className="space-y-4">
@@ -1410,11 +1416,11 @@ export default function AdminInvestorsListRecord({
               placeholder="200000"
               value={txForm.amount}
               onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date (DD-MM-YYYY) *</label>
               <DateInput

@@ -2805,6 +2805,7 @@ export default function AdminPage() {
         <Modal
           isOpen={isAddInvestorOpen}
           onClose={() => setIsAddInvestorOpen(false)}
+          maxWidth="xl"
           title="Add New Investor"
         >
           <form onSubmit={handleAddInvestor} className="space-y-4">
@@ -2923,6 +2924,7 @@ export default function AdminPage() {
             setIsEditInvestorOpen(false);
             setEditingInvestorId(null);
           }}
+          maxWidth="xl"
           title="Edit Investor Profile"
         >
           <form onSubmit={handleUpdateInvestor} className="space-y-4">
@@ -3012,6 +3014,7 @@ export default function AdminPage() {
             setIsDepositOpen(false);
             setEditingTxId(null);
           }}
+          maxWidth="xl"
           title={editingTxId ? "Edit Capital Deposit" : "Add Capital Deposit"}
         >
           <form onSubmit={handleDepositCapital} className="space-y-4">
@@ -3118,6 +3121,7 @@ export default function AdminPage() {
             setIsWithdrawalOpen(false);
             setEditingTxId(null);
           }}
+          maxWidth="xl"
           title={editingTxId ? "Edit Capital Withdrawal" : "Record Capital Withdrawal"}
         >
           <form onSubmit={handleWithdrawal} className="space-y-4">
@@ -3224,6 +3228,7 @@ export default function AdminPage() {
             setIsAllocationOpen(false);
             setEditingAllocId(null);
           }}
+          maxWidth="xl"
           title={editingAllocId ? "Edit Project Allocation" : "Transfer Capital to Location"}
         >
           <form onSubmit={handleAllocate} className="space-y-4">
@@ -3336,7 +3341,7 @@ export default function AdminPage() {
         <Modal
           isOpen={isBillModalOpen}
           onClose={() => setIsBillModalOpen(false)}
-          maxWidth="xl"
+          maxWidth="2xl"
           title={
             <div className="flex items-center gap-2">
               <div className="p-2 bg-blue-100 text-blue-800 rounded-lg"><FileText className="w-5 h-5" /></div>
@@ -3462,36 +3467,36 @@ export default function AdminPage() {
             </div>
 
             {/* Live Calculation Preview Box */}
-            <div className="bg-slate-900 text-white rounded-xl p-4 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-300">
-                <span>Bill Subtotal:</span>
-                <span>₹{formatINR(billCalc.subtotal)}</span>
+            <div className="bg-slate-900 text-white rounded-xl p-3.5 sm:p-4 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-3 min-w-0 text-slate-300">
+                <span className="shrink">Bill Subtotal:</span>
+                <span className="shrink-0 font-mono font-bold tabular-nums">₹{formatINR(billCalc.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-rose-400">
-                <span>GST ({billData.taxPercentage || 0}% on Bill Subtotal) (-):</span>
-                <span>-₹{formatINR(billCalc.taxAmount)}</span>
+              <div className="flex items-center justify-between gap-3 min-w-0 text-rose-400">
+                <span className="shrink">GST ({billData.taxPercentage || 0}% on Bill Subtotal) (-):</span>
+                <span className="shrink-0 font-mono font-bold tabular-nums">-₹{formatINR(billCalc.taxAmount)}</span>
               </div>
-              <div className="flex justify-between text-slate-200 font-semibold border-t border-slate-800 pt-1">
-                <span>Base Amount of TDS (Bill Subtotal - GST):</span>
-                <span>₹{formatINR(billCalc.tdsBaseAmount)}</span>
+              <div className="flex items-center justify-between gap-3 min-w-0 text-slate-200 font-semibold border-t border-slate-800 pt-1.5">
+                <span className="shrink">Base Amount of TDS (Bill Subtotal - GST):</span>
+                <span className="shrink-0 font-mono font-bold tabular-nums">₹{formatINR(billCalc.tdsBaseAmount)}</span>
               </div>
-              <div className="flex justify-between text-rose-400">
-                <span>TDS ({billData.tdsPercentage || 0}% on Base Amount of TDS) (-):</span>
-                <span>-₹{formatINR(billCalc.tdsAmount)}</span>
+              <div className="flex items-center justify-between gap-3 min-w-0 text-rose-400">
+                <span className="shrink">TDS ({billData.tdsPercentage || 0}% on Base Amount of TDS) (-):</span>
+                <span className="shrink-0 font-mono font-bold tabular-nums">-₹{formatINR(billCalc.tdsAmount)}</span>
               </div>
-              <div className="flex justify-between text-slate-300 border-t border-slate-800 pt-1">
-                <span>Amount After TDS (Base Amount of TDS - TDS):</span>
-                <span>₹{formatINR(billCalc.afterTdsAmount)}</span>
+              <div className="flex items-center justify-between gap-3 min-w-0 text-slate-300 border-t border-slate-800 pt-1.5">
+                <span className="shrink">Amount After TDS (Base Amount of TDS - TDS):</span>
+                <span className="shrink-0 font-mono font-bold tabular-nums">₹{formatINR(billCalc.afterTdsAmount)}</span>
               </div>
               {billCalc.transport > 0 && (
-                <div className="flex justify-between text-amber-300">
-                  <span>Transport Fee (Added separately) (+):</span>
-                  <span>+₹{formatINR(billCalc.transport)}</span>
+                <div className="flex items-center justify-between gap-3 min-w-0 text-amber-300">
+                  <span className="shrink">Transport Fee (Added separately) (+):</span>
+                  <span className="shrink-0 font-mono font-bold tabular-nums">+₹{formatINR(billCalc.transport)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
-                <span>Net Total Amount:</span>
-                <span>₹{formatINR(billCalc.netTotal)}</span>
+              <div className="flex items-center justify-between gap-3 min-w-0 text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
+                <span className="shrink">Net Total Amount:</span>
+                <span className="shrink-0 font-mono font-bold tabular-nums text-lg">₹{formatINR(billCalc.netTotal)}</span>
               </div>
             </div>
 
@@ -3549,7 +3554,7 @@ export default function AdminPage() {
             setIsRefundableModalOpen(false);
             setEditingRefundableId(null);
           }}
-          maxWidth="lg"
+          maxWidth="2xl"
           title={
             <div className="flex items-center gap-2">
               <div className="p-2 bg-purple-100 text-purple-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
@@ -3577,7 +3582,7 @@ export default function AdminPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Type</label>
                 <select
@@ -3606,7 +3611,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Amount (₹) *</label>
                 <input
@@ -3675,7 +3680,7 @@ export default function AdminPage() {
         <Modal
           isOpen={isRefundModalOpen}
           onClose={() => setIsRefundModalOpen(false)}
-          maxWidth="md"
+          maxWidth="lg"
           title={
             <div className="flex items-center gap-2">
               <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
@@ -3689,24 +3694,24 @@ export default function AdminPage() {
           }
         >
           <form onSubmit={handleProcessRefund} className="space-y-4">
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total Deposited Amount:</span>
-                <span className="font-bold text-slate-800">₹{formatINR(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0)}</span>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-3 min-w-0">
+                <span className="text-slate-500 shrink">Total Deposited Amount:</span>
+                <span className="font-bold text-slate-800 shrink-0 font-mono tabular-nums">₹{formatINR(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Previously Refunded:</span>
-                <span className="font-bold text-emerald-700">₹{formatINR(activeRefundRecord?.refundedAmount || 0)}</span>
+              <div className="flex items-center justify-between gap-3 min-w-0">
+                <span className="text-slate-500 shrink">Previously Refunded:</span>
+                <span className="font-bold text-emerald-700 shrink-0 font-mono tabular-nums">₹{formatINR(activeRefundRecord?.refundedAmount || 0)}</span>
               </div>
-              <div className="flex justify-between border-t border-slate-200 pt-1">
-                <span className="font-bold text-slate-700">Remaining Pending:</span>
-                <span className="font-black text-amber-800">
+              <div className="flex items-center justify-between gap-3 min-w-0 border-t border-slate-200 pt-1.5">
+                <span className="font-bold text-slate-700 shrink">Remaining Pending:</span>
+                <span className="font-black text-amber-800 shrink-0 font-mono tabular-nums">
                   ₹{formatINR(Math.max(0, Number(activeRefundRecord?.refundableAmount || activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0)))}
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Refund Received Date (DD-MM-YYYY) *</label>
                 <DateInput
@@ -3727,7 +3732,7 @@ export default function AdminPage() {
                   required
                   value={refundActionData.refundedAmount}
                   onChange={e => setRefundActionData({ ...refundActionData, refundedAmount: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-700"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-700 font-mono"
                   placeholder="0.00"
                 />
               </div>

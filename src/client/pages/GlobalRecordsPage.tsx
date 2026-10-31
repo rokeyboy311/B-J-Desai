@@ -401,6 +401,7 @@ export default function GlobalRecordsPage() {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         title="Export All Data"
+        maxWidth="lg"
       >
         <form onSubmit={handleExport} className="space-y-4">
           <p className="text-xs sm:text-sm text-slate-500 mb-2 font-medium">

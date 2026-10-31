@@ -1666,7 +1666,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
       <Modal
         isOpen={isPartyModalOpen}
         onClose={() => setIsPartyModalOpen(false)}
-        maxWidth="md"
+        maxWidth="xl"
         title={editingPartyId ? "Edit Investor Account" : "Add New Investor Account"}
       >
         <form onSubmit={handleSaveParty} className="space-y-4">
@@ -1686,7 +1686,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
           </div>
 
           {!editingPartyId && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Initial Capital (Optional)</label>
                 <input
@@ -1722,7 +1722,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-amber-100 text-amber-800 rounded-lg">
@@ -1751,7 +1751,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date (DD-MM-YYYY) *</label>
               <DateInput
@@ -1775,7 +1775,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
               <select
@@ -1825,7 +1825,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
       <Modal
         isOpen={isContributionModalOpen}
         onClose={() => setIsContributionModalOpen(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg">
@@ -1854,7 +1854,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY) *</label>
               <DateInput
@@ -1878,7 +1878,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
               <select
@@ -1928,7 +1928,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
       <Modal
         isOpen={isInvestmentModalOpen}
         onClose={() => setIsInvestmentModalOpen(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-indigo-100 text-indigo-800 rounded-lg">
@@ -1963,7 +1963,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Deployment Date (DD-MM-YYYY) *</label>
               <DateInput
@@ -1987,7 +1987,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
               <select
@@ -2044,7 +2044,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
           setIsAllocationModalOpen(false);
           setEditingAllocId(null);
         }}
-        maxWidth="lg"
+        maxWidth="xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-indigo-100 text-indigo-800 rounded-lg">
@@ -2097,7 +2097,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Transfer Date (DD-MM-YYYY) *</label>
               <DateInput
@@ -2121,7 +2121,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment / Transfer Method</label>
               <select

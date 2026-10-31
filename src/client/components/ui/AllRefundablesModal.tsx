@@ -112,7 +112,7 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
       isOpen={isOpen}
       onClose={onClose}
       title="All Refundable Records"
-      maxWidth="max-w-6xl"
+      maxWidth="6xl"
     >
       <div className="space-y-4">
         {/* Top Financial Summary Cards */}
@@ -273,7 +273,7 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
           </div>
 
           {/* Desktop Table (>= 640px) */}
-          <div className="hidden sm:block max-h-[480px] overflow-y-auto">
+          <div className="hidden sm:block max-h-[480px] overflow-y-auto overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
               <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
                 <tr>

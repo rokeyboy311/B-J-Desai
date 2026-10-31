@@ -1132,6 +1132,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           setEditingAllocationId(null);
         }}
         title={editingAllocationId ? "Edit Investor Capital Allocation" : "Add Investor Capital from Admin Capital"}
+        maxWidth="xl"
       >
         <form onSubmit={handleAddAllocation} className="space-y-4">
           {/* Header Info Box */}
@@ -1320,6 +1321,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           setEditingDeployTx(null);
         }}
         title="Edit Deployed Investment Record"
+        maxWidth="xl"
       >
         {editingDeployTx && (
           <form onSubmit={handleSaveDeployTx} className="space-y-4">

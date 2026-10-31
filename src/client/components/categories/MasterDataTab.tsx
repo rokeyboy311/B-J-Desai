@@ -254,7 +254,7 @@ export default function MasterDataTab({ locationId }: { locationId: number }) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingId ? `Edit ${activeTab === 'materials' ? 'Material' : 'Team'}` : `Add New ${activeTab === 'materials' ? 'Material' : 'Team'}`}
-        maxWidth="md"
+        maxWidth="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

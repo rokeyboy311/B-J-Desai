@@ -2876,7 +2876,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isCapitalModalOpen}
         onClose={() => setIsCapitalModalOpen(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><Building2 className="w-5 h-5" /></div>
@@ -2953,7 +2953,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-xs">
                   <div className="bg-white/95 p-2.5 rounded-lg border border-slate-200 shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-slate-500 block">
                       Category 7 Investor Capital
@@ -3015,7 +3015,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             );
           })()}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Investment Date *</label>
               <DateInput
@@ -3063,7 +3063,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
               <select
@@ -3113,7 +3113,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-amber-100 text-amber-800 rounded-lg"><ArrowDownLeft className="w-5 h-5" /></div>
@@ -3140,7 +3140,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Date *</label>
               <DateInput
@@ -3158,13 +3158,13 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 required
                 value={paymentFormData.amount}
                 onChange={e => setPaymentFormData({ ...paymentFormData, amount: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-amber-800"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-amber-800 font-mono"
                 placeholder="0.00"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
               <select
@@ -3214,7 +3214,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isBillModalOpen}
         onClose={() => setIsBillModalOpen(false)}
-        maxWidth="xl"
+        maxWidth="2xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-blue-100 text-blue-800 rounded-lg"><FileText className="w-5 h-5" /></div>
@@ -3340,36 +3340,36 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </div>
 
           {/* Live Calculation Preview Box */}
-          <div className="bg-slate-900 text-white rounded-xl p-4 space-y-1.5 text-xs">
-            <div className="flex justify-between text-slate-300">
-              <span>Bill Subtotal:</span>
-              <span>₹{billCalc.subtotal.toFixed(2)}</span>
+          <div className="bg-slate-900 text-white rounded-xl p-3.5 sm:p-4 space-y-2 text-xs">
+            <div className="flex items-center justify-between gap-3 min-w-0 text-slate-300">
+              <span className="shrink">Bill Subtotal:</span>
+              <span className="shrink-0 font-mono font-bold tabular-nums">₹{formatINR(billCalc.subtotal)}</span>
             </div>
-            <div className="flex justify-between text-rose-400">
-              <span>GST ({billData.taxPercentage || 0}% on Bill Subtotal) (-):</span>
-              <span>-₹{billCalc.taxAmount.toFixed(2)}</span>
+            <div className="flex items-center justify-between gap-3 min-w-0 text-rose-400">
+              <span className="shrink">GST ({billData.taxPercentage || 0}% on Bill Subtotal) (-):</span>
+              <span className="shrink-0 font-mono font-bold tabular-nums">-₹{formatINR(billCalc.taxAmount)}</span>
             </div>
-            <div className="flex justify-between text-slate-200 font-semibold border-t border-slate-800 pt-1">
-              <span>Base Amount of TDS (Bill Subtotal - GST):</span>
-              <span>₹{billCalc.tdsBaseAmount.toFixed(2)}</span>
+            <div className="flex items-center justify-between gap-3 min-w-0 text-slate-200 font-semibold border-t border-slate-800 pt-1.5">
+              <span className="shrink">Base Amount of TDS (Bill Subtotal - GST):</span>
+              <span className="shrink-0 font-mono font-bold tabular-nums">₹{formatINR(billCalc.tdsBaseAmount)}</span>
             </div>
-            <div className="flex justify-between text-rose-400">
-              <span>TDS ({billData.tdsPercentage || 0}% on Base Amount of TDS) (-):</span>
-              <span>-₹{billCalc.tdsAmount.toFixed(2)}</span>
+            <div className="flex items-center justify-between gap-3 min-w-0 text-rose-400">
+              <span className="shrink">TDS ({billData.tdsPercentage || 0}% on Base Amount of TDS) (-):</span>
+              <span className="shrink-0 font-mono font-bold tabular-nums">-₹{formatINR(billCalc.tdsAmount)}</span>
             </div>
-            <div className="flex justify-between text-slate-300 border-t border-slate-800 pt-1">
-              <span>Amount After TDS (Base Amount of TDS - TDS):</span>
-              <span>₹{billCalc.afterTdsAmount.toFixed(2)}</span>
+            <div className="flex items-center justify-between gap-3 min-w-0 text-slate-300 border-t border-slate-800 pt-1.5">
+              <span className="shrink">Amount After TDS (Base Amount of TDS - TDS):</span>
+              <span className="shrink-0 font-mono font-bold tabular-nums">₹{formatINR(billCalc.afterTdsAmount)}</span>
             </div>
             {billCalc.transport > 0 && (
-              <div className="flex justify-between text-amber-300">
-                <span>Transport Fee (Added separately) (+):</span>
-                <span>+₹{billCalc.transport.toFixed(2)}</span>
+              <div className="flex items-center justify-between gap-3 min-w-0 text-amber-300">
+                <span className="shrink">Transport Fee (Added separately) (+):</span>
+                <span className="shrink-0 font-mono font-bold tabular-nums">+₹{formatINR(billCalc.transport)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
-              <span>Net Total Amount:</span>
-              <span>₹{billCalc.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <div className="flex items-center justify-between gap-3 min-w-0 text-base font-black text-emerald-400 pt-2 border-t border-slate-800">
+              <span className="shrink">Net Total Amount:</span>
+              <span className="shrink-0 font-mono font-bold tabular-nums text-lg">₹{formatINR(billCalc.netTotal)}</span>
             </div>
           </div>
 
@@ -3427,7 +3427,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           setIsRefundableModalOpen(false);
           setEditingRefundableId(null);
         }}
-        maxWidth="lg"
+        maxWidth="2xl"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-purple-100 text-purple-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
@@ -3455,7 +3455,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Type</label>
               <select
@@ -3484,7 +3484,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Deposit Amount (₹) *</label>
               <input
@@ -3537,7 +3537,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           </div>
 
           <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 text-xs text-purple-900 font-medium">
-            💡 <strong>Note:</strong> After saving, ₹{parseFloat(refundableFormData.amount) || 0} will be temporarily deducted from Category 2 Investment Capital and tracked under Pending Refunds.
+            💡 <strong>Note:</strong> After saving, ₹{formatINR(refundableFormData.amount)} will be temporarily deducted from Category 2 Investment Capital and tracked under Pending Refunds.
           </div>
 
           <button
@@ -3553,7 +3553,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       <Modal
         isOpen={isRefundModalOpen}
         onClose={() => setIsRefundModalOpen(false)}
-        maxWidth="md"
+        maxWidth="lg"
         title={
           <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg"><Receipt className="w-5 h-5" /></div>
@@ -3567,24 +3567,24 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
         }
       >
         <form onSubmit={handleProcessRefund} className="space-y-4">
-          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Total Deposited Amount:</span>
-              <span className="font-bold text-slate-800">₹{Number(activeRefundRecord?.amount || 0).toLocaleString()}</span>
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <span className="text-slate-500 shrink">Total Deposited Amount:</span>
+              <span className="font-bold text-slate-800 shrink-0 font-mono tabular-nums">₹{formatINR(activeRefundRecord?.amount || 0)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Previously Refunded:</span>
-              <span className="font-bold text-emerald-700">₹{Number(activeRefundRecord?.refundedAmount || 0).toLocaleString()}</span>
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <span className="text-slate-500 shrink">Previously Refunded:</span>
+              <span className="font-bold text-emerald-700 shrink-0 font-mono tabular-nums">₹{formatINR(activeRefundRecord?.refundedAmount || 0)}</span>
             </div>
-            <div className="flex justify-between border-t border-slate-200 pt-1">
-              <span className="font-bold text-slate-700">Remaining Pending:</span>
-              <span className="font-black text-amber-800">
-                ₹{Math.max(0, Number(activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0)).toLocaleString()}
+            <div className="flex items-center justify-between gap-3 min-w-0 border-t border-slate-200 pt-1.5">
+              <span className="font-bold text-slate-700 shrink">Remaining Pending:</span>
+              <span className="font-black text-amber-800 shrink-0 font-mono tabular-nums">
+                ₹{formatINR(Math.max(0, Number(activeRefundRecord?.amount || 0) - Number(activeRefundRecord?.refundedAmount || 0)))}
               </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Refund Received Date *</label>
               <DateInput
@@ -3605,7 +3605,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
                 required
                 value={refundActionData.refundedAmount}
                 onChange={e => setRefundActionData({ ...refundActionData, refundedAmount: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-700"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-emerald-700 font-mono"
                 placeholder="0.00"
               />
             </div>
@@ -3626,7 +3626,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
             type="submit"
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-sm cursor-pointer"
           >
-            Confirm & Record Refund
+            Confirm &amp; Record Refund
           </button>
         </form>
       </Modal>

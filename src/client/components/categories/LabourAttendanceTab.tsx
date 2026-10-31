@@ -1586,11 +1586,11 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
           setEditingRecord(null);
         }}
         title="Edit Labour / Expense Record"
-        maxWidth="lg"
+        maxWidth="xl"
       >
         {editingRecord && (
           <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY)</label>
                 <DateInput
@@ -1620,7 +1620,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
             {/* Attendance fields */}
             {editingRecord.attendanceType !== "TEAM_UPAD" && editingRecord.attendanceType !== "OTHER_KHARCH" && (
               <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Type</label>
                     <select
@@ -1662,7 +1662,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 </div>
 
                 {editingRecord.attendanceType === "TC_WISE" ? (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Unit</label>
                       <select
@@ -1747,7 +1747,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
 
             {/* Upad / Kharch Amount fields */}
             {(editingRecord.attendanceType === "TEAM_UPAD" || editingRecord.attendanceType === "OTHER_KHARCH") && (
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Amount (₹)</label>
                   <input

@@ -680,6 +680,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingId ? "Edit Contractor Cost" : "Add Contractor Cost"}
+        maxWidth="xl"
       >
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -757,7 +758,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Net Payable (₹)</label>
-              <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-black text-slate-900">
+              <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-black text-slate-900 font-mono truncate tabular-nums">
                 ₹{formatINR(netAmountCalc)}
               </div>
             </div>

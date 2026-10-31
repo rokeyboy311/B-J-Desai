@@ -323,9 +323,9 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Supply" : "Add Supply (GST Bill)"} maxWidth="xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Supply" : "Add Supply (GST Bill)"} maxWidth="2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Date (DD-MM-YYYY)</label>
               <DateInput required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
@@ -350,7 +350,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
               </datalist>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-slate-700">Material *</label>
@@ -388,18 +388,18 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Quantity</label>
-                <input type="number" step="0.01" required value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                <input type="number" step="0.01" required value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Rate</label>
-                <input type="number" step="0.01" required value={formData.rate} onChange={e => setFormData({...formData, rate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                <input type="number" step="0.01" required value={formData.rate} onChange={e => setFormData({...formData, rate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold" />
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
              <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">GST Percentage (%)</label>
               <input type="number" step="0.1" value={formData.taxPercentage} onChange={e => setFormData({...formData, taxPercentage: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
@@ -410,7 +410,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
             </div>
           </div>
           
-                    <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Transport Fee (₹) (+)</label>
               <input type="number" step="0.01" value={formData.transportCost} onChange={e => setFormData({...formData, transportCost: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
@@ -422,10 +422,10 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
              <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Status</label>
-              <select value={formData.paymentStatus} onChange={e => setFormData({...formData, paymentStatus: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+              <select value={formData.paymentStatus} onChange={e => setFormData({...formData, paymentStatus: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold">
                 <option value="UNPAID">UNPAID</option>
                 <option value="PARTIAL">PARTIAL</option>
                 <option value="PAID">PAID</option>
@@ -433,7 +433,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
-              <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+              <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold">
                 <option value="">-- None --</option>
                 <option value="CASH">CASH</option>
                 <option value="BANK">BANK / ONLINE</option>
@@ -447,15 +447,34 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
             <input type="text" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
           </div>
 
-          <div className="bg-orange-50/50 p-3 rounded-lg border border-orange-100 flex flex-col gap-1.5 text-xs">
-             <div className="flex justify-between text-slate-500"><span>Material Subtotal:</span> <span>₹{calculations.subtotal.toLocaleString()}</span></div>
-             {Number(formData.discount) > 0 && <div className="flex justify-between text-emerald-600"><span>Discount:</span> <span>-₹{Number(formData.discount).toLocaleString()}</span></div>}
-             <div className="flex justify-between text-slate-500"><span>GST ({formData.taxPercentage}% on taxable amount):</span> <span>₹{calculations.tax.toLocaleString()}</span></div>
-             {Number(formData.transportCost) > 0 && <div className="flex justify-between text-amber-700 font-medium"><span>Transport Fee (No GST, added separately):</span> <span>+₹{Number(formData.transportCost).toLocaleString()}</span></div>}
-             <div className="flex justify-between font-bold text-slate-800 text-base pt-1.5 border-t border-orange-200 mt-1"><span>Total Bill Amount:</span> <span className="text-orange-700">₹{calculations.total.toLocaleString()}</span></div>
+          <div className="bg-orange-50/50 p-3.5 rounded-xl border border-orange-100 flex flex-col gap-2 text-xs">
+             <div className="flex justify-between items-center text-slate-600 gap-2 min-w-0">
+               <span className="truncate">Material Subtotal:</span> 
+               <span className="font-semibold tabular-nums shrink-0 font-mono">₹{formatINR(calculations.subtotal)}</span>
+             </div>
+             {Number(formData.discount) > 0 && (
+               <div className="flex justify-between items-center text-emerald-600 gap-2 min-w-0">
+                 <span className="truncate">Discount:</span> 
+                 <span className="font-semibold tabular-nums shrink-0 font-mono">-₹{formatINR(Number(formData.discount))}</span>
+               </div>
+             )}
+             <div className="flex justify-between items-center text-slate-600 gap-2 min-w-0">
+               <span className="truncate">GST ({formData.taxPercentage}% on taxable amount):</span> 
+               <span className="font-semibold tabular-nums shrink-0 font-mono">₹{formatINR(calculations.tax)}</span>
+             </div>
+             {Number(formData.transportCost) > 0 && (
+               <div className="flex justify-between items-center text-amber-700 font-medium gap-2 min-w-0">
+                 <span className="truncate">Transport Fee (No GST, added separately):</span> 
+                 <span className="font-bold tabular-nums shrink-0 font-mono">+₹{formatINR(Number(formData.transportCost))}</span>
+               </div>
+             )}
+             <div className="flex justify-between items-center font-bold text-slate-800 text-base pt-2 border-t border-orange-200 mt-0.5 gap-2 min-w-0">
+               <span className="truncate">Total Bill Amount:</span> 
+               <span className="text-orange-700 font-black tabular-nums shrink-0 font-mono">₹{formatINR(calculations.total)}</span>
+             </div>
           </div>
 
-          <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg">Save Supply & Update Stock</button>
+          <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg shadow-sm cursor-pointer transition-colors">Save Supply & Update Stock</button>
         </form>
       </Modal>
 

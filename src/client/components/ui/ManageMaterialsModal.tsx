@@ -184,7 +184,7 @@ export function ManageMaterialsModal({
           </div>
         </div>
       }
-      maxWidth="md"
+      maxWidth="lg"
     >
       <div className="space-y-4">
         {/* Alerts */}

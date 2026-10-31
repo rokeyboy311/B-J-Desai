@@ -1082,6 +1082,7 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
           setEditingCustomerId(null);
         }}
         title={editingCustomerId ? "Edit Customer Supply" : "Record Customer Supply"}
+        maxWidth="xl"
       >
         <form onSubmit={handleSaveCustomerSupply} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1270,14 +1271,14 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
             </div>
           </div>
 
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
-            <span className="font-bold text-slate-600">Calculated Total with Tax:</span>
-            <span className="font-black text-slate-900 text-sm">
-              ₹{(
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs gap-2 min-w-0">
+            <span className="font-bold text-slate-600 truncate">Calculated Total with Tax:</span>
+            <span className="font-black text-slate-900 text-sm font-mono shrink-0 tabular-nums">
+              ₹{formatINR(
                 (parseFloat(customerFormData.quantity) || 0) * 
                 (parseFloat(customerFormData.rate) || 0) * 
                 (1 + (parseFloat(customerFormData.taxPercentage) || 0) / 100)
-              ).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              )}
             </span>
           </div>
 
@@ -1308,7 +1309,7 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
           setEditingSiteId(null);
         }}
         title={editingSiteId ? "Edit Site Supply" : "Add Site Supply with GST"}
-        maxWidth="2xl"
+        maxWidth="3xl"
       >
         <form onSubmit={handleSaveSiteSupply} className="space-y-4 max-h-[82vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1443,7 +1444,7 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                           </div>
                         )}
                       </div>
-                      <div className="grid grid-cols-4 sm:col-span-7 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 sm:col-span-7 gap-2">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Qty *</label>
                           <input
@@ -1506,11 +1507,11 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
                     {/* Live Item Total Strip */}
                     <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 flex flex-wrap justify-between items-center text-[11px]">
                       <div className="flex gap-3 text-slate-600">
-                        <span>Taxable Subtotal: <strong className="text-slate-800">₹{computed.subtotal.toFixed(2)}</strong></span>
-                        <span>GST Tax: <strong className="text-amber-700">₹{computed.itemTax.toFixed(2)} ({item.taxPercentage}%)</strong></span>
+                        <span>Taxable Subtotal: <strong className="text-slate-800 font-mono tabular-nums">₹{formatINR(computed.subtotal)}</strong></span>
+                        <span>GST Tax: <strong className="text-amber-700 font-mono tabular-nums">₹{formatINR(computed.itemTax)} ({item.taxPercentage}%)</strong></span>
                       </div>
-                      <div className="font-bold text-teal-800">
-                        Total with GST: <strong>₹{computed.itemTotal.toFixed(2)}</strong>
+                      <div className="font-bold text-teal-800 font-mono tabular-nums">
+                        Total with GST: <strong>₹{formatINR(computed.itemTotal)}</strong>
                       </div>
                     </div>
                   </div>
@@ -1528,18 +1529,18 @@ export default function LocationMaterialHubTab({ locationId }: LocationMaterialH
 
             {/* Live Form Summary Banner */}
             <div className="bg-teal-900 text-white p-3.5 border-t border-teal-800">
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                 <div>
                   <div className="text-[10px] uppercase font-bold text-teal-300">Base Subtotal</div>
-                  <div className="text-sm font-bold mt-0.5">₹{siteModalCalculations.totalTaxable.toLocaleString()}</div>
+                  <div className="text-sm font-bold mt-0.5 font-mono tabular-nums">₹{formatINR(siteModalCalculations.totalTaxable)}</div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase font-bold text-amber-300">Total GST Tax</div>
-                  <div className="text-sm font-bold text-amber-300 mt-0.5">₹{siteModalCalculations.totalTax.toLocaleString()}</div>
+                  <div className="text-sm font-bold text-amber-300 mt-0.5 font-mono tabular-nums">₹{formatINR(siteModalCalculations.totalTax)}</div>
                 </div>
-                <div className="bg-teal-800/80 rounded-lg p-1">
+                <div className="bg-teal-800/80 rounded-lg p-1.5">
                   <div className="text-[10px] uppercase font-black text-white">Grand Total with GST</div>
-                  <div className="text-base font-black text-white mt-0.5">₹{siteModalCalculations.grandTotal.toLocaleString()}</div>
+                  <div className="text-base font-black text-white mt-0.5 font-mono tabular-nums">₹{formatINR(siteModalCalculations.grandTotal)}</div>
                 </div>
               </div>
             </div>

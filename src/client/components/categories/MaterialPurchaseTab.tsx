@@ -1009,7 +1009,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
       {/* Form Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Material Purchase" : "Add Material Purchase"} maxWidth="2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">1. Purchase Date (DD-MM-YYYY) *</label>
               <DateInput required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
@@ -1028,7 +1028,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             <input type="text" required value={formData.partyName} onChange={e => setFormData({...formData, partyName: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. ABC Cements" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-slate-700">4. Material Name *</label>
@@ -1085,7 +1085,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">5. Quantity *</label>
               <input type="number" step="0.01" required value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
@@ -1096,7 +1096,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 border-t border-slate-200 pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-200 pt-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">8. Transport Fee (₹) (+)</label>
               <input type="number" step="0.01" value={formData.transportCost} onChange={e => setFormData({...formData, transportCost: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="0.00" />
@@ -1113,7 +1113,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
           </div>
 
           {formData.paymentStatus === 'PAID' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">11. Payment Method</label>
                 <select value={formData.paymentMethod} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm">
@@ -1133,7 +1133,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
              <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">12. Bill / Challan / Ref No.</label>
               <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Bill No." />
@@ -1147,29 +1147,29 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
           {/* Unit & Total Calculation */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 mt-2">
             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider">Unit & Total Calculation</h4>
-            <div className="flex justify-between items-center text-sm text-slate-600">
-               <span>14. Base Material Subtotal</span>
-               <span className="font-semibold">₹{calculations.subtotal.toLocaleString()}</span>
+            <div className="flex justify-between items-center text-sm text-slate-600 gap-2 min-w-0">
+               <span className="truncate">14. Base Material Subtotal</span>
+               <span className="font-semibold tabular-nums shrink-0 font-mono">₹{formatINR(calculations.subtotal)}</span>
             </div>
             {Number(formData.discount || 0) > 0 && (
-              <div className="flex justify-between items-center text-sm text-emerald-600">
-                 <span>Discount</span>
-                 <span className="font-semibold">- ₹{Number(formData.discount || 0).toLocaleString()}</span>
+              <div className="flex justify-between items-center text-sm text-emerald-600 gap-2 min-w-0">
+                 <span className="truncate">Discount</span>
+                 <span className="font-semibold tabular-nums shrink-0 font-mono">- ₹{formatINR(Number(formData.discount || 0))}</span>
               </div>
             )}
             {Number(formData.taxPercentage || 0) > 0 && (
-              <div className="flex justify-between items-center text-sm text-slate-600">
-                 <span>GST ({formData.taxPercentage}%)</span>
-                 <span className="font-semibold">+ ₹{calculations.tax.toLocaleString()}</span>
+              <div className="flex justify-between items-center text-sm text-slate-600 gap-2 min-w-0">
+                 <span className="truncate">GST ({formData.taxPercentage}%)</span>
+                 <span className="font-semibold tabular-nums shrink-0 font-mono">+ ₹{formatINR(calculations.tax)}</span>
               </div>
             )}
-            <div className="flex justify-between items-center text-sm text-slate-600 border-b border-slate-200 pb-2">
-               <span>15. Transport Fee (No GST, added separately)</span>
-               <span className="font-semibold">+ ₹{Number(formData.transportCost || 0).toLocaleString()}</span>
+            <div className="flex justify-between items-center text-sm text-slate-600 border-b border-slate-200 pb-2 gap-2 min-w-0">
+               <span className="truncate">15. Transport Fee (No GST, added separately)</span>
+               <span className="font-semibold tabular-nums shrink-0 font-mono">+ ₹{formatINR(Number(formData.transportCost || 0))}</span>
             </div>
-            <div className="flex justify-between items-center font-black text-rose-700 text-lg pt-1">
-               <span>16. Net Total Payable</span>
-               <span>₹{calculations.total.toLocaleString()}</span>
+            <div className="flex justify-between items-center font-black text-rose-700 text-lg pt-1 gap-2 min-w-0">
+               <span className="truncate">16. Net Total Payable</span>
+               <span className="tabular-nums shrink-0 font-mono">₹{formatINR(calculations.total)}</span>
             </div>
           </div>
 
@@ -1212,7 +1212,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
             setSelectedVendorDetail(null);
             setVendorModalSearch("");
           }}
-          maxWidth="4xl"
+          maxWidth="5xl"
           title={
             <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-3 pr-6">
               <div className="flex items-center gap-3">
@@ -1284,8 +1284,8 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
             {/* Inward Purchases Table */}
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-              <div className="max-h-72 overflow-y-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="max-h-72 overflow-y-auto overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse min-w-[620px]">
                   <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
                     <tr>
                       <th className="p-2.5">Date</th>
