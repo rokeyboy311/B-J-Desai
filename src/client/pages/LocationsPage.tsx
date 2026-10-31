@@ -217,46 +217,46 @@ export default function LocationsPage() {
                 </div>
 
                 {/* 6 Key Metrics Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-2 items-stretch">
                   
-                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Investor Investment Capital</span>
-                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+                  <div className="min-w-0 h-full flex flex-col justify-between bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block leading-tight">Investor Investment Capital</span>
+                    <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-1">
                       ₹{formatINR(invCap)}
                     </span>
                   </div>
 
-                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Remaining Investor Capital</span>
-                    <span className={`text-xs sm:text-sm font-bold tabular-nums break-all sm:break-normal block mt-0.5 ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
+                  <div className="min-w-0 h-full flex flex-col justify-between bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block leading-tight">Remaining Investor Capital</span>
+                    <span className={`text-xs sm:text-sm font-black tabular-nums whitespace-nowrap block mt-1 ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
                       ₹{formatINR(remainingInvCap)}
                     </span>
                   </div>
 
-                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Stock</span>
-                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+                  <div className="min-w-0 h-full flex flex-col justify-between bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block leading-tight">Stock</span>
+                    <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-1">
                       ₹{formatINR(stockVal)}
                     </span>
                   </div>
 
-                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Site Supply</span>
-                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+                  <div className="min-w-0 h-full flex flex-col justify-between bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block leading-tight">Site Supply</span>
+                    <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-1">
                       ₹{formatINR(siteSupply)}
                     </span>
                   </div>
 
-                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Labour</span>
-                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+                  <div className="min-w-0 h-full flex flex-col justify-between bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block leading-tight">Labour</span>
+                    <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-1">
                       ₹{formatINR(labour)}
                     </span>
                   </div>
 
-                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Contractor</span>
-                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+                  <div className="min-w-0 h-full flex flex-col justify-between bg-slate-50/80 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block leading-tight">Contractor</span>
+                    <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-1">
                       ₹{formatINR(contractor)}
                     </span>
                   </div>

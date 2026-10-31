@@ -309,7 +309,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
 
           <div className="md:text-right shrink-0 min-w-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/60">
             <span className="text-[11px] text-slate-500 block font-medium">Difference / Variance:</span>
-            <span className={`text-sm sm:text-base font-black break-all ${
+            <span className={`text-sm sm:text-base font-black tabular-nums whitespace-nowrap ${
               reconciliation?.summary.reconciliationStatus === "MATCHED"
                 ? "text-emerald-700"
                 : reconciliation?.summary.reconciliationStatus === "SURPLUS"
@@ -324,46 +324,46 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
       </div>
 
       {/* Top Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 shadow-xs min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-stretch">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 shadow-xs min-w-0 h-full flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-purple-700 uppercase tracking-wider break-words min-w-0">Total Recorded Cost</span>
+            <span className="text-xs font-bold text-purple-700 uppercase tracking-wider truncate min-w-0">Total Recorded Cost</span>
             <HardHat className="w-4 h-4 text-purple-600 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-2 tabular-nums break-all sm:break-words">
+          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-2 tabular-nums whitespace-nowrap">
             ₹{formatINR(totalNet)}
           </div>
           <p className="text-[11px] text-purple-600 mt-1 font-medium">{costs.length} records</p>
         </div>
 
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 shadow-xs min-w-0">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 shadow-xs min-w-0 h-full flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider break-words min-w-0">Paid Amount</span>
+            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider truncate min-w-0">Paid Amount</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-emerald-900 mt-2 tabular-nums break-all sm:break-words">
+          <div className="text-lg sm:text-2xl font-black text-emerald-900 mt-2 tabular-nums whitespace-nowrap">
             ₹{formatINR(totalPaid)}
           </div>
           <p className="text-[11px] text-emerald-600 mt-1 font-medium">Fully settled records</p>
         </div>
 
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/70 border border-amber-100 shadow-xs min-w-0">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/70 border border-amber-100 shadow-xs min-w-0 h-full flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider break-words min-w-0">Expected Operational Cost</span>
+            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider truncate min-w-0">Expected Operational Cost</span>
             <Scale className="w-4 h-4 text-amber-600 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-amber-900 mt-2 tabular-nums break-all sm:break-words">
+          <div className="text-lg sm:text-2xl font-black text-amber-900 mt-2 tabular-nums whitespace-nowrap">
             ₹{formatINR(reconciliation?.summary.expectedCost || 0)}
           </div>
           <p className="text-[11px] text-amber-600 mt-1 font-medium">Site Supply + Labour Salaries</p>
         </div>
 
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-50/70 border border-blue-100 shadow-xs min-w-0">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-50/70 border border-blue-100 shadow-xs min-w-0 h-full flex flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider break-words min-w-0">Reconciliation Status</span>
+            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider truncate min-w-0">Reconciliation Status</span>
             <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
           </div>
-          <div className="text-base sm:text-lg font-black text-slate-900 mt-2 flex items-center gap-2 break-all sm:break-words">
+          <div className="text-base sm:text-lg font-black text-slate-900 mt-2 flex items-center gap-2 whitespace-nowrap">
             {reconciliation?.summary.reconciliationStatus === "MATCHED" ? (
               <span className="text-emerald-700">Balanced (₹0)</span>
             ) : reconciliation?.summary.reconciliationStatus === "SURPLUS" ? (
@@ -577,25 +577,25 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
               <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
                 <div className="min-w-0">
                   <span className="text-slate-400 text-[11px] block">Investor Investment Capital:</span>
-                  <span className="text-white font-bold text-sm break-all sm:break-words">
+                  <span className="text-white font-bold text-sm tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.totalInvestmentCapital || 0)}
                   </span>
                 </div>
                 <div className="min-w-0">
                   <span className="text-slate-400 text-[11px] block">Cat 2 Material Supply:</span>
-                  <span className="text-blue-300 font-bold break-all sm:break-words">
+                  <span className="text-blue-300 font-bold tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.totalCustomerMaterialSupply || 0)}
                   </span>
                 </div>
                 <div className="min-w-0">
                   <span className="text-slate-400 text-[11px] block">Cat 3 + Cat 4 Spend:</span>
-                  <span className="text-amber-300 font-bold break-all sm:break-words">
+                  <span className="text-amber-300 font-bold tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.expectedCost || 0)}
                   </span>
                 </div>
                 <div className="min-w-0">
                   <span className="text-slate-400 text-[11px] block">Combined 3-Spend Total:</span>
-                  <span className="text-emerald-300 font-black text-sm break-all sm:break-words">
+                  <span className="text-emerald-300 font-black text-sm tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.totalThreeSiteExpenses || 0)}
                   </span>
                 </div>
@@ -627,7 +627,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3">
                 <div className="min-w-0">
                   <p className="text-xs text-slate-400">1. Cat 3 Site Supplies to Labour:</p>
-                  <p className="text-lg sm:text-xl font-black text-teal-400 mt-0.5 break-all sm:break-words">
+                  <p className="text-lg sm:text-xl font-black text-teal-400 mt-0.5 tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.totalSiteSupplies)}
                   </p>
                   <p className="text-[10px] text-slate-400">{reconciliation.summary.siteSupplyCount} supply entries</p>
@@ -635,7 +635,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
 
                 <div className="min-w-0">
                   <p className="text-xs text-slate-400">2. Cat 4 Labour Attendance / Salaries:</p>
-                  <p className="text-lg sm:text-xl font-black text-amber-400 mt-0.5 break-all sm:break-words">
+                  <p className="text-lg sm:text-xl font-black text-amber-400 mt-0.5 tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.totalLabourCost)}
                   </p>
                   <p className="text-[10px] text-slate-400">{reconciliation.summary.labourCount} wage entries</p>
@@ -643,7 +643,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
 
                 <div className="min-w-0">
                   <p className="text-xs text-slate-400">3. Expected Contractor Cost:</p>
-                  <p className="text-lg sm:text-xl font-black text-white mt-0.5 break-all sm:break-words">
+                  <p className="text-lg sm:text-xl font-black text-white mt-0.5 tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.expectedCost)}
                   </p>
                   <p className="text-[10px] text-purple-300">Target to match Cat 5 records</p>
@@ -653,7 +653,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
               <div className="mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="text-xs break-words min-w-0">
                   <span className="text-slate-400">Cat 5 Recorded Contractor Cost: </span>
-                  <span className="text-base font-bold text-purple-300 ml-1 break-all">
+                  <span className="text-base font-bold text-purple-300 ml-1 tabular-nums whitespace-nowrap">
                     ₹{formatINR(reconciliation.summary.recordedCost)}
                   </span>
                   <span className="text-[11px] text-slate-400 ml-1">({reconciliation.summary.contractorCount} bills)</span>
@@ -661,7 +661,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
 
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-slate-300 font-medium">Difference / Variance:</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-black break-all ${
+                  <span className={`px-3 py-1 rounded-full text-xs font-black tabular-nums whitespace-nowrap ${
                     reconciliation.summary.variance >= 0
                       ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                       : "bg-rose-500/20 text-rose-300 border border-rose-500/30"

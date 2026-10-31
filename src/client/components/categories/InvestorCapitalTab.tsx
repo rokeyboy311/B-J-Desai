@@ -588,68 +588,76 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-stretch">
         {/* Card 1: Total Investor Investment Capital */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+        <div className="bg-white h-full flex flex-col justify-between p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
           <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Investor Investment Capital</span>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-700 shrink-0">
               <Landmark className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight tabular-nums break-all sm:break-words">
-            +₹{formatINR(totalAllocatedAmount)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 break-words">
-            Total allocated from Admin ({allocations.length} allocations)
+          <div>
+            <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight tabular-nums whitespace-nowrap">
+              +₹{formatINR(totalAllocatedAmount)}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1 break-words">
+              Total allocated from Admin ({allocations.length} allocations)
+            </div>
           </div>
         </div>
 
         {/* Card 2: Site Operational Deductions */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+        <div className="bg-white h-full flex flex-col justify-between p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
           <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Site Operational Deductions</span>
             <div className="p-2 rounded-xl bg-rose-50 text-rose-700 shrink-0">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl md:text-2xl font-black text-rose-700 tracking-tight tabular-nums break-all sm:break-words">
-            -₹{formatINR(totalDeployedAmount)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 break-words">
-            Site Supply: ₹{formatINR(siteSupplyDeduction)} &bull; Labour &amp; Kharch: ₹{formatINR(labourAndKharchDeduction)}
+          <div>
+            <div className="text-lg sm:text-xl font-black text-rose-700 tracking-tight tabular-nums whitespace-nowrap">
+              -₹{formatINR(totalDeployedAmount)}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1 break-words">
+              Site Supply: ₹{formatINR(siteSupplyDeduction)} &bull; Labour &amp; Kharch: ₹{formatINR(labourAndKharchDeduction)}
+            </div>
           </div>
         </div>
 
         {/* Card 3: Remaining Investor Investment Capital */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+        <div className="bg-white h-full flex flex-col justify-between p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
           <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Remaining Investor Investment Capital</span>
             <div className={`p-2 rounded-xl shrink-0 ${totalAvailableAmount < 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
               <Landmark className="w-4 h-4" />
             </div>
           </div>
-          <div className={`text-lg sm:text-xl md:text-2xl font-black tracking-tight tabular-nums break-all sm:break-words ${totalAvailableAmount < 0 ? "text-rose-600" : "text-emerald-700"}`}>
-            ₹{formatINR(totalAvailableAmount)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 break-words">
-            Net remaining balance after site operational expenses
+          <div>
+            <div className={`text-lg sm:text-xl font-black tracking-tight tabular-nums whitespace-nowrap ${totalAvailableAmount < 0 ? "text-rose-600" : "text-emerald-700"}`}>
+              ₹{formatINR(totalAvailableAmount)}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1 break-words">
+              Net remaining balance after site operational expenses
+            </div>
           </div>
         </div>
 
         {/* Card 4: Central Available Admin Capital */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+        <div className="bg-white h-full flex flex-col justify-between p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
           <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Available Admin Capital</span>
             <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 shrink-0">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg sm:text-xl md:text-2xl font-black text-indigo-900 tracking-tight tabular-nums break-all sm:break-words">
-            ₹{adminSummary ? formatINR(adminSummary.availableAdminCapital) : "0"}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 break-words">
-            Central Admin balance ready to allocate
+          <div>
+            <div className="text-lg sm:text-xl font-black text-indigo-900 tracking-tight tabular-nums whitespace-nowrap">
+              ₹{adminSummary ? formatINR(adminSummary.availableAdminCapital) : "0"}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1 break-words">
+              Central Admin balance ready to allocate
+            </div>
           </div>
         </div>
       </div>
@@ -659,14 +667,14 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <button
           type="button"
           onClick={() => setActiveTabMode("notebook")}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-wrap items-center justify-center gap-1.5 cursor-pointer min-w-0 ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer min-w-0 whitespace-nowrap ${
             activeTabMode === "notebook"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <FileSpreadsheet className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="break-words">Capital Passbook Ledger</span>
+          <span>Capital Passbook Ledger</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-200 shrink-0">
             {locationInvestorNotebook.length} Entries
           </span>
@@ -675,14 +683,14 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <button
           type="button"
           onClick={() => setActiveTabMode("cards")}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-wrap items-center justify-center gap-1.5 cursor-pointer min-w-0 ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer min-w-0 whitespace-nowrap ${
             activeTabMode === "cards"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <User className="w-4 h-4 shrink-0" />
-          <span className="break-words">Investor Summary Cards</span>
+          <span>Investor Summary Cards</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-200 shrink-0">
             {investorBreakdown.length}
           </span>
@@ -691,14 +699,14 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <button
           type="button"
           onClick={() => setActiveTabMode("allocations")}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-wrap items-center justify-center gap-1.5 cursor-pointer min-w-0 ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer min-w-0 whitespace-nowrap ${
             activeTabMode === "allocations"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <Landmark className="w-4 h-4 shrink-0" />
-          <span className="break-words">Admin Allocations</span>
+          <span>Admin Allocations</span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-200 shrink-0">
             {allocations.length}
           </span>
@@ -737,7 +745,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                   });
                   setIsAddModalOpen(true);
                 }}
-                className="w-full md:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                className="w-full md:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span>+ Add More from Admin Capital</span>
@@ -745,26 +753,26 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             </div>
 
             {/* Quick Metrics in Notebook */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-white/10">
-              <div className="bg-white/10 p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-white/10 items-stretch">
+              <div className="bg-white/10 h-full flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
                 <span className="text-[10px] uppercase font-bold text-emerald-300 block break-words">Investor Investment Capital</span>
-                <span className="text-base sm:text-xl font-black text-emerald-400 tabular-nums break-all sm:break-words block mt-0.5">
+                <span className="text-base sm:text-xl font-black text-emerald-400 tabular-nums whitespace-nowrap block mt-0.5">
                   +₹{formatINR(totalAllocatedAmount)}
                 </span>
                 <span className="text-[10px] text-white/60 block mt-0.5 break-words">Allocated from central Admin Capital</span>
               </div>
 
-              <div className="bg-white/10 p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
+              <div className="bg-white/10 h-full flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
                 <span className="text-[10px] uppercase font-bold text-rose-300 block break-words">Site Operational Deductions</span>
-                <span className="text-base sm:text-xl font-black text-rose-300 tabular-nums break-all sm:break-words block mt-0.5">
+                <span className="text-base sm:text-xl font-black text-rose-300 tabular-nums whitespace-nowrap block mt-0.5">
                   -₹{formatINR(totalDeployedAmount)}
                 </span>
                 <span className="text-[10px] text-white/60 block mt-0.5 break-words">Site Supply + Labour Attendance + Other Expenses</span>
               </div>
 
-              <div className="bg-white/10 p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
+              <div className="bg-white/10 h-full flex flex-col justify-between p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
                 <span className="text-[10px] uppercase font-bold text-cyan-300 block break-words">Remaining Investor Investment Capital</span>
-                <span className="text-base sm:text-xl font-black text-white tabular-nums break-all sm:break-words block mt-0.5">
+                <span className="text-base sm:text-xl font-black text-white tabular-nums whitespace-nowrap block mt-0.5">
                   ₹{formatINR(totalAvailableAmount)}
                 </span>
                 <span className="text-[10px] text-white/60 block mt-0.5 break-words">Net remaining project capital</span>

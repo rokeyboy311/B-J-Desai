@@ -307,26 +307,26 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
       </div>
 
       {/* KPI Stats Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider break-words">Total Supplies</div>
-          <div className="text-lg sm:text-xl font-black text-slate-800 mt-1 break-words">{stats.totalEntries} Records</div>
-          <div className="text-[11px] text-teal-600 font-medium mt-0.5 break-words">{formatINR(stats.totalDispatchedQty)} Total Units Dispatched</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 items-stretch">
+        <div className="bg-white h-full flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">Total Supplies</div>
+          <div className="text-base sm:text-xl font-black text-slate-800 mt-1 whitespace-nowrap">{stats.totalEntries} Records</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">{formatINR(stats.totalDispatchedQty)} Units Dispatched</div>
         </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider break-words">Base Subtotal</div>
-          <div className="text-lg sm:text-xl font-black text-slate-700 mt-1 tabular-nums break-all sm:break-words">₹{formatINR(stats.totalSubtotal)}</div>
-          <div className="text-[11px] text-slate-500 font-medium mt-0.5 break-words">Taxable Base Amount</div>
+        <div className="bg-white h-full flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">Base Subtotal</div>
+          <div className="text-base sm:text-xl font-black text-slate-700 mt-1 tabular-nums whitespace-nowrap">₹{formatINR(stats.totalSubtotal)}</div>
+          <div className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">Taxable Base Amount</div>
         </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
-          <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider break-words">GST Tax Amount</div>
-          <div className="text-lg sm:text-xl font-black text-teal-700 mt-1 tabular-nums break-all sm:break-words">₹{formatINR(stats.totalTax)}</div>
-          <div className="text-[11px] text-teal-600 font-medium mt-0.5 break-words">Total GST (CGST/SGST)</div>
+        <div className="bg-white h-full flex flex-col justify-between p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider truncate">GST Tax Amount</div>
+          <div className="text-base sm:text-xl font-black text-teal-700 mt-1 tabular-nums whitespace-nowrap">₹{formatINR(stats.totalTax)}</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-0.5 truncate">Total GST (CGST/SGST)</div>
         </div>
-        <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-200 shadow-sm min-w-0">
-          <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider break-words">Grand Total with GST</div>
-          <div className="text-lg sm:text-xl font-black text-teal-900 mt-1 tabular-nums break-all sm:break-words">₹{formatINR(stats.grandSupplyValue)}</div>
-          <div className="text-[11px] text-teal-700 font-medium mt-0.5 break-words">Deducted from Cat 2 Capital</div>
+        <div className="bg-teal-50/60 h-full flex flex-col justify-between p-3.5 rounded-xl border border-teal-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider truncate">Grand Total with GST</div>
+          <div className="text-base sm:text-xl font-black text-teal-900 mt-1 tabular-nums whitespace-nowrap">₹{formatINR(stats.grandSupplyValue)}</div>
+          <div className="text-[11px] text-teal-700 font-medium mt-0.5 truncate">Deducted from Capital</div>
         </div>
       </div>
 
@@ -377,7 +377,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                             <span className="font-bold text-teal-900 break-words">{matName}</span>
                             <span className="text-slate-600 text-[11px] ml-1.5 font-semibold">({formatINR(itemQty)} {item.unit || 'Nos'})</span>
                           </div>
-                          <div className="font-extrabold text-slate-800 tabular-nums">
+                          <div className="font-extrabold text-slate-800 tabular-nums whitespace-nowrap">
                             ₹{formatINR(itemTotalAmt)}
                           </div>
                         </div>
@@ -392,14 +392,14 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-100 text-xs min-w-0">
+                <div className="grid grid-cols-2 gap-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-100 text-xs min-w-0 items-center">
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase font-bold text-teal-800">Taxable + GST</div>
-                    <div className="font-semibold text-slate-700 break-words tabular-nums">₹{formatINR(subtotalVal)} + ₹{formatINR(taxVal)}</div>
+                    <div className="font-semibold text-slate-700 tabular-nums whitespace-nowrap">₹{formatINR(subtotalVal)} + ₹{formatINR(taxVal)}</div>
                   </div>
-                  <div className="xs:text-right sm:text-right min-w-0">
+                  <div className="text-right min-w-0">
                     <div className="text-[10px] uppercase font-bold text-teal-800">Grand Total</div>
-                    <div className="font-black text-teal-950 text-sm break-all sm:break-words tabular-nums">₹{formatINR(totalVal)}</div>
+                    <div className="font-black text-teal-950 text-sm tabular-nums whitespace-nowrap">₹{formatINR(totalVal)}</div>
                   </div>
                 </div>
 

@@ -715,40 +715,44 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       </div>
 
       {/* High-Level Overview Metrics Cards (Attendance - Upad = Balance) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-stretch">
         {/* 1. Total Attendance Wages */}
-        <div className="bg-white border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
-          <div className="flex items-center justify-between gap-2 text-slate-500 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 break-words min-w-0">1. Attendance Wages Earned</span>
-            <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+        <div className="bg-white h-full flex flex-col justify-between border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
+          <div>
+            <div className="flex items-center justify-between gap-2 text-slate-500 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-800 break-words min-w-0">1. Attendance Wages Earned</span>
+              <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+            </div>
+            <p className="text-lg sm:text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">₹{formatINR(summaries.totalAttendanceWages)}</p>
           </div>
-          <p className="text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-all sm:break-words">₹{formatINR(summaries.totalAttendanceWages)}</p>
           <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            <span className="break-words">Day: ₹{formatINR(summaries.totalDayWiseWages)} ({summaries.totalDayWiseDays}d)</span>
-            <span className="break-words">TC: ₹{formatINR(summaries.totalTcWiseWages)}</span>
+            <span className="whitespace-nowrap">Day: ₹{formatINR(summaries.totalDayWiseWages)} ({summaries.totalDayWiseDays}d)</span>
+            <span className="whitespace-nowrap">TC: ₹{formatINR(summaries.totalTcWiseWages)}</span>
           </div>
         </div>
 
         {/* 2. Total Team Upad */}
-        <div className="bg-white border border-indigo-200/80 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
-          <div className="flex items-center justify-between gap-2 text-slate-500 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 break-words min-w-0">2. Team Upad (Advances Paid)</span>
-            <ArrowDownRight className="w-4 h-4 text-indigo-600 shrink-0" />
+        <div className="bg-white h-full flex flex-col justify-between border border-indigo-200/80 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
+          <div>
+            <div className="flex items-center justify-between gap-2 text-slate-500 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 break-words min-w-0">2. Team Upad (Advances Paid)</span>
+              <ArrowDownRight className="w-4 h-4 text-indigo-600 shrink-0" />
+            </div>
+            <p className="text-lg sm:text-2xl font-black text-indigo-700 tabular-nums whitespace-nowrap">₹{formatINR(summaries.totalTeamUpad)}</p>
           </div>
-          <p className="text-lg sm:text-2xl font-black text-indigo-700 tabular-nums break-all sm:break-words">₹{formatINR(summaries.totalTeamUpad)}</p>
           <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100 break-words">
             Cash &amp; online advances given to teams
           </p>
         </div>
 
         {/* 3. Net Outstanding Wages (Attendance Wages - Upad) */}
-        <div className="bg-slate-900 text-white rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between min-w-0">
+        <div className="bg-slate-900 text-white h-full rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between min-w-0">
           <div className="min-w-0">
             <div className="flex items-center justify-between gap-2 text-amber-400 mb-1">
               <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Net Outstanding Balance</span>
               <Calculator className="w-4 h-4 shrink-0" />
             </div>
-            <p className="text-lg sm:text-2xl font-black text-white tabular-nums break-all sm:break-words">
+            <p className="text-lg sm:text-2xl font-black text-white tabular-nums whitespace-nowrap">
               ₹{formatINR(summaries.totalAttendanceWages - summaries.totalTeamUpad)}
             </p>
           </div>

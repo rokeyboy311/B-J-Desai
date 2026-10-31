@@ -442,9 +442,9 @@ export default function MaterialPurchasePage() {
     <div className="space-y-6 pb-20">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             {activeTab === "purchase" 
               ? "Material Purchase (Purchase Register)" 
               : activeTab === "supplier"
@@ -460,13 +460,13 @@ export default function MaterialPurchasePage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
           {/* Sub-tab toggle */}
-          <div className="bg-slate-200/80 p-1 rounded-xl flex items-center gap-1">
+          <div className="bg-slate-200/80 p-1 rounded-xl grid grid-cols-3 sm:inline-flex items-center gap-1 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setActiveCategory("purchase")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center ${
                 activeTab === "purchase" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -475,20 +475,20 @@ export default function MaterialPurchasePage() {
             <button
               type="button"
               onClick={() => setActiveCategory("supplier")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-1 ${
                 activeTab === "supplier" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+              <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 hidden xs:inline-block sm:inline-block" />
               <span>Supplier Wise</span>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-black">
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-black shrink-0">
                 {supplierSummaries.length}
               </span>
             </button>
             <button
               type="button"
               onClick={() => setActiveCategory("stock")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center ${
                 activeTab === "stock" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -496,113 +496,115 @@ export default function MaterialPurchasePage() {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setGoogleModalOpen(true)}
-            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="Manage Google Sheets Live Sync"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">{isConnected ? "Sheets Live" : "Sheets Sync"}</span>
-            {isConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setGoogleModalOpen(true)}
+              className="px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+              title="Manage Google Sheets Live Sync"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>{isConnected ? "Sheets Live" : "Sheets Sync"}</span>
+              {isConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setEditingPurchaseId(null);
-              setFormData({
-                date: new Date().toISOString().split("T")[0],
-                supplierName: "",
-                materialName: "",
-                quantity: "",
-                unit: "Nos",
-                rate: "",
-                transportationFee: "0",
-                taxPercentage: "18",
-                paymentStatus: "Paid",
-                notes: ""
-              });
-              setIsModalOpen(true);
-            }}
-            className="px-4 py-2.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Add Material Purchase</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingPurchaseId(null);
+                setFormData({
+                  date: new Date().toISOString().split("T")[0],
+                  supplierName: "",
+                  materialName: "",
+                  quantity: "",
+                  unit: "Nos",
+                  rate: "",
+                  transportationFee: "0",
+                  taxPercentage: "18",
+                  paymentStatus: "Paid",
+                  notes: ""
+                });
+                setIsModalOpen(true);
+              }}
+              className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>+ Add Material Purchase</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* KPI Cards: PURCHASE VIEW */}
+      {/* KPI Cards: PURCHASE VIEW (6 equal cards: 2x3 on mobile, 3x2 on tablet, 6x1 on desktop) */}
       {activeTab === "purchase" && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-[#0B1D3A] text-white rounded-xl">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3 items-stretch">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-[#0B1D3A] text-white rounded-xl shrink-0">
               <DollarSign className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Purchase</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total Purchase</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(totalPurchaseVal)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
               <Package className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Purchase Qty</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Purchase Qty</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 {formatINR(totalPurchaseQty)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
               <Wallet className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">GST</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">GST</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(totalPurchaseGST)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
               <Truck className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Transport Fee</span>
-              <span className="text-sm font-bold text-indigo-700 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Transport Fee</span>
+              <span className="text-xs sm:text-sm font-black text-indigo-700 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(totalTransportFee)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Stock Added</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Stock Added</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(stockAddedVal)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 col-span-2 sm:col-span-1">
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-rose-50 text-rose-600 rounded-xl shrink-0">
               <AlertCircle className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Pending Payments</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Pending Payments</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(pendingPayments)}
               </span>
             </div>
@@ -610,76 +612,76 @@ export default function MaterialPurchasePage() {
         </div>
       )}
 
-      {/* KPI Cards: SUPPLIER VIEW */}
+      {/* KPI Cards: SUPPLIER VIEW (6 equal cards) */}
       {activeTab === "supplier" && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-600 text-white rounded-xl">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3 items-stretch">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-emerald-600 text-white rounded-xl shrink-0">
               <Building2 className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Suppliers</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total Suppliers</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 {supplierSummaries.length}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-[#0B1D3A] text-white rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-[#0B1D3A] text-white rounded-xl shrink-0">
               <DollarSign className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Purchases</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total Purchases</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(totalPurchaseVal)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
               <Package className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Top Supplier</span>
-              <span className="text-xs font-bold text-slate-800 truncate max-w-[120px] block" title={supplierSummaries[0]?.name}>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Top Supplier</span>
+              <span className="text-xs font-black text-slate-800 truncate block mt-0.5" title={supplierSummaries[0]?.name}>
                 {supplierSummaries[0]?.name || "-"}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
               <Receipt className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Bills Inward</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total Bills Inward</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 {purchases.length}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Paid Amount</span>
-              <span className="text-sm font-bold text-emerald-700 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Paid Amount</span>
+              <span className="text-xs sm:text-sm font-black text-emerald-700 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(totalPurchaseVal - pendingPayments)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 col-span-2 sm:col-span-1">
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-rose-50 text-rose-600 rounded-xl shrink-0">
               <AlertCircle className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Pending Balance</span>
-              <span className="text-sm font-bold text-rose-700 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Pending Balance</span>
+              <span className="text-xs sm:text-sm font-black text-rose-700 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(pendingPayments)}
               </span>
             </div>
@@ -689,62 +691,62 @@ export default function MaterialPurchasePage() {
 
       {/* KPI Cards: STOCK VIEW */}
       {activeTab === "stock" && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 items-stretch">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
               <Package className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Materials</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Materials</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 {stockCount}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-[#0B1D3A] text-white rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-[#0B1D3A] text-white rounded-xl shrink-0">
               <DollarSign className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Purchased Qty</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Purchased Qty</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 {formatINR(stockPurchasedQty)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
               <Wallet className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Supplied Qty</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Supplied Qty</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 {formatINR(stockSuppliedQty)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Available Qty</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Available Qty</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 {formatINR(stockAvailableQty)}
               </span>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 col-span-2 lg:col-span-1">
-            <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+          <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1">
+            <div className="p-2 sm:p-2.5 bg-purple-50 text-purple-600 rounded-xl shrink-0">
               <DollarSign className="w-4 h-4" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Stock Value</span>
-              <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Stock Value</span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
                 ₹{formatINR(totalStockVal)}
               </span>
             </div>
@@ -1638,7 +1640,7 @@ export default function MaterialPurchasePage() {
             </div>
 
             {/* Sub-tab navigation in Modal */}
-            <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2">
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-2">
               <button
                 type="button"
                 onClick={() => setDetailModalTab("all")}

@@ -208,63 +208,63 @@ export default function CustomerSupplyPage() {
       </div>
 
       {/* Top 5 KPI Cards matching 05_customer_supply.svg */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 items-stretch">
         
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
             <DollarSign className="w-4 h-4" />
           </div>
-          <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Supply</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total Supply</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(totalSupplyVal)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
             <Package className="w-4 h-4" />
           </div>
-          <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Quantity</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total Quantity</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               {formatINR(totalQty)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 bg-purple-50 text-purple-600 rounded-xl shrink-0">
             <Coins className="w-4 h-4" />
           </div>
-          <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Taxable Amount</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Taxable Amount</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(totalTaxable)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
-          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
             <Wallet className="w-4 h-4" />
           </div>
-          <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total GST</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Total GST</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(totalGST)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 col-span-2 lg:col-span-1">
-          <div className="p-2.5 bg-[#0B1D3A] text-white rounded-xl">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1">
+          <div className="p-2 sm:p-2.5 bg-[#0B1D3A] text-white rounded-xl shrink-0">
             <DollarSign className="w-4 h-4" />
           </div>
-          <div>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block">Grand Total</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Grand Total</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(grandTotal)}
             </span>
           </div>

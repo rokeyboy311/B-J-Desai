@@ -329,9 +329,9 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
       </div>
 
       {/* 3 Metric Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-stretch">
         {/* Total Other Kharch */}
-        <div className="bg-white border border-rose-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
+        <div className="bg-white h-full border border-rose-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
           <div className="flex items-center justify-between gap-2 text-rose-700">
             <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Total Other Expenses</span>
             <div className="p-2 bg-rose-50 rounded-xl shrink-0">
@@ -339,7 +339,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
             </div>
           </div>
           <div className="mt-3 min-w-0">
-            <div className="text-lg sm:text-2xl font-black text-rose-600 tabular-nums break-all sm:break-words">
+            <div className="text-lg sm:text-2xl font-black text-rose-600 tabular-nums whitespace-nowrap">
               ₹{formatINR(summary.totalAmount)}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium break-words">
@@ -349,7 +349,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         </div>
 
         {/* Total Entries Count */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
+        <div className="bg-white h-full border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
           <div className="flex items-center justify-between gap-2 text-slate-700">
             <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Total Records</span>
             <div className="p-2 bg-slate-100 rounded-xl shrink-0">
@@ -357,7 +357,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
             </div>
           </div>
           <div className="mt-3 min-w-0">
-            <div className="text-lg sm:text-2xl font-black text-slate-900">
+            <div className="text-lg sm:text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
               {summary.count}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium break-words">
@@ -367,7 +367,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
         </div>
 
         {/* Average per Record */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
+        <div className="bg-white h-full border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
           <div className="flex items-center justify-between gap-2 text-slate-700">
             <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Average per Entry</span>
             <div className="p-2 bg-slate-100 rounded-xl shrink-0">
@@ -375,7 +375,7 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
             </div>
           </div>
           <div className="mt-3 min-w-0">
-            <div className="text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-all sm:break-words">
+            <div className="text-lg sm:text-2xl font-black text-slate-900 tabular-nums whitespace-nowrap">
               ₹{formatINR(summary.avgPerRecord)}
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-medium break-words">

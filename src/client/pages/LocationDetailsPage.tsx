@@ -275,63 +275,63 @@ export default function LocationDetailsPage() {
       </div>
 
       {/* Top 5 KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 items-stretch">
         
-        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 min-w-0 overflow-hidden">
-          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3 min-w-0 overflow-hidden">
+          <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
             <Landmark className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Investor Investment Capital</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate" title="Investor Investment Capital">Investor Capital</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(invCap)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 min-w-0 overflow-hidden">
-          <div className={`p-2.5 rounded-xl shrink-0 ${Number(remainingInvCap) < 0 ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3 min-w-0 overflow-hidden">
+          <div className={`p-2 sm:p-2.5 rounded-xl shrink-0 ${Number(remainingInvCap) < 0 ? "bg-rose-50 text-rose-600" : "bg-purple-50 text-purple-600"}`}>
             <Coins className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Remaining Investor Investment Capital</span>
-            <span className={`text-sm font-bold tabular-nums break-all sm:break-normal block mt-0.5 ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate" title="Remaining Investor Investment Capital">Remaining Capital</span>
+            <span className={`text-xs sm:text-sm font-black tabular-nums whitespace-nowrap block mt-0.5 ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
               ₹{formatINR(remainingInvCap)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 min-w-0 overflow-hidden">
-          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3 min-w-0 overflow-hidden">
+          <div className="p-2 sm:p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
             <Package className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Material Stock</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Material Stock</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(stockVal)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 min-w-0 overflow-hidden">
-          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3 min-w-0 overflow-hidden">
+          <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
             <Wrench className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Site Supply</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Site Supply</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(siteSupply)}
             </span>
           </div>
         </div>
 
-        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 sm:col-span-2 lg:col-span-1 min-w-0 overflow-hidden">
-          <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl shrink-0">
+        <div className="bg-white h-full min-h-[76px] p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1 min-w-0 overflow-hidden">
+          <div className="p-2 sm:p-2.5 bg-teal-50 text-teal-600 rounded-xl shrink-0">
             <CalendarCheck className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Labour</span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight block truncate">Labour</span>
+            <span className="text-xs sm:text-sm font-black text-slate-800 tabular-nums whitespace-nowrap block mt-0.5">
               ₹{formatINR(labour)}
             </span>
           </div>
@@ -344,7 +344,7 @@ export default function LocationDetailsPage() {
         <button
           type="button"
           onClick={() => setActiveCategory("investor_capital")}
-          className={`col-span-2 sm:col-span-1 sm:flex-1 min-w-0 py-2.5 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center leading-tight break-words ${
+          className={`col-span-2 sm:col-span-1 sm:flex-1 min-w-0 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center whitespace-nowrap ${
             activeCategory === "investor_capital"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
@@ -356,7 +356,7 @@ export default function LocationDetailsPage() {
         <button
           type="button"
           onClick={() => setActiveCategory("site_supply")}
-          className={`sm:flex-1 min-w-0 py-2.5 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center leading-tight break-words ${
+          className={`sm:flex-1 min-w-0 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center whitespace-nowrap ${
             activeCategory === "site_supply"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
@@ -368,7 +368,7 @@ export default function LocationDetailsPage() {
         <button
           type="button"
           onClick={() => setActiveCategory("labour_attendance")}
-          className={`sm:flex-1 min-w-0 py-2.5 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center leading-tight break-words ${
+          className={`sm:flex-1 min-w-0 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center whitespace-nowrap ${
             activeCategory === "labour_attendance"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
@@ -380,7 +380,7 @@ export default function LocationDetailsPage() {
         <button
           type="button"
           onClick={() => setActiveCategory("other_kharch")}
-          className={`sm:flex-1 min-w-0 py-2.5 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center leading-tight break-words ${
+          className={`sm:flex-1 min-w-0 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center whitespace-nowrap ${
             activeCategory === "other_kharch"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
@@ -392,7 +392,7 @@ export default function LocationDetailsPage() {
         <button
           type="button"
           onClick={() => setActiveCategory("contractor_cost")}
-          className={` sm:flex-1 min-w-0 py-2.5 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center leading-tight break-words ${
+          className={`sm:flex-1 min-w-0 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center text-center whitespace-nowrap ${
             activeCategory === "contractor_cost"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"

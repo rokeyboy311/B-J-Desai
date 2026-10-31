@@ -28,8 +28,6 @@ body {
   background-color: #f4f6f9;
   color: #1e293b;
   -webkit-font-smoothing: antialiased;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
 }
 
 /* Custom hide scrollbar */
@@ -41,15 +39,22 @@ body {
   scrollbar-width: none;
 }
 
-/* Tabular numbers for clean financial alignment */
+/* Tabular numbers for clean financial alignment - never split a number across lines */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-/* Ensure flex & grid children can shrink below content size so text/amounts never burst out of boxes */
-.grid > *,
-.flex > * {
+/* Ensure grid children never expand beyond their track width */
+.grid > * {
   min-width: 0;
+}
+
+/* Prevent buttons and badges from breaking words vertically */
+button,
+a {
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 /* Eliminate horizontal scrollbars across all tables & containers while keeping content readable */
@@ -68,7 +73,7 @@ table th,
 table td {
   white-space: normal !important;
   overflow-wrap: break-word;
-  word-break: break-word;
+  word-break: normal;
 }
 
 @media (max-width: 1280px) {
