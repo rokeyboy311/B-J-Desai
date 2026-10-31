@@ -36,6 +36,8 @@ export default function MaterialPurchasePage() {
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPurchaseId, setEditingPurchaseId] = useState<number | null>(null);
+  const [preselectedVendor, setPreselectedVendor] = useState<string | null>(null);
+  const [isCustomVendorInput, setIsCustomVendorInput] = useState(false);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState<{ name: string; id?: number | null } | null>(null);
   const [selectedSupplierDetail, setSelectedSupplierDetail] = useState<string | null>(null);
   const [detailModalTab, setDetailModalTab] = useState<"all" | "sites" | "customers" | "purchases">("all");
@@ -53,6 +55,26 @@ export default function MaterialPurchasePage() {
     paymentStatus: "Paid",
     notes: ""
   });
+
+  const openAddPurchaseModal = (vendorName?: string) => {
+    const cleanVendor = vendorName ? vendorName.trim() : (selectedSupplierFilter !== "ALL" ? selectedSupplierFilter : "");
+    setEditingPurchaseId(null);
+    setPreselectedVendor(cleanVendor || null);
+    setIsCustomVendorInput(!cleanVendor && supplierSummaries.length === 0);
+    setFormData({
+      date: new Date().toISOString().split("T")[0],
+      supplierName: cleanVendor,
+      materialName: "",
+      quantity: "",
+      unit: "Nos",
+      rate: "",
+      transportationFee: "0",
+      taxPercentage: "18",
+      paymentStatus: "Paid",
+      notes: ""
+    });
+    setIsModalOpen(true);
+  };
 
   const loadData = async (isBackground = false) => {
     try {
@@ -140,9 +162,15 @@ export default function MaterialPurchasePage() {
 
       triggerSync("materials");
       triggerSync("stock");
-      showToast(editingPurchaseId ? "Material purchase updated!" : "Material purchase recorded in Central Inventory for all sites!", "success");
+      showToast(
+        editingPurchaseId
+          ? "Material purchase updated!"
+          : `Purchase entry added in ${payload.supplierName}!`,
+        "success"
+      );
       setIsModalOpen(false);
       setEditingPurchaseId(null);
+      setPreselectedVendor(null);
       setFormData({
         date: new Date().toISOString().split("T")[0],
         supplierName: "",
@@ -162,10 +190,13 @@ export default function MaterialPurchasePage() {
   };
 
   const handleEditPurchase = (p: any) => {
+    const supName = p.supplierName || p.partyName || "";
     setEditingPurchaseId(p.id);
+    setPreselectedVendor(supName || null);
+    setIsCustomVendorInput(false);
     setFormData({
       date: p.date || new Date().toISOString().split("T")[0],
-      supplierName: p.supplierName || p.partyName || "",
+      supplierName: supName,
       materialName: p.materialName || "",
       quantity: p.quantity ? String(p.quantity) : "",
       unit: p.unit || "Nos",
@@ -510,26 +541,15 @@ export default function MaterialPurchasePage() {
 
             <button
               type="button"
-              onClick={() => {
-                setEditingPurchaseId(null);
-                setFormData({
-                  date: new Date().toISOString().split("T")[0],
-                  supplierName: "",
-                  materialName: "",
-                  quantity: "",
-                  unit: "Nos",
-                  rate: "",
-                  transportationFee: "0",
-                  taxPercentage: "18",
-                  paymentStatus: "Paid",
-                  notes: ""
-                });
-                setIsModalOpen(true);
-              }}
+              onClick={() => openAddPurchaseModal()}
               className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <Plus className="w-4 h-4 shrink-0" />
-              <span>+ Add Material Purchase</span>
+              <span>
+                {selectedSupplierFilter !== "ALL"
+                  ? `+ Add Entry (${selectedSupplierFilter})`
+                  : "+ Add Material Purchase"}
+              </span>
             </button>
           </div>
         </div>
@@ -777,21 +797,34 @@ export default function MaterialPurchasePage() {
               )}
             </div>
 
-            {/* Supplier Filter Dropdown */}
-            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-slate-200/80 shadow-2xs w-full sm:w-auto sm:min-w-[220px] max-w-full">
-              <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <select
-                value={selectedSupplierFilter}
-                onChange={(e) => setSelectedSupplierFilter(e.target.value)}
-                className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-              >
-                <option value="ALL">All Suppliers ({supplierSummaries.length})</option>
-                {supplierSummaries.map((s, idx) => (
-                  <option key={idx} value={s.name}>
-                    {s.name} (₹{formatINR(s.totalAmount)} - {s.invoicesCount} bills)
-                  </option>
-                ))}
-              </select>
+            {/* Supplier Filter Dropdown + Quick Vendor Entry Button */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-slate-200/80 shadow-2xs flex-1 sm:w-auto sm:min-w-[230px] max-w-full">
+                <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <select
+                  value={selectedSupplierFilter}
+                  onChange={(e) => setSelectedSupplierFilter(e.target.value)}
+                  className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="ALL">Select Vendor / All Suppliers ({supplierSummaries.length})</option>
+                  {supplierSummaries.map((s, idx) => (
+                    <option key={idx} value={s.name}>
+                      {s.name} (₹{formatINR(s.totalAmount)} - {s.invoicesCount} bills)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedSupplierFilter !== "ALL" && (
+                <button
+                  type="button"
+                  onClick={() => openAddPurchaseModal(selectedSupplierFilter)}
+                  className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap shrink-0 w-full sm:w-auto"
+                >
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span>+ Add Entry in {selectedSupplierFilter}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -805,9 +838,9 @@ export default function MaterialPurchasePage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
-                      Supplier Filter Active
+                      Selected Vendor
                     </span>
-                    <span className="text-xs text-slate-500 font-medium">Filtering Purchase Register</span>
+                    <span className="text-xs text-slate-500 font-medium">Vendor-Specific Purchase View</span>
                   </div>
                   <h3 className="text-base font-black text-slate-900 mt-0.5">{selectedSupplierFilter}</h3>
                 </div>
@@ -817,31 +850,39 @@ export default function MaterialPurchasePage() {
                 const sup = supplierSummaries.find(s => s.name.toLowerCase() === selectedSupplierFilter.toLowerCase());
                 if (!sup) return null;
                 return (
-                  <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
                       <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Purchases</span>
-                      <span className="text-sm font-black text-emerald-700">₹{formatINR(sup.totalAmount)}</span>
+                      <span className="text-sm font-black text-emerald-700 tabular-nums whitespace-nowrap">₹{formatINR(sup.totalAmount)}</span>
                     </div>
                     <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
                       <span className="text-slate-500 block text-[9px] uppercase font-bold">Bills</span>
-                      <span className="text-sm font-black text-slate-800">{sup.invoicesCount}</span>
+                      <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">{sup.invoicesCount}</span>
                     </div>
                     <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
                       <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Qty</span>
-                      <span className="text-sm font-black text-slate-800">{formatINR(sup.totalQty)}</span>
+                      <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">{formatINR(sup.totalQty)}</span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSelectedSupplierDetail(selectedSupplierFilter)}
-                      className="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      onClick={() => openAddPurchaseModal(selectedSupplierFilter)}
+                      className="px-3.5 py-2 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Open Supplier Statement</span>
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
+                      <span>+ Add Purchase Entry</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSupplierDetail(selectedSupplierFilter)}
+                      className="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap"
+                    >
+                      <Eye className="w-3.5 h-3.5 shrink-0" />
+                      <span>Open Statement</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedSupplierFilter("ALL")}
-                      className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-300 transition-all cursor-pointer"
+                      className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-300 transition-all cursor-pointer whitespace-nowrap"
                     >
                       Clear Filter
                     </button>
@@ -987,14 +1028,25 @@ export default function MaterialPurchasePage() {
                         {/* Actions */}
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            {/* Quick Add Entry for this Vendor */}
+                            <button
+                              type="button"
+                              onClick={() => openAddPurchaseModal(supName)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] border border-blue-200 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                              title={`Add new purchase entry in ${supName}`}
+                            >
+                              <Plus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span className="hidden xl:inline">Add Entry</span>
+                            </button>
+
                             {/* Supplier Statement Button */}
                             <button
                               type="button"
                               onClick={() => setSelectedSupplierDetail(supName)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-200 transition-all cursor-pointer shadow-2xs"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-200 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
                               title={`Open ${supName} Total Purchase Statement`}
                             >
-                              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span className="hidden xl:inline">Supplier</span>
                             </button>
 
@@ -1168,14 +1220,23 @@ export default function MaterialPurchasePage() {
                     </div>
 
                     {/* Card Actions */}
-                    <div className="pt-3 mt-3 border-t border-slate-100 flex items-center gap-2">
+                    <div className="pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openAddPurchaseModal(sup.name)}
+                        className="flex-1 py-2.5 px-3 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer whitespace-nowrap"
+                        title={`Add new material purchase entry in ${sup.name}`}
+                      >
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span>+ Add Entry</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setSelectedSupplierDetail(sup.name)}
-                        className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                        className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer whitespace-nowrap"
                       >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Open Supplier Purchases</span>
+                        <Eye className="w-3.5 h-3.5 shrink-0" />
+                        <span>View Purchases</span>
                       </button>
                       <button
                         type="button"
@@ -1183,7 +1244,7 @@ export default function MaterialPurchasePage() {
                           setSelectedSupplierFilter(sup.name);
                           setActiveCategory("purchase");
                         }}
-                        className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
                         title="View in Purchase Register"
                       >
                         Register
@@ -1250,13 +1311,24 @@ export default function MaterialPurchasePage() {
                         ₹{formatINR(sup.pendingAmount)}
                       </td>
                       <td className="p-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedSupplierDetail(sup.name)}
-                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                        >
-                          Open Statement
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openAddPurchaseModal(sup.name)}
+                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1 whitespace-nowrap"
+                            title={`Add new purchase entry in ${sup.name}`}
+                          >
+                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                            <span>+ Add Entry</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSupplierDetail(sup.name)}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                          >
+                            Open Statement
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1354,226 +1426,6 @@ export default function MaterialPurchasePage() {
           </div>
         </div>
       )}
-
-      {/* Modal: Add/Edit Material Purchase */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingPurchaseId(null);
-        }}
-        title={editingPurchaseId ? "Edit Material Purchase" : "+ Add Material Purchase"}
-        maxWidth="2xl"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Central Inventory Banner */}
-          <div className="bg-blue-50/90 border border-blue-200/90 rounded-2xl p-3.5 flex items-center gap-3 text-blue-900 shadow-2xs">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <Package className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-black text-blue-950 flex items-center gap-1.5">
-                <span>Central Inventory (All Sites)</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-200/70 text-blue-800 uppercase">Auto</span>
-              </div>
-              <p className="text-[11px] text-blue-700 font-medium mt-0.5 leading-snug">
-                This purchase is automatically saved to the enterprise central stock for all construction sites.
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Purchase Date (DD-MM-YYYY) *</label>
-            <DateInput
-              required
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-semibold text-slate-800"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Supplier / Vendor Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="Shree Cement / Patel Traders"
-                value={formData.supplierName}
-                onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Material Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="Cement / Steel / Sand"
-                value={formData.materialName}
-                onChange={(e) => setFormData({ ...formData, materialName: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold uppercase"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Quantity *</label>
-              <input
-                type="number"
-                step="any"
-                required
-                min="0.01"
-                placeholder="100"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Unit (UOM) *</label>
-              <select
-                value={formData.unit}
-                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-medium"
-              >
-                <option value="Nos">Nos</option>
-                <option value="Bags">Bags</option>
-                <option value="Ton">Ton</option>
-                <option value="Kg">Kg</option>
-                <option value="Brass">Brass</option>
-                <option value="CFT">CFT</option>
-                <option value="Cum">Cum</option>
-                <option value="Sq.ft">Sq.ft</option>
-                <option value="Trip">Trip</option>
-                <option value="Load">Load</option>
-                <option value="Ltr">Ltr</option>
-                <option value="Mtr">Mtr</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Rate (₹/Unit) *</label>
-              <input
-                type="number"
-                step="any"
-                required
-                min="0.01"
-                placeholder="350"
-                value={formData.rate}
-                onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GST Tax (%)</label>
-              <select
-                value={formData.taxPercentage}
-                onChange={(e) => setFormData({ ...formData, taxPercentage: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-medium"
-              >
-                <option value="0">0% (None / Exempt)</option>
-                <option value="5">5%</option>
-                <option value="12">12%</option>
-                <option value="18">18% (Standard)</option>
-                <option value="28">28%</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                <span>Transportation Fee (₹)</span>
-              </label>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                placeholder="0"
-                value={formData.transportationFee}
-                onChange={(e) => setFormData({ ...formData, transportationFee: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Payment Status</label>
-              <select
-                value={formData.paymentStatus}
-                onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-semibold text-slate-800"
-              >
-                <option value="Paid">Paid</option>
-                <option value="Pending">Pending / Unpaid</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Notes / Description (Optional)</label>
-            <textarea
-              rows={2}
-              placeholder="e.g. Invoice #9821, Delivery by truck GJ01-1234"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-medium"
-            />
-          </div>
-
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between text-xs text-slate-600 gap-2 min-w-0">
-              <span className="truncate">Subtotal (Qty &times; Rate):</span>
-              <span className="font-semibold tabular-nums shrink-0 font-mono">
-                ₹{formatINR((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0))}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs text-slate-600 gap-2 min-w-0">
-              <span className="truncate">GST ({formData.taxPercentage}%):</span>
-              <span className="font-semibold tabular-nums shrink-0 font-mono">
-                ₹{formatINR(((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * ((parseFloat(formData.taxPercentage) || 0) / 100))}
-              </span>
-            </div>
-            {(parseFloat(formData.transportationFee) || 0) > 0 && (
-              <div className="flex items-center justify-between text-xs text-blue-700 gap-2 min-w-0">
-                <span className="truncate">Transportation Fee:</span>
-                <span className="font-bold tabular-nums shrink-0 font-mono">
-                  + ₹{formatINR(parseFloat(formData.transportationFee) || 0)}
-                </span>
-              </div>
-            )}
-            <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 min-w-0">
-              <span className="text-xs font-bold text-slate-900 uppercase truncate">Grand Total:</span>
-              <span className="text-base font-black text-slate-900 tabular-nums shrink-0 font-mono">
-                ₹{formatINR(
-                  ((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * (1 + (parseFloat(formData.taxPercentage) || 0) / 100) +
-                  (parseFloat(formData.transportationFee) || 0)
-                )}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-[#1E88E5] hover:bg-blue-600 rounded-xl transition-all cursor-pointer shadow-sm"
-            >
-              Save Purchase
-            </button>
-          </div>
-        </form>
-      </Modal>
 
       {/* COMPREHENSIVE MODAL: Material Supply Details & Location-wise Distribution */}
       {selectedMaterialDetail && activeMaterialData && (
@@ -1944,14 +1796,23 @@ export default function MaterialPurchasePage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-start sm:self-auto">
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => openAddPurchaseModal(activeSupplierData.name)}
+                  className="px-3.5 py-1.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs cursor-pointer whitespace-nowrap"
+                  title={`Add new purchase entry in ${activeSupplierData.name}`}
+                >
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
+                  <span>+ Add Purchase Entry</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleExportSupplierExcel(activeSupplierData.name)}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer whitespace-nowrap"
                   title="Download full supplier Excel statement"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5 shrink-0" />
                   <span>Export Excel</span>
                 </button>
               </div>
@@ -1960,22 +1821,22 @@ export default function MaterialPurchasePage() {
         >
           <div className="space-y-5">
             {/* 4 Summary Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-stretch">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Total Purchase Value
                 </span>
-                <span className="text-xl font-black text-slate-900 tabular-nums">
+                <span className="text-xl font-black text-slate-900 tabular-nums whitespace-nowrap">
                   ₹{formatINR(activeSupplierData.totalAmount)}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">Across all materials</span>
               </div>
 
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Invoices / Bills
                 </span>
-                <span className="text-xl font-black text-slate-900 tabular-nums">
+                <span className="text-xl font-black text-slate-900 tabular-nums whitespace-nowrap">
                   {activeSupplierData.invoicesCount} {activeSupplierData.invoicesCount === 1 ? "Bill" : "Bills"}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -1983,11 +1844,11 @@ export default function MaterialPurchasePage() {
                 </span>
               </div>
 
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Total Quantity
                 </span>
-                <span className="text-xl font-black text-slate-900 tabular-nums">
+                <span className="text-xl font-black text-slate-900 tabular-nums whitespace-nowrap">
                   {formatINR(activeSupplierData.totalQty)}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -1995,16 +1856,16 @@ export default function MaterialPurchasePage() {
                 </span>
               </div>
 
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Payment Status
                 </span>
                 <div className="flex items-baseline gap-2 mt-0.5">
-                  <span className="text-sm font-black text-emerald-700">₹{formatINR(activeSupplierData.paidAmount)}</span>
+                  <span className="text-sm font-black text-emerald-700 tabular-nums whitespace-nowrap">₹{formatINR(activeSupplierData.paidAmount)}</span>
                   <span className="text-[10px] text-slate-400">Paid</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className={`text-xs font-bold ${activeSupplierData.pendingAmount > 0 ? "text-rose-700 font-black" : "text-slate-400"}`}>
+                  <span className={`text-xs font-bold tabular-nums whitespace-nowrap ${activeSupplierData.pendingAmount > 0 ? "text-rose-700 font-black" : "text-slate-400"}`}>
                     ₹{formatINR(activeSupplierData.pendingAmount)}
                   </span>
                   <span className="text-[10px] text-slate-400">Pending</span>
@@ -2014,9 +1875,9 @@ export default function MaterialPurchasePage() {
 
             {/* Materials Breakdown Purchased from this Supplier */}
             <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
                 <h3 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-emerald-700" />
+                  <Package className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                   <span>Materials Purchased from {activeSupplierData.name}</span>
                 </h3>
                 <span className="text-[11px] font-bold text-emerald-800">
@@ -2025,24 +1886,56 @@ export default function MaterialPurchasePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                {Object.values(activeSupplierData.materials).map((mat, mIdx) => (
-                  <div key={mIdx} className="bg-white p-3 rounded-xl border border-emerald-200/70 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-900">{mat.name}</span>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
-                        {mat.count} {mat.count === 1 ? "Bill" : "Bills"}
-                      </span>
+                {Object.values(activeSupplierData.materials).map((mat, mIdx) => {
+                  const lastMatchingPurchase = activeSupplierData.purchases.find(
+                    p => (p.materialName || "").trim().toUpperCase() === mat.name.trim().toUpperCase()
+                  );
+                  return (
+                    <div key={mIdx} className="bg-white p-3 rounded-xl border border-emerald-200/70 shadow-2xs flex flex-col justify-between gap-2">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-black text-slate-900 truncate">{mat.name}</span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 shrink-0">
+                            {mat.count} {mat.count === 1 ? "Bill" : "Bills"}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-baseline justify-between gap-2">
+                          <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">
+                            {formatINR(mat.qty)} {mat.unit}
+                          </span>
+                          <span className="text-xs font-bold text-slate-600 tabular-nums whitespace-nowrap">
+                            ₹{formatINR(mat.amount)}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPurchaseId(null);
+                          setPreselectedVendor(activeSupplierData.name);
+                          setIsCustomVendorInput(false);
+                          setFormData({
+                            date: new Date().toISOString().split("T")[0],
+                            supplierName: activeSupplierData.name,
+                            materialName: mat.name,
+                            quantity: "",
+                            unit: mat.unit || "Nos",
+                            rate: lastMatchingPurchase?.rate ? String(lastMatchingPurchase.rate) : "",
+                            transportationFee: "0",
+                            taxPercentage: lastMatchingPurchase?.taxPercentage ? String(lastMatchingPurchase.taxPercentage) : "18",
+                            paymentStatus: "Paid",
+                            notes: ""
+                          });
+                          setIsModalOpen(true);
+                        }}
+                        className="w-full py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
+                      >
+                        <Plus className="w-3 h-3 shrink-0" />
+                        <span>+ Repeat {mat.name} Entry</span>
+                      </button>
                     </div>
-                    <div className="mt-1 flex items-baseline justify-between">
-                      <span className="text-sm font-black text-slate-800 tabular-nums">
-                        {formatINR(mat.qty)} {mat.unit}
-                      </span>
-                      <span className="text-xs font-bold text-slate-600 tabular-nums">
-                        ₹{formatINR(mat.amount)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -2059,23 +1952,33 @@ export default function MaterialPurchasePage() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Filter by material, notes, date..."
-                    value={supplierModalSearch}
-                    onChange={(e) => setSupplierModalSearch(e.target.value)}
-                    className="w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
-                  />
-                  {supplierModalSearch && (
-                    <button
-                      onClick={() => setSupplierModalSearch("")}
-                      className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  )}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 flex-1 sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Filter by material, notes, date..."
+                      value={supplierModalSearch}
+                      onChange={(e) => setSupplierModalSearch(e.target.value)}
+                      className="w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+                    />
+                    {supplierModalSearch && (
+                      <button
+                        onClick={() => setSupplierModalSearch("")}
+                        className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openAddPurchaseModal(activeSupplierData.name)}
+                    className="px-3 py-1.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>+ New Entry</span>
+                  </button>
                 </div>
               </div>
 
@@ -2099,7 +2002,7 @@ export default function MaterialPurchasePage() {
 
                 return (
                   <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-                    <div className="max-h-80 overflow-y-auto overflow-x-hidden">
+                    <div className="max-h-80 overflow-y-auto overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
                           <tr>
@@ -2135,23 +2038,23 @@ export default function MaterialPurchasePage() {
                                   <td className="p-2.5 font-bold text-slate-900">
                                     {p.materialName}
                                   </td>
-                                  <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">
+                                  <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
                                     {formatINR(p.quantity)} {p.unit}
                                   </td>
-                                  <td className="p-2.5 text-right text-slate-600 tabular-nums">
+                                  <td className="p-2.5 text-right text-slate-600 tabular-nums whitespace-nowrap">
                                     ₹{formatINR(p.rate)}
                                   </td>
                                   <td className="p-2.5 text-center text-slate-600">
                                     {p.taxPercentage || 18}%
                                   </td>
-                                  <td className="p-2.5 text-right font-medium tabular-nums">
+                                  <td className="p-2.5 text-right font-medium tabular-nums whitespace-nowrap">
                                     {transportAmt > 0 ? (
                                       <span className="text-indigo-700">₹{formatINR(transportAmt)}</span>
                                     ) : (
                                       <span className="text-slate-400">₹0</span>
                                     )}
                                   </td>
-                                  <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">
+                                  <td className="p-2.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
                                     ₹{formatINR(p.totalAmount)}
                                   </td>
                                   <td className="p-2.5 text-center">
@@ -2168,11 +2071,8 @@ export default function MaterialPurchasePage() {
                                     <div className="flex items-center justify-center gap-1">
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          setSelectedSupplierDetail(null);
-                                          handleEditPurchase(p);
-                                        }}
-                                        className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                        onClick={() => handleEditPurchase(p)}
+                                        className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
                                         title="Edit Purchase"
                                       >
                                         <Edit3 size={13} />
@@ -2180,7 +2080,7 @@ export default function MaterialPurchasePage() {
                                       <button
                                         type="button"
                                         onClick={() => handleDelete(p.id)}
-                                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                                         title="Delete Purchase"
                                       >
                                         <Trash2 size={13} />
@@ -2198,11 +2098,11 @@ export default function MaterialPurchasePage() {
                               <td colSpan={2} className="p-2.5 uppercase text-[10px]">
                                 Summary Totals ({displayPurchases.length} Bills)
                               </td>
-                              <td className="p-2.5 text-right tabular-nums">{formatINR(modalTotQty)}</td>
+                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">{formatINR(modalTotQty)}</td>
                               <td className="p-2.5"></td>
-                              <td className="p-2.5 text-center tabular-nums">₹{formatINR(modalTotTax)}</td>
-                              <td className="p-2.5 text-right tabular-nums">₹{formatINR(modalTotTrans)}</td>
-                              <td className="p-2.5 text-right text-emerald-800 tabular-nums">
+                              <td className="p-2.5 text-center tabular-nums whitespace-nowrap">₹{formatINR(modalTotTax)}</td>
+                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">₹{formatINR(modalTotTrans)}</td>
+                              <td className="p-2.5 text-right text-emerald-800 tabular-nums whitespace-nowrap">
                                 ₹{formatINR(modalTotVal)}
                               </td>
                               <td colSpan={3}></td>
@@ -2217,24 +2117,454 @@ export default function MaterialPurchasePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
               <span className="text-xs font-semibold text-slate-500">
-                Supplier Total: <strong className="text-emerald-800">₹{formatINR(activeSupplierData.totalAmount)}</strong> across {activeSupplierData.invoicesCount} purchase bills
+                Supplier Total: <strong className="text-emerald-800 tabular-nums">₹{formatINR(activeSupplierData.totalAmount)}</strong> across {activeSupplierData.invoicesCount} purchase bills
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedSupplierDetail(null);
-                  setSupplierModalSearch("");
-                }}
-                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openAddPurchaseModal(activeSupplierData.name)}
+                  className="px-4 py-2 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
+                  <span>+ Add Purchase in {activeSupplierData.name}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSupplierDetail(null);
+                    setSupplierModalSearch("");
+                  }}
+                  className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </Modal>
       )}
+
+      {/* Modal: Add/Edit Material Purchase (Rendered last so it opens cleanly on top of Supplier Statement Modal) */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingPurchaseId(null);
+          setPreselectedVendor(null);
+        }}
+        title={
+          editingPurchaseId
+            ? `Edit Material Purchase (${formData.supplierName || "Vendor"})`
+            : preselectedVendor
+            ? `+ Add Purchase Entry — ${preselectedVendor}`
+            : "+ Add Material Purchase"
+        }
+        maxWidth="2xl"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Selected Vendor Highlight Card OR Central Inventory Banner */}
+          {(() => {
+            const matchedVendor = supplierSummaries.find(
+              s => s.name.trim().toLowerCase() === (formData.supplierName || "").trim().toLowerCase()
+            );
+
+            if (preselectedVendor && !isCustomVendorInput) {
+              return (
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                        <span>Selected Vendor / Supplier</span>
+                        {matchedVendor && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-black">
+                            {matchedVendor.invoicesCount} Bills • ₹{formatINR(matchedVendor.totalAmount)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm font-black text-slate-900 truncate mt-0.5">
+                        {formData.supplierName}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreselectedVendor(null);
+                      setIsCustomVendorInput(false);
+                    }}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto shrink-0"
+                  >
+                    Change Vendor
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-blue-50/90 border border-blue-200/90 rounded-2xl p-3.5 flex items-center gap-3 text-blue-900 shadow-2xs">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                    <span>Central Inventory (All Sites)</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-200/70 text-blue-800 uppercase">Auto</span>
+                  </div>
+                  <p className="text-[11px] text-blue-700 font-medium mt-0.5 leading-snug">
+                    Select an existing vendor or enter a new vendor name below to record a material purchase.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Purchase Date (DD-MM-YYYY) *</label>
+            <DateInput
+              required
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-semibold text-slate-800"
+            />
+          </div>
+
+          {/* Vendor / Supplier Selector & Input */}
+          <div className="space-y-2 p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/90">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase">
+                Supplier / Vendor Name *
+              </label>
+              {supplierSummaries.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomVendorInput(false)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      !isCustomVendorInput
+                        ? "bg-emerald-600 text-white shadow-2xs"
+                        : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    Select Existing Vendor ({supplierSummaries.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomVendorInput(true);
+                      setPreselectedVendor(null);
+                      setFormData({ ...formData, supplierName: "" });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      isCustomVendorInput
+                        ? "bg-[#1E88E5] text-white shadow-2xs"
+                        : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    + New Vendor
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {!isCustomVendorInput && supplierSummaries.length > 0 ? (
+              <div className="space-y-2">
+                <select
+                  value={
+                    supplierSummaries.some(
+                      s => s.name.trim().toLowerCase() === (formData.supplierName || "").trim().toLowerCase()
+                    )
+                      ? supplierSummaries.find(
+                          s => s.name.trim().toLowerCase() === (formData.supplierName || "").trim().toLowerCase()
+                        )?.name || ""
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "__NEW__") {
+                      setIsCustomVendorInput(true);
+                      setPreselectedVendor(null);
+                      setFormData({ ...formData, supplierName: "" });
+                    } else {
+                      setFormData({ ...formData, supplierName: val });
+                    }
+                  }}
+                  required={!formData.supplierName}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none font-bold text-slate-800 cursor-pointer"
+                >
+                  <option value="">-- Choose a Vendor / Supplier --</option>
+                  {supplierSummaries.map((s, idx) => (
+                    <option key={idx} value={s.name}>
+                      {s.name} ({s.invoicesCount} {s.invoicesCount === 1 ? "Bill" : "Bills"} — ₹{formatINR(s.totalAmount)})
+                    </option>
+                  ))}
+                  <option value="__NEW__">+ Add New Vendor / Supplier...</option>
+                </select>
+
+                {/* Quick Select Vendor Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Quick Pick:</span>
+                  {supplierSummaries.slice(0, 8).map((s, idx) => {
+                    const isSelected = (formData.supplierName || "").trim().toLowerCase() === s.name.trim().toLowerCase();
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, supplierName: s.name })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          isSelected
+                            ? "bg-emerald-600 text-white shadow-2xs"
+                            : "bg-white hover:bg-emerald-50 text-slate-700 border border-slate-200"
+                        }`}
+                      >
+                        <Building2 className="w-3 h-3 shrink-0" />
+                        <span>{s.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <input
+                type="text"
+                required
+                placeholder="Enter Vendor / Supplier Name (e.g. Gurukrupa Traders)"
+                value={formData.supplierName}
+                onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none font-bold text-slate-900"
+              />
+            )}
+          </div>
+
+          {/* Material Name Input + Quick Material Selector from Selected Vendor */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Material Name *</label>
+            <input
+              type="text"
+              required
+              placeholder="Cement / Steel / Sand"
+              value={formData.materialName}
+              onChange={(e) => setFormData({ ...formData, materialName: e.target.value })}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold uppercase"
+            />
+
+            {(() => {
+              const matchedVendor = supplierSummaries.find(
+                s => s.name.trim().toLowerCase() === (formData.supplierName || "").trim().toLowerCase()
+              );
+              const vendorMats = matchedVendor ? Object.values(matchedVendor.materials) : [];
+              if (vendorMats.length === 0) return null;
+
+              return (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase mr-1">
+                    {matchedVendor?.name} Materials (Click to auto-fill):
+                  </span>
+                  {vendorMats.map((m, mIdx) => {
+                    const isSelectedMat = (formData.materialName || "").trim().toUpperCase() === m.name.trim().toUpperCase();
+                    const lastBill = matchedVendor?.purchases.find(
+                      p => (p.materialName || "").trim().toUpperCase() === m.name.trim().toUpperCase()
+                    );
+                    return (
+                      <button
+                        key={mIdx}
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            materialName: m.name,
+                            unit: m.unit || formData.unit,
+                            rate: lastBill?.rate ? String(lastBill.rate) : formData.rate,
+                            taxPercentage: lastBill?.taxPercentage ? String(lastBill.taxPercentage) : formData.taxPercentage
+                          });
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          isSelectedMat
+                            ? "bg-blue-600 text-white shadow-2xs"
+                            : "bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200/80"
+                        }`}
+                      >
+                        <Package className="w-3 h-3 shrink-0" />
+                        <span>{m.name}</span>
+                        {lastBill?.rate && (
+                          <span className="opacity-80 text-[10px]">(@₹{formatINR(lastBill.rate)}/{m.unit})</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Quantity *</label>
+              <input
+                type="number"
+                step="any"
+                required
+                min="0.01"
+                placeholder="100"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Unit (UOM) *</label>
+              <select
+                value={formData.unit}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-medium"
+              >
+                <option value="Nos">Nos</option>
+                <option value="Bags">Bags</option>
+                <option value="Ton">Ton</option>
+                <option value="Kg">Kg</option>
+                <option value="Brass">Brass</option>
+                <option value="CFT">CFT</option>
+                <option value="Cum">Cum</option>
+                <option value="Sq.ft">Sq.ft</option>
+                <option value="Trip">Trip</option>
+                <option value="Load">Load</option>
+                <option value="Ltr">Ltr</option>
+                <option value="Mtr">Mtr</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Rate (₹/Unit) *</label>
+              <input
+                type="number"
+                step="any"
+                required
+                min="0.01"
+                placeholder="350"
+                value={formData.rate}
+                onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GST Tax (%)</label>
+              <select
+                value={formData.taxPercentage}
+                onChange={(e) => setFormData({ ...formData, taxPercentage: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-medium"
+              >
+                <option value="0">0% (None / Exempt)</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18% (Standard)</option>
+                <option value="28">28%</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                <span>Transportation Fee (₹)</span>
+              </label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                placeholder="0"
+                value={formData.transportationFee}
+                onChange={(e) => setFormData({ ...formData, transportationFee: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-bold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Payment Status</label>
+              <select
+                value={formData.paymentStatus}
+                onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-semibold text-slate-800"
+              >
+                <option value="Paid">Paid</option>
+                <option value="Pending">Pending / Unpaid</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Notes / Description (Optional)</label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Invoice #9821, Delivery by truck GJ01-1234"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none font-medium"
+            />
+          </div>
+
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-600 gap-2 min-w-0">
+              <span className="truncate">Subtotal (Qty &times; Rate):</span>
+              <span className="font-semibold tabular-nums shrink-0 font-mono whitespace-nowrap">
+                ₹{formatINR((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0))}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-600 gap-2 min-w-0">
+              <span className="truncate">GST ({formData.taxPercentage}%):</span>
+              <span className="font-semibold tabular-nums shrink-0 font-mono whitespace-nowrap">
+                ₹{formatINR(((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * ((parseFloat(formData.taxPercentage) || 0) / 100))}
+              </span>
+            </div>
+            {(parseFloat(formData.transportationFee) || 0) > 0 && (
+              <div className="flex items-center justify-between text-xs text-blue-700 gap-2 min-w-0">
+                <span className="truncate">Transportation Fee:</span>
+                <span className="font-bold tabular-nums shrink-0 font-mono whitespace-nowrap">
+                  + ₹{formatINR(parseFloat(formData.transportationFee) || 0)}
+                </span>
+              </div>
+            )}
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 min-w-0">
+              <span className="text-xs font-bold text-slate-900 uppercase truncate">Grand Total:</span>
+              <span className="text-base font-black text-slate-900 tabular-nums shrink-0 font-mono whitespace-nowrap">
+                ₹{formatINR(
+                  ((parseFloat(formData.quantity) || 0) * (parseFloat(formData.rate) || 0)) * (1 + (parseFloat(formData.taxPercentage) || 0) / 100) +
+                  (parseFloat(formData.transportationFee) || 0)
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsModalOpen(false);
+                setEditingPurchaseId(null);
+                setPreselectedVendor(null);
+              }}
+              className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-bold text-white bg-[#1E88E5] hover:bg-blue-600 rounded-xl transition-all cursor-pointer shadow-sm"
+            >
+              {editingPurchaseId
+                ? "Update Purchase"
+                : formData.supplierName
+                ? `Save Entry in ${formData.supplierName}`
+                : "Save Purchase"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
     </div>
   );
