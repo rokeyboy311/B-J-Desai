@@ -1650,7 +1650,7 @@ export default function AdminPage() {
                       <div className="p-4 sm:p-6 bg-gradient-to-b from-amber-50/30 via-white to-amber-50/10 space-y-4">
                         {/* Statement Sub-tabs */}
                         <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-100/60 p-2 rounded-2xl border border-amber-200">
-                          <div className="flex items-center gap-1.5 overflow-x-auto">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => setInvestorDetailTab(prev => ({ ...prev, [inv.id]: "all" }))}

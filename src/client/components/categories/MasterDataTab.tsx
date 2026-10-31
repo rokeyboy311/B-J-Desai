@@ -175,7 +175,7 @@ export default function MasterDataTab({ locationId }: { locationId: number }) {
       {/* Table Container */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
               <tr>
                 <th className="p-3">#</th>

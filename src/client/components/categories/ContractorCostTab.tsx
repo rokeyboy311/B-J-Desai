@@ -224,54 +224,54 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0 max-w-full">
       {/* Category Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-100 text-purple-800 border border-purple-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 border-b border-slate-100 pb-4 min-w-0">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
               Category 5
             </span>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Cost & Reconciliation Matrix</h2>
+            <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight break-words min-w-0">Contractor Cost &amp; Reconciliation Matrix</h2>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1 break-words">
             Reconcile Site Supply + Labour Attendance total against recorded Contractor Invoices.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 shrink-0" />
             <span>Export Excel</span>
           </button>
           <button
             type="button"
             onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Add Contractor Cost</span>
           </button>
         </div>
       </div>
 
       {/* Prominent Operational Reconciliation Equation Banner */}
-      <div className={`p-4 rounded-2xl border transition-all ${
+      <div className={`p-3.5 sm:p-4 rounded-2xl border transition-all min-w-0 ${
         reconciliation?.summary.reconciliationStatus === "MATCHED"
           ? "bg-emerald-50/80 border-emerald-200"
           : reconciliation?.summary.reconciliationStatus === "SURPLUS"
           ? "bg-blue-50/80 border-blue-200"
           : "bg-amber-50/80 border-amber-200"
       }`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Scale className="w-4 h-4 text-purple-700" />
-              <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 min-w-0">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Scale className="w-4 h-4 text-purple-700 shrink-0" />
+              <span className="text-xs font-black text-slate-900 uppercase tracking-wide break-words">
                 Reconciliation Equation
               </span>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
@@ -288,28 +288,28 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                   : "⚠ DEFICIT (ENTRY PENDING)"}
               </span>
             </div>
-            <div className="text-xs font-bold text-slate-700 flex flex-wrap items-center gap-2 pt-1">
-              <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs">
+            <div className="text-xs font-bold text-slate-700 flex flex-wrap items-center gap-1.5 sm:gap-2 pt-1 min-w-0">
+              <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs break-words">
                 Cat 3 Site Supply: <strong className="text-teal-700">₹{formatINR(reconciliation?.summary.totalSiteSupplies || 0)}</strong>
               </span>
               <span>+</span>
-              <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs">
+              <span className="px-2 py-1 bg-white rounded-lg border border-slate-200 shadow-xs break-words">
                 Cat 4 Labour Attendance: <strong className="text-rose-700">₹{formatINR(reconciliation?.summary.totalLabourCost || 0)}</strong>
               </span>
               <span>=</span>
-              <span className="px-2.5 py-1 bg-amber-100/80 rounded-lg border border-amber-300 text-amber-950 font-black shadow-xs">
+              <span className="px-2.5 py-1 bg-amber-100/80 rounded-lg border border-amber-300 text-amber-950 font-black shadow-xs break-words">
                 Expected: ₹{formatINR(reconciliation?.summary.expectedCost || 0)}
               </span>
               <span>&harr;</span>
-              <span className="px-2.5 py-1 bg-purple-100/80 rounded-lg border border-purple-300 text-purple-950 font-black shadow-xs">
+              <span className="px-2.5 py-1 bg-purple-100/80 rounded-lg border border-purple-300 text-purple-950 font-black shadow-xs break-words">
                 Recorded: ₹{formatINR(reconciliation?.summary.recordedCost || 0)}
               </span>
             </div>
           </div>
 
-          <div className="text-right shrink-0">
+          <div className="md:text-right shrink-0 min-w-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/60">
             <span className="text-[11px] text-slate-500 block font-medium">Difference / Variance:</span>
-            <span className={`text-base font-black ${
+            <span className={`text-sm sm:text-base font-black break-all ${
               reconciliation?.summary.reconciliationStatus === "MATCHED"
                 ? "text-emerald-700"
                 : reconciliation?.summary.reconciliationStatus === "SURPLUS"
@@ -324,46 +324,46 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
       </div>
 
       {/* Top Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-purple-700 uppercase tracking-wider">Total Recorded Cost</span>
-            <HardHat className="w-4 h-4 text-purple-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-purple-700 uppercase tracking-wider break-words min-w-0">Total Recorded Cost</span>
+            <HardHat className="w-4 h-4 text-purple-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900 mt-2">
+          <div className="text-lg sm:text-2xl font-black text-slate-900 mt-2 tabular-nums break-all sm:break-words">
             ₹{formatINR(totalNet)}
           </div>
           <p className="text-[11px] text-purple-600 mt-1 font-medium">{costs.length} records</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Paid Amount</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider break-words min-w-0">Paid Amount</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-emerald-900 mt-2">
+          <div className="text-lg sm:text-2xl font-black text-emerald-900 mt-2 tabular-nums break-all sm:break-words">
             ₹{formatINR(totalPaid)}
           </div>
           <p className="text-[11px] text-emerald-600 mt-1 font-medium">Fully settled records</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Expected Operational Cost</span>
-            <Scale className="w-4 h-4 text-amber-600" />
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/70 border border-amber-100 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider break-words min-w-0">Expected Operational Cost</span>
+            <Scale className="w-4 h-4 text-amber-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-amber-900 mt-2">
+          <div className="text-lg sm:text-2xl font-black text-amber-900 mt-2 tabular-nums break-all sm:break-words">
             ₹{formatINR(reconciliation?.summary.expectedCost || 0)}
           </div>
           <p className="text-[11px] text-amber-600 mt-1 font-medium">Site Supply + Labour Salaries</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-100 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Reconciliation Status</span>
-            <ShieldCheck className="w-4 h-4 text-blue-600" />
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-50/70 border border-blue-100 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-blue-700 uppercase tracking-wider break-words min-w-0">Reconciliation Status</span>
+            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
           </div>
-          <div className="text-lg font-black text-slate-900 mt-2 flex items-center gap-2">
+          <div className="text-base sm:text-lg font-black text-slate-900 mt-2 flex items-center gap-2 break-all sm:break-words">
             {reconciliation?.summary.reconciliationStatus === "MATCHED" ? (
               <span className="text-emerald-700">Balanced (₹0)</span>
             ) : reconciliation?.summary.reconciliationStatus === "SURPLUS" ? (
@@ -377,11 +377,11 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
       </div>
 
       {/* Subtabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex flex-wrap border-b border-slate-200">
         <button
           type="button"
           onClick={() => setActiveSubTab("records")}
-          className={`px-4 py-2.5 font-bold text-xs border-b-2 transition-all cursor-pointer ${
+          className={`px-3 sm:px-4 py-2.5 font-bold text-xs border-b-2 transition-all cursor-pointer ${
             activeSubTab === "records"
               ? "border-purple-600 text-purple-700 bg-purple-50/40"
               : "border-transparent text-slate-500 hover:text-slate-800"
@@ -392,22 +392,22 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
         <button
           type="button"
           onClick={() => setActiveSubTab("reconciliation")}
-          className={`px-4 py-2.5 font-bold text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-3 sm:px-4 py-2.5 font-bold text-xs border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
             activeSubTab === "reconciliation"
               ? "border-purple-600 text-purple-700 bg-purple-50/40"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
-          <Scale className="w-3.5 h-3.5" />
-          Audit & Reconciliation Matrix
+          <Scale className="w-3.5 h-3.5 shrink-0" />
+          <span>Audit &amp; Reconciliation Matrix</span>
         </button>
       </div>
 
       {activeSubTab === "records" && (
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row gap-3 min-w-0">
+            <div className="relative flex-1 min-w-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
@@ -430,7 +430,7 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
           </div>
 
           {/* Table */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs min-w-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50/75 text-slate-600 font-bold border-b border-slate-200">
@@ -462,13 +462,13 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                   ) : (
                     filteredCosts.map(cost => (
                       <tr key={cost.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">
+                        <td className="py-3 px-4 font-medium text-slate-700">
                           {formatDate(cost.date)}
                         </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">
+                        <td className="py-3 px-4 font-bold text-slate-900 break-words">
                           {cost.contractorName}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate" title={cost.workDescription || ""}>
+                        <td className="py-3 px-4 text-slate-600 max-w-[200px] break-words" title={cost.workDescription || ""}>
                           {cost.workDescription || "-"}
                         </td>
                         <td className="py-3 px-4 text-right font-medium text-slate-600">
@@ -491,13 +491,13 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                             {cost.paymentStatus}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
+                        <td className="py-3 px-4 text-slate-500">
                           <span className="font-medium text-slate-700">{cost.paymentMethod || "Bank"}</span>
                           {cost.referenceNumber && (
-                            <span className="text-[10px] text-slate-400 block">Ref: {cost.referenceNumber}</span>
+                            <span className="text-[10px] text-slate-400 block break-words">Ref: {cost.referenceNumber}</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
@@ -528,20 +528,20 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
       )}
 
       {activeSubTab === "reconciliation" && reconciliation && (
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           {/* Complete 5-Tier Financial Flow Context */}
-          <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 rounded-3xl text-white shadow-lg space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 bg-purple-900/50 px-2.5 py-1 rounded-md border border-purple-500/30">
+          <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 rounded-2xl sm:rounded-3xl text-white shadow-lg space-y-5 sm:space-y-6 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-white/10 min-w-0">
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 bg-purple-900/50 px-2.5 py-1 rounded-md border border-purple-500/30 inline-block">
                   Full Chain Reconciliation
                 </span>
-                <h3 className="text-lg font-black text-white mt-1.5 flex items-center gap-2">
-                  <Scale className="w-5 h-5 text-purple-400" />
-                  Admin &rarr; Investor &rarr; Investment &rarr; (Material+Site+Labour) &rarr; Contractor Cost
+                <h3 className="text-sm sm:text-lg font-black text-white mt-1.5 flex items-center gap-2 break-words">
+                  <Scale className="w-5 h-5 text-purple-400 shrink-0" />
+                  <span className="break-words min-w-0">Admin &rarr; Investor &rarr; Investment &rarr; (Material+Site+Labour) &rarr; Contractor Cost</span>
                 </h3>
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-black self-start sm:self-auto ${
+              <span className={`px-3 py-1 rounded-full text-xs font-black self-start sm:self-auto shrink-0 ${
                 reconciliation.summary.reconciliationStatus === "MATCHED" && reconciliation.summary.investmentStatus === "MATCHED"
                   ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                   : "bg-purple-500/20 text-purple-200 border border-purple-500/30"
@@ -553,11 +553,11 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             </div>
 
             {/* Upstream Rule 1: Investment Capital vs 3 Site Expenses */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-              <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                  <Landmark className="w-4 h-4 text-indigo-400" />
-                  Upstream Rule 1: Investment Capital vs 3 Site Expenses
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 sm:p-4 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
+                <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5 min-w-0">
+                  <Landmark className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="break-words">Upstream Rule 1: Investor Investment Capital vs 3 Site Expenses</span>
                 </span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                   reconciliation.summary.investmentStatus === "MATCHED"
@@ -574,28 +574,28 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
-                <div>
-                  <span className="text-slate-400 text-[11px] block">Investment Capital:</span>
-                  <span className="text-white font-bold text-sm">
+              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
+                <div className="min-w-0">
+                  <span className="text-slate-400 text-[11px] block">Investor Investment Capital:</span>
+                  <span className="text-white font-bold text-sm break-all sm:break-words">
                     ₹{formatINR(reconciliation.summary.totalInvestmentCapital || 0)}
                   </span>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="text-slate-400 text-[11px] block">Cat 2 Material Supply:</span>
-                  <span className="text-blue-300 font-bold">
+                  <span className="text-blue-300 font-bold break-all sm:break-words">
                     ₹{formatINR(reconciliation.summary.totalCustomerMaterialSupply || 0)}
                   </span>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="text-slate-400 text-[11px] block">Cat 3 + Cat 4 Spend:</span>
-                  <span className="text-amber-300 font-bold">
+                  <span className="text-amber-300 font-bold break-all sm:break-words">
                     ₹{formatINR(reconciliation.summary.expectedCost || 0)}
                   </span>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="text-slate-400 text-[11px] block">Combined 3-Spend Total:</span>
-                  <span className="text-emerald-300 font-black text-sm">
+                  <span className="text-emerald-300 font-black text-sm break-all sm:break-words">
                     ₹{formatINR(reconciliation.summary.totalThreeSiteExpenses || 0)}
                   </span>
                 </div>
@@ -603,11 +603,11 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
             </div>
 
             {/* Downstream Rule 2: Operational Spend vs Contractor Cost */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-              <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <HardHat className="w-4 h-4 text-amber-400" />
-                  Downstream Rule 2: (Site Supply + Labour Attendance) vs Contractor Cost
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 sm:p-4 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 min-w-0">
+                  <HardHat className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="break-words">Downstream Rule 2: (Site Supply + Labour Attendance) vs Contractor Cost</span>
                 </span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                   reconciliation.summary.reconciliationStatus === "MATCHED"
@@ -624,44 +624,44 @@ export default function ContractorCostTab({ locationId }: { locationId: number }
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3">
+                <div className="min-w-0">
                   <p className="text-xs text-slate-400">1. Cat 3 Site Supplies to Labour:</p>
-                  <p className="text-xl font-black text-teal-400 mt-0.5">
+                  <p className="text-lg sm:text-xl font-black text-teal-400 mt-0.5 break-all sm:break-words">
                     ₹{formatINR(reconciliation.summary.totalSiteSupplies)}
                   </p>
                   <p className="text-[10px] text-slate-400">{reconciliation.summary.siteSupplyCount} supply entries</p>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-slate-400">2. Cat 4 Labour Attendance / Salaries:</p>
-                  <p className="text-xl font-black text-amber-400 mt-0.5">
+                  <p className="text-lg sm:text-xl font-black text-amber-400 mt-0.5 break-all sm:break-words">
                     ₹{formatINR(reconciliation.summary.totalLabourCost)}
                   </p>
                   <p className="text-[10px] text-slate-400">{reconciliation.summary.labourCount} wage entries</p>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-slate-400">3. Expected Contractor Cost:</p>
-                  <p className="text-xl font-black text-white mt-0.5">
+                  <p className="text-lg sm:text-xl font-black text-white mt-0.5 break-all sm:break-words">
                     ₹{formatINR(reconciliation.summary.expectedCost)}
                   </p>
                   <p className="text-[10px] text-purple-300">Target to match Cat 5 records</p>
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs">
+              <div className="mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="text-xs break-words min-w-0">
                   <span className="text-slate-400">Cat 5 Recorded Contractor Cost: </span>
-                  <span className="text-base font-bold text-purple-300 ml-1">
+                  <span className="text-base font-bold text-purple-300 ml-1 break-all">
                     ₹{formatINR(reconciliation.summary.recordedCost)}
                   </span>
                   <span className="text-[11px] text-slate-400 ml-1">({reconciliation.summary.contractorCount} bills)</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-slate-300 font-medium">Difference / Variance:</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-black ${
+                  <span className={`px-3 py-1 rounded-full text-xs font-black break-all ${
                     reconciliation.summary.variance >= 0
                       ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                       : "bg-rose-500/20 text-rose-300 border border-rose-500/30"

@@ -165,9 +165,9 @@ export default function LocationsPage() {
       </div>
 
       {/* Grid of Location Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         {locations.length === 0 ? (
-          <div className="col-span-2 bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center text-slate-400 text-xs">
+          <div className="col-span-1 md:col-span-2 bg-white rounded-2xl border border-dashed border-slate-300 p-8 sm:p-10 text-center text-slate-400 text-xs">
             No locations created yet. Click <b>+ Add Location</b> above to create a location.
           </div>
         ) : (
@@ -183,78 +183,80 @@ export default function LocationsPage() {
               <div 
                 key={loc.id}
                 onClick={() => navigate(`/locations/${loc.id}`)}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:border-blue-300 hover:shadow-md transition-all duration-200 p-6 space-y-4 cursor-pointer"
+                className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:border-blue-300 hover:shadow-md transition-all duration-200 p-4 sm:p-6 space-y-4 cursor-pointer min-w-0 overflow-hidden"
               >
                 {/* Location Header */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-black text-slate-900">{loc.name}</h2>
-                      <button
-                        type="button"
-                        onClick={(e) => openEditLocation(e, loc)}
-                        className="p-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
-                        title="Edit Location Name & Address"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteLocation(e, loc)}
-                        className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
-                        title="Delete Location"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                <div className="flex items-start justify-between gap-2 min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-black text-slate-900 break-words min-w-0">{loc.name}</h2>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => openEditLocation(e, loc)}
+                          className="p-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
+                          title="Edit Location Name & Address"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteLocation(e, loc)}
+                          className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                          title="Delete Location"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                    <p className="text-[11px] text-slate-400 font-medium mt-0.5 break-words">
                       {loc.address ? `${loc.address} • ` : ""}Active location &bull; live capital and operating summary
                     </p>
                   </div>
-                  <ExternalLink className="w-4 h-4 text-slate-400 hover:text-blue-600 transition-colors shrink-0" />
+                  <ExternalLink className="w-4 h-4 text-slate-400 hover:text-blue-600 transition-colors shrink-0 mt-1" />
                 </div>
 
                 {/* 6 Key Metrics Grid */}
-                <div className="grid grid-cols-3 gap-3 pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-2">
                   
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Investor Investment Capital</span>
-                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Investor Investment Capital</span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
                       ₹{formatINR(invCap)}
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Remaining Investor Investment Capital</span>
-                    <span className={`text-sm font-bold tabular-nums ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
+                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Remaining Investor Capital</span>
+                    <span className={`text-xs sm:text-sm font-bold tabular-nums break-all sm:break-normal block mt-0.5 ${Number(remainingInvCap) < 0 ? "text-rose-600" : "text-slate-800"}`}>
                       ₹{formatINR(remainingInvCap)}
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Stock</span>
-                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Stock</span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
                       ₹{formatINR(stockVal)}
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Site Supply</span>
-                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Site Supply</span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
                       ₹{formatINR(siteSupply)}
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Labour</span>
-                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Labour</span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
                       ₹{formatINR(labour)}
                     </span>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Contractor</span>
-                    <span className="text-sm font-bold text-slate-800 tabular-nums">
+                  <div className="min-w-0 bg-slate-50/70 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block leading-tight break-words">Contractor</span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 tabular-nums break-all sm:break-normal block mt-0.5">
                       ₹{formatINR(contractor)}
                     </span>
                   </div>

@@ -390,7 +390,7 @@ export default function MaterialAnalyticsSection({
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <span className="text-xs font-semibold text-slate-500 shrink-0">Stock Status:</span>
             {['ALL', 'IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK', 'NEGATIVE_ALERT'].map((st) => (
               <button

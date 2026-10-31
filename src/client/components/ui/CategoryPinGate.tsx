@@ -91,19 +91,19 @@ export default function CategoryPinGate({
 
   if (unlocked) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 min-w-0 max-w-full">
         {/* Subtle Category Security Banner */}
-        <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-800">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2.5 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-800">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span className="font-semibold">
-              Category {categoryNumber} ({categoryName}) — PIN Verified & Unlocked
+            <span className="font-semibold break-words min-w-0">
+              Category {categoryNumber} ({categoryName}) — PIN Verified &amp; Unlocked
             </span>
           </div>
           <button
             type="button"
             onClick={handleLock}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-200 transition-colors cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-200 transition-colors cursor-pointer shadow-2xs shrink-0"
             title="Lock Category again"
           >
             <Lock className="w-3.5 h-3.5" />

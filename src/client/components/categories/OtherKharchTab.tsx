@@ -278,107 +278,107 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0 max-w-full">
       {/* Category Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-rose-50 via-white to-orange-50/40 p-5 rounded-2xl border border-rose-100 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-rose-600 text-white rounded-2xl shadow-sm">
-            <Coffee className="w-6 h-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 bg-gradient-to-r from-rose-50 via-white to-orange-50/40 p-3.5 sm:p-5 rounded-2xl border border-rose-100 shadow-xs min-w-0">
+        <div className="flex items-start sm:items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-rose-600 text-white rounded-2xl shadow-sm shrink-0">
+            <Coffee className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-200 uppercase tracking-wider">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-200 uppercase tracking-wider shrink-0">
                 Category 6
               </span>
-              <h2 className="text-xl font-black text-slate-900">Other Expenses (Site Incidentals & Sundries)</h2>
+              <h2 className="text-base sm:text-xl font-black text-slate-900 break-words min-w-0">Other Expenses (Site Incidentals &amp; Sundries)</h2>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Site Operations Miscellaneous Expenses &bull; Tea, Food, Travel, Tools, Fuel & Sundries
+            <p className="text-xs text-slate-500 font-medium mt-0.5 break-words">
+              Site Operations Miscellaneous Expenses &bull; Tea, Food, Travel, Tools, Fuel &amp; Sundries
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           <button
             type="button"
             onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=labour`, `Other_Kharch_Location_${locationId}.xlsx`)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
-            <Download className="w-4 h-4 text-emerald-600" />
+            <Download className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Export (.xlsx)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>+ Add Other Kharch</span>
           </button>
         </div>
       </div>
 
       {/* Critical Explicit Financial Linkage Notice Banner */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 sm:p-4 flex items-start gap-3 min-w-0">
         <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-amber-900 leading-relaxed">
+        <div className="text-xs text-amber-900 leading-relaxed min-w-0 break-words">
           <span className="font-black text-amber-950">Direct Capital Deduction: </span>
-          All recorded other site expenses (tea, refreshments, transit, tools, fuel) are automatically deducted from <strong>Category 2: Investment Capital (Project Capital)</strong>.
+          All recorded other site expenses (tea, refreshments, transit, tools, fuel) are automatically deducted from <strong>Investor Investment Capital</strong>.
         </div>
       </div>
 
       {/* 3 Metric Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {/* Total Other Kharch */}
-        <div className="bg-white border border-rose-100 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-rose-700">
-            <span className="text-xs font-bold uppercase tracking-wider">Total Other Expenses</span>
-            <div className="p-2 bg-rose-50 rounded-xl">
+        <div className="bg-white border border-rose-100 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
+          <div className="flex items-center justify-between gap-2 text-rose-700">
+            <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Total Other Expenses</span>
+            <div className="p-2 bg-rose-50 rounded-xl shrink-0">
               <IndianRupee className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-rose-600">
+          <div className="mt-3 min-w-0">
+            <div className="text-lg sm:text-2xl font-black text-rose-600 tabular-nums break-all sm:break-words">
               ₹{formatINR(summary.totalAmount)}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1 font-medium">
-              Fully deducted from Category 2 capital
+            <p className="text-[11px] text-slate-500 mt-1 font-medium break-words">
+              Fully deducted from Investor Investment Capital
             </p>
           </div>
         </div>
 
         {/* Total Entries Count */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-700">
-            <span className="text-xs font-bold uppercase tracking-wider">Total Records</span>
-            <div className="p-2 bg-slate-100 rounded-xl">
+        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-700">
+            <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Total Records</span>
+            <div className="p-2 bg-slate-100 rounded-xl shrink-0">
               <Receipt className="w-4 h-4 text-slate-600" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-slate-900">
+          <div className="mt-3 min-w-0">
+            <div className="text-lg sm:text-2xl font-black text-slate-900">
               {summary.count}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1 font-medium">
+            <p className="text-[11px] text-slate-500 mt-1 font-medium break-words">
               Recorded site expense vouchers
             </p>
           </div>
         </div>
 
         {/* Average per Record */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-700">
-            <span className="text-xs font-bold uppercase tracking-wider">Average per Entry</span>
-            <div className="p-2 bg-slate-100 rounded-xl">
+        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col justify-between min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-700">
+            <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Average per Entry</span>
+            <div className="p-2 bg-slate-100 rounded-xl shrink-0">
               <Calculator className="w-4 h-4 text-slate-600" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-slate-900">
+          <div className="mt-3 min-w-0">
+            <div className="text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-all sm:break-words">
               ₹{formatINR(summary.avgPerRecord)}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1 font-medium">
+            <p className="text-[11px] text-slate-500 mt-1 font-medium break-words">
               Average voucher amount
             </p>
           </div>
@@ -386,8 +386,8 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="relative flex-1">
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 min-w-0">
+        <div className="relative flex-1 min-w-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -398,13 +398,13 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
           />
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <div className="w-full sm:w-auto flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl min-w-0">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-transparent text-xs font-bold text-slate-700 focus:outline-hidden"
+              className="w-full bg-transparent text-xs font-bold text-slate-700 focus:outline-hidden min-w-0"
             >
               <option value="ALL">All Categories ({records.length})</option>
               {EXPENSE_CATEGORIES.map((cat, idx) => (
@@ -415,12 +415,12 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
             </select>
           </div>
 
-          <div className="w-36">
+          <div className="w-full sm:w-36">
             <DateInput
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
               placeholder="DD-MM-YYYY"
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden"
+              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden"
             />
           </div>
 
@@ -441,15 +441,15 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
       </div>
 
       {/* Records Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-rose-600" />
-            <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden min-w-0">
+        <div className="p-3.5 sm:p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Receipt className="w-4 h-4 text-rose-600 shrink-0" />
+            <span className="text-xs font-black text-slate-800 uppercase tracking-wider break-words">
               Other Kharch Entries ({filteredRecords.length})
             </span>
           </div>
-          <span className="text-xs font-bold text-slate-500">
+          <span className="text-xs font-bold text-slate-500 break-words">
             Total Filtered: ₹{formatINR(filteredRecords.reduce((sum, r) => sum + (parseFloat(String(r.paymentAmount || r.grossSalary || r.netSalary || r.amount || 0)) || 0), 0))}
           </span>
         </div>
@@ -485,17 +485,17 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
 
                   return (
                     <tr key={rec.id} className="hover:bg-rose-50/30 transition-colors">
-                      <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">{formatDate(rec.date)}</td>
+                      <td className="py-3 px-4 font-mono text-slate-700">{formatDate(rec.date)}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
                           <div>
-                            <span className="font-bold text-slate-900">{cat}</span>
-                            {subtitle && <span className="block text-[10px] text-slate-400 font-medium">{subtitle}</span>}
+                            <span className="font-bold text-slate-900 break-words">{cat}</span>
+                            {subtitle && <span className="block text-[10px] text-slate-400 font-medium break-words">{subtitle}</span>}
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-medium text-slate-700">
+                      <td className="py-3 px-4 font-medium text-slate-700 break-words">
                         {rec.labourTeam || "Site General"}
                       </td>
                       <td className="py-3 px-4 text-slate-600">
@@ -503,12 +503,12 @@ export default function OtherKharchTab({ locationId }: { locationId: number }) {
                           {rec.paymentMethod || "Cash"}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-500">{rec.referenceNumber || "-"}</td>
-                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate">{rec.notes || "-"}</td>
-                      <td className="py-3 px-4 text-right font-black text-rose-600 text-sm whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-slate-500 break-words">{rec.referenceNumber || "-"}</td>
+                      <td className="py-3 px-4 text-slate-600 max-w-xs break-words">{rec.notes || "-"}</td>
+                      <td className="py-3 px-4 text-right font-black text-rose-600 text-sm">
                         ₹{formatINR(amt)}
                       </td>
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"

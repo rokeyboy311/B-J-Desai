@@ -678,100 +678,100 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0 max-w-full">
       {/* Header & Quick Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-              <CalendarCheck className="w-6 h-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-slate-200 min-w-0">
+        <div className="min-w-0">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0">
+              <CalendarCheck className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wider">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wider shrink-0">
                   Category 5
                 </span>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                  Labour Attendance & Team Advances
+                <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight break-words min-w-0">
+                  Labour Attendance &amp; Team Advances
                 </h2>
               </div>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Record worker attendance (Day-wise & TC-wise) and track Team Upad advances. (Other Kharch is recorded in Category 6).
+              <p className="text-xs text-slate-500 font-medium mt-0.5 break-words">
+                Record worker attendance (Day-wise &amp; TC-wise) and track Team Upad advances. (Other Kharch is recorded in Category 6).
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsManageTeamOpen(true)}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+            className="w-full sm:w-auto px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <Users className="w-3.5 h-3.5 text-slate-600" />
-            Manage Teams ({teams.length})
+            <Users className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+            <span>Manage Teams ({teams.length})</span>
           </button>
         </div>
       </div>
 
       {/* High-Level Overview Metrics Cards (Attendance - Upad = Balance) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {/* 1. Total Attendance Wages */}
-        <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-800">1. Attendance Wages Earned</span>
-            <Calendar className="w-4 h-4 text-amber-600" />
+        <div className="bg-white border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-500 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 break-words min-w-0">1. Attendance Wages Earned</span>
+            <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
           </div>
-          <p className="text-2xl font-black text-slate-900">₹{formatINR(summaries.totalAttendanceWages)}</p>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            <span>Day: ₹{formatINR(summaries.totalDayWiseWages)} ({summaries.totalDayWiseDays}d)</span>
-            <span>TC: ₹{formatINR(summaries.totalTcWiseWages)}</span>
+          <p className="text-lg sm:text-2xl font-black text-slate-900 tabular-nums break-all sm:break-words">₹{formatINR(summaries.totalAttendanceWages)}</p>
+          <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+            <span className="break-words">Day: ₹{formatINR(summaries.totalDayWiseWages)} ({summaries.totalDayWiseDays}d)</span>
+            <span className="break-words">TC: ₹{formatINR(summaries.totalTcWiseWages)}</span>
           </div>
         </div>
 
         {/* 2. Total Team Upad */}
-        <div className="bg-white border border-indigo-200/80 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-800">2. Team Upad (Advances Paid)</span>
-            <ArrowDownRight className="w-4 h-4 text-indigo-600" />
+        <div className="bg-white border border-indigo-200/80 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-500 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 break-words min-w-0">2. Team Upad (Advances Paid)</span>
+            <ArrowDownRight className="w-4 h-4 text-indigo-600 shrink-0" />
           </div>
-          <p className="text-2xl font-black text-indigo-700">₹{formatINR(summaries.totalTeamUpad)}</p>
-          <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            Cash & online advances given to teams
+          <p className="text-lg sm:text-2xl font-black text-indigo-700 tabular-nums break-all sm:break-words">₹{formatINR(summaries.totalTeamUpad)}</p>
+          <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100 break-words">
+            Cash &amp; online advances given to teams
           </p>
         </div>
 
         {/* 3. Net Outstanding Wages (Attendance Wages - Upad) */}
-        <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-amber-400 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider">Net Outstanding Balance</span>
-              <Calculator className="w-4 h-4" />
+        <div className="bg-slate-900 text-white rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center justify-between gap-2 text-amber-400 mb-1">
+              <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Net Outstanding Balance</span>
+              <Calculator className="w-4 h-4 shrink-0" />
             </div>
-            <p className="text-2xl font-black text-white">
+            <p className="text-lg sm:text-2xl font-black text-white tabular-nums break-all sm:break-words">
               ₹{formatINR(summaries.totalAttendanceWages - summaries.totalTeamUpad)}
             </p>
           </div>
-          <p className="text-[11px] text-slate-300 mt-2 pt-2 border-t border-slate-800">
+          <p className="text-[11px] text-slate-300 mt-2 pt-2 border-t border-slate-800 break-words">
             Net Wages (Attendance Wages - Team Advances)
           </p>
         </div>
       </div>
 
       {/* Primary Category 5 Subtabs: 1. Add Attendance, 2. Team Upad */}
-      <div className="bg-slate-100/80 p-1.5 rounded-2xl flex flex-col sm:flex-row gap-1 border border-slate-200">
+      <div className="bg-slate-100/80 p-1.5 rounded-2xl flex flex-col sm:flex-row gap-1.5 border border-slate-200 min-w-0">
         <button
           type="button"
           onClick={() => setActiveSubTab("add_attendance")}
-          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2.5 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer min-w-0 ${
             activeSubTab === "add_attendance"
               ? "bg-white text-slate-900 shadow-sm border border-slate-200"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
-          <CalendarCheck className="w-4 h-4 text-amber-600" />
-          <span>1. Add Attendance (Day & TC)</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-black">
+          <CalendarCheck className="w-4 h-4 text-amber-600 shrink-0" />
+          <span className="break-words">1. Add Attendance (Day &amp; TC)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-black break-all">
             ₹{formatINR(summaries.totalAttendanceWages)}
           </span>
         </button>
@@ -779,15 +779,15 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
         <button
           type="button"
           onClick={() => setActiveSubTab("team_upad")}
-          className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2.5 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer min-w-0 ${
             activeSubTab === "team_upad"
               ? "bg-white text-slate-900 shadow-sm border border-slate-200"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
-          <ArrowDownRight className="w-4 h-4 text-indigo-600" />
-          <span>2. Team Upad (Advances)</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-black">
+          <ArrowDownRight className="w-4 h-4 text-indigo-600 shrink-0" />
+          <span className="break-words">2. Team Upad (Advances)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-black break-all">
             ₹{formatINR(summaries.totalTeamUpad)}
           </span>
         </button>
@@ -797,25 +797,25 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       {/* 1. SUBTAB: ADD ATTENDANCE (DAY WISE & TC WISE - NO SELECT LABOUR FIELD) */}
       {/* ========================================================================= */}
       {activeSubTab === "add_attendance" && (
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           {/* Day Wise vs TC Wise Mode Toggle */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 min-w-0">
+              <div className="min-w-0">
                 <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-                  <CalendarCheck className="w-4 h-4 text-amber-600" />
-                  Select Attendance Mode
+                  <CalendarCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Select Attendance Mode</span>
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 break-words">
                   Select Team and record attendance by Days or Task/Contract Quantity (TC).
                 </p>
               </div>
 
-              <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setAttendanceMode("day_wise")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-center ${
                     attendanceMode === "day_wise"
                       ? "bg-amber-600 text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -826,7 +826,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 <button
                   type="button"
                   onClick={() => setAttendanceMode("tc_wise")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-center ${
                     attendanceMode === "tc_wise"
                       ? "bg-amber-600 text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -931,7 +931,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                   ) : (
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Calculated Total (₹)</label>
-                      <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-900">
+                      <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-900 break-all">
                         ₹{(() => {
                           const days = dayForm.attendanceType === "Half Day" ? 0.5 : 1;
                           const rate = parseFloat(dayForm.dailyRate) || 0;
@@ -1055,7 +1055,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                   {/* Live Total Calculation */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Calculated Total Wages (₹)</label>
-                    <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-900">
+                    <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-900 break-all">
                       ₹{formatINR((parseFloat(tcForm.quantity) || 0) * (parseFloat(tcForm.rate) || 0))}
                     </div>
                   </div>
@@ -1081,19 +1081,19 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       {/* 2. SUBTAB: TEAM UPAD (ADVANCES GIVEN TO TEAMS) */}
       {/* ========================================================================= */}
       {activeSubTab === "team_upad" && (
-        <div className="space-y-6">
-          <div className="bg-white border border-indigo-200 rounded-2xl p-4 shadow-2xs">
-            <div className="pb-3 border-b border-indigo-100 flex items-center justify-between">
-              <div>
+        <div className="space-y-6 min-w-0">
+          <div className="bg-white border border-indigo-200 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
+            <div className="pb-3 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
                 <h3 className="font-black text-indigo-900 text-sm flex items-center gap-2">
-                  <ArrowDownRight className="w-4 h-4 text-indigo-600" />
-                  Record Team Upad (Advance Payment)
+                  <ArrowDownRight className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span className="break-words">Record Team Upad (Advance Payment)</span>
                 </h3>
-                <p className="text-xs text-indigo-600">
+                <p className="text-xs text-indigo-600 break-words">
                   Track advance money issued to Teams for worker payouts, food/ration, or weekly advances.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200 break-all">
                 Total Upad: ₹{formatINR(summaries.totalTeamUpad)}
               </span>
             </div>
@@ -1170,8 +1170,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                   />
                 </div>
 
-                <div className="sm:col-span-2 flex items-end gap-3">
-                  <div className="flex-1">
+                <div className="sm:col-span-2 flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                  <div className="flex-1 min-w-0">
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Purpose / Notes</label>
                     <input
                       type="text"
@@ -1184,7 +1184,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
 
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 shrink-0"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2 shrink-0"
                   >
                     <Plus className="w-4 h-4" />
                     Record Team Upad
@@ -1200,19 +1200,19 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       {/* 3. SUBTAB: OTHER KHARCH (SITE & LABOUR SUNDRY EXPENSES) */}
       {/* ========================================================================= */}
       {activeSubTab === "other_kharch" && (
-        <div className="space-y-6">
-          <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-2xs">
-            <div className="pb-3 border-b border-rose-100 flex items-center justify-between">
-              <div>
+        <div className="space-y-6 min-w-0">
+          <div className="bg-white border border-rose-200 rounded-2xl p-3.5 sm:p-4 shadow-2xs min-w-0">
+            <div className="pb-3 border-b border-rose-100 flex flex-wrap items-center justify-between gap-2 min-w-0">
+              <div className="min-w-0">
                 <h3 className="font-black text-rose-900 text-sm flex items-center gap-2">
-                  <Coffee className="w-4 h-4 text-rose-600" />
-                  Record Other Kharch (Site Miscellaneous Expenses)
+                  <Coffee className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="break-words">Record Other Kharch (Site Miscellaneous Expenses)</span>
                 </h3>
-                <p className="text-xs text-rose-600">
+                <p className="text-xs text-rose-600 break-words">
                   Record Tea, Snacks, Bhattha, Tools repairs, Medical aid, and miscellaneous site expenses.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 break-all">
                 Total Other Kharch: ₹{formatINR(summaries.totalOtherKharch)}
               </span>
             </div>
@@ -1303,8 +1303,8 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                   />
                 </div>
 
-                <div className="sm:col-span-2 flex items-end gap-3">
-                  <div className="flex-1">
+                <div className="sm:col-span-2 flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                  <div className="flex-1 min-w-0">
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Details / Items</label>
                     <input
                       type="text"
@@ -1317,7 +1317,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
 
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 shrink-0"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2 shrink-0"
                   >
                     <Plus className="w-4 h-4" />
                     Record Kharch
@@ -1332,27 +1332,29 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
       {/* ========================================================================= */}
       {/* RECORDS LEDGER TABLE FOR THE ACTIVE SUBTAB */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden min-w-0">
         {/* Table Filter Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              <CalendarCheck className="w-4 h-4 text-slate-700" />
-              {activeSubTab === "add_attendance" && "Attendance History (Day & TC Wise)"}
-              {activeSubTab === "team_upad" && "Team Upad & Advances Ledger"}
-              {activeSubTab === "other_kharch" && "Other Kharch & Expenses Register"}
+        <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between min-w-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <h4 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2 min-w-0">
+              <CalendarCheck className="w-4 h-4 text-slate-700 shrink-0" />
+              <span className="break-words">
+                {activeSubTab === "add_attendance" && "Attendance History (Day & TC Wise)"}
+                {activeSubTab === "team_upad" && "Team Upad & Advances Ledger"}
+                {activeSubTab === "other_kharch" && "Other Kharch & Expenses Register"}
+              </span>
             </h4>
-            <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold">
+            <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold shrink-0">
               {currentTabRecords.length} records
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto min-w-0">
             {/* Team Filter */}
             <select
               value={teamFilter}
               onChange={e => setTeamFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
+              className="w-full sm:w-auto px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
             >
               <option value="ALL">All Teams</option>
               {availableTeams.map((t, idx) => (
@@ -1361,12 +1363,12 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
             </select>
 
             {/* Date Filter */}
-            <div className="w-36">
+            <div className="w-full sm:w-36">
               <DateInput
                 value={dateFilter}
                 onChange={e => setDateFilter(e.target.value)}
                 placeholder="DD-MM-YYYY"
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden"
               />
             </div>
             {dateFilter && (
@@ -1380,14 +1382,14 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
             )}
 
             {/* Search Input */}
-            <div className="relative">
+            <div className="relative w-full sm:w-44">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search..."
-                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-hidden w-36 sm:w-44"
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-hidden"
               />
             </div>
           </div>
@@ -1425,18 +1427,18 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                 return (
                   <tr key={r.id || idx} className="hover:bg-slate-50/80 transition-colors">
                     {/* Date */}
-                    <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                    <td className="py-3 px-4 font-semibold text-slate-800">
                       {formatDate(r.date)}
                     </td>
 
                     {/* Team */}
                     <td className="py-3 px-4 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{r.labourTeam || r.teamName || r.labourName || "General Team"}</span>
+                        <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="break-words">{r.labourTeam || r.teamName || r.labourName || "General Team"}</span>
                       </div>
                       {r.notes && (
-                        <p className="text-[11px] text-slate-400 font-normal truncate max-w-xs mt-0.5">
+                        <p className="text-[11px] text-slate-400 font-normal break-words max-w-xs mt-0.5">
                           {r.notes}
                         </p>
                       )}
@@ -1452,7 +1454,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                             {isWork ? "TC WISE WORK" : "DAY WISE"}
                           </span>
                           {isWork && r.workType && (
-                            <div className="font-bold text-slate-800 text-[11px] mt-0.5">{r.workType}</div>
+                            <div className="font-bold text-slate-800 text-[11px] mt-0.5 break-words">{r.workType}</div>
                           )}
                         </div>
                       )}
@@ -1463,7 +1465,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                             {r.paymentMethod || "Cash"}
                           </span>
                           {r.referenceNumber && (
-                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5 break-words">
                               Ref: {r.referenceNumber}
                             </div>
                           )}
@@ -1492,7 +1494,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                       )}
 
                       {activeSubTab === "team_upad" && (
-                        <span className="text-slate-600">{r.notes || "Team advance"}</span>
+                        <span className="text-slate-600 break-words">{r.notes || "Team advance"}</span>
                       )}
 
                       {activeSubTab === "other_kharch" && (
@@ -1504,7 +1506,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                     </td>
 
                     {/* Column 5: Amount */}
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <td className="py-3 px-4 text-right">
                       <span className={`text-sm font-black ${
                         isUpad ? "text-indigo-700" : isKharch ? "text-rose-700" : "text-amber-800"
                       }`}>
@@ -1513,7 +1515,7 @@ export default function LabourAttendanceTab({ locationId }: { locationId: number
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                    <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"

@@ -898,7 +898,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex bg-slate-100 p-1.5 rounded-xl gap-2 overflow-x-auto">
+      <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl gap-1.5">
         <button
           onClick={() => { setActiveSubTab("accounts"); setSelectedInvestor(null); }}
           className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
@@ -1160,7 +1160,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
                     </div>
                     
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs whitespace-nowrap">
+                      <table className="w-full text-left text-xs">
                         <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                           <tr>
                             <th className="p-3.5">Date</th>
@@ -1262,7 +1262,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Transfer Date</th>
@@ -1384,7 +1384,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Deployment Date</th>
@@ -1492,7 +1492,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Payment Date</th>
@@ -1600,7 +1600,7 @@ export default function InvestorTab({ locationId }: { locationId?: number }) {
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Date</th>

@@ -284,7 +284,7 @@ export default function MaterialSupplyTab({ locationId }: { locationId: number }
         </div>
 
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
               <tr>
                 <th className="p-3">Date</th>

@@ -985,7 +985,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
       </div>
 
       {/* Sub-Tabs Navigation */}
-      <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1.5 overflow-x-auto">
+      <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-xl gap-1.5">
         <button
           onClick={() => setActiveSubTab("notebook_hisab")}
           className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
@@ -1816,7 +1816,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {/* Deductions Table */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Date</th>
@@ -2068,7 +2068,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           {/* Notebook Filter Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+            <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
               <button
                 type="button"
                 onClick={() => setNotebookFilter("ALL")}
@@ -2357,7 +2357,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Date</th>
@@ -2471,7 +2471,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Bill Date</th>
@@ -2654,7 +2654,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
           {/* Table */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Date</th>
@@ -2805,7 +2805,7 @@ export default function InvestmentTab({ locationId }: { locationId: number }) {
 
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Payment Date</th>

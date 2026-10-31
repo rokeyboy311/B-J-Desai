@@ -274,7 +274,7 @@ export function AllRefundablesModal({ isOpen, onClose, initialLocationId }: AllR
 
           {/* Desktop Table (>= 640px) */}
           <div className="hidden sm:block max-h-[480px] overflow-y-auto overflow-x-auto">
-            <table className="w-full text-left text-xs whitespace-nowrap">
+            <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="p-3.5">Date</th>

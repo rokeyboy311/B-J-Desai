@@ -65,10 +65,10 @@ export default function AppLayout() {
   );
 
   return (
-    <div className="h-[100dvh] bg-[#F4F6F9] flex text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
+    <div className="h-[100dvh] w-full max-w-[100vw] bg-[#F4F6F9] flex text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
       
       {/* Desktop Deep Navy Sidebar */}
-      <aside className="w-[260px] bg-[#0B1D3A] text-slate-200 hidden md:flex flex-col h-full shadow-2xl z-20 shrink-0 border-r border-slate-800">
+      <aside className="md:w-[220px] lg:w-[240px] xl:w-[256px] bg-[#0B1D3A] text-slate-200 hidden md:flex flex-col h-full shadow-2xl z-20 shrink-0 border-r border-slate-800">
         
         {/* Brand Logo Header */}
         <div className="p-5 flex items-center gap-3 border-b border-slate-800/80">
@@ -156,13 +156,13 @@ export default function AppLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+      <main className="flex-1 flex flex-col min-w-0 max-w-full h-full overflow-hidden relative">
         
         {/* Top Header Bar matching SVG wireframes */}
-        <header className="hidden md:flex h-16 items-center justify-between px-8 bg-white border-b border-slate-200/90 shrink-0 z-10 shadow-xs">
+        <header className="hidden md:flex h-16 items-center justify-between gap-4 px-4 lg:px-8 bg-white border-b border-slate-200/90 shrink-0 z-10 shadow-xs">
           
           {/* Global Search Input */}
-          <div className="relative w-80">
+          <div className="relative w-48 lg:w-72 xl:w-80 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
             <input
               type="text"
@@ -174,7 +174,7 @@ export default function AppLayout() {
           </div>
 
           {/* Right Admin Status */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 lg:gap-3 shrink-0">
             {/* Google Sheets Sync Pill */}
             <button
               type="button"
@@ -306,14 +306,14 @@ export default function AppLayout() {
         </AnimatePresence>
 
         {/* Dynamic Page Content Scroll Container */}
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-w-0 max-w-full">
           <motion.div 
             key={location.pathname}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto w-full pb-24 md:pb-10"
+            className="p-3 sm:p-5 lg:p-6 max-w-[1600px] mx-auto w-full min-w-0 overflow-x-hidden pb-24 md:pb-10"
           >
             <Outlet />
           </motion.div>

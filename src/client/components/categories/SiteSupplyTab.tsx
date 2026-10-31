@@ -272,72 +272,72 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0 max-w-full">
       {/* Top Header & Actions */}
-      <div className="bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-teal-500/10 border border-teal-200/80 p-5 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-teal-600 text-white rounded-xl shadow-md shrink-0">
-            <Receipt className="w-6 h-6" />
+      <div className="bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-teal-500/10 border border-teal-200/80 p-3.5 sm:p-5 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 sm:gap-4 min-w-0">
+        <div className="flex items-start sm:items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-teal-600 text-white rounded-xl shadow-md shrink-0">
+            <Receipt className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <h2 className="text-xl font-black text-slate-900">Category 5: Site Material Supply with GST</h2>
-            <p className="text-xs text-slate-600">Issue materials to internal teams & site with itemized GST computation and automatic capital deduction.</p>
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-xl font-black text-slate-900 break-words">Category 5: Site Material Supply with GST</h2>
+            <p className="text-xs text-slate-600 break-words mt-0.5">Issue materials to internal teams &amp; site with itemized GST computation and automatic capital deduction.</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <button
             onClick={() => downloadExcelReport(`/reports/export-site-supplies?locationId=${locationId}`, `Site_Supplies_Location_${locationId}.xlsx`)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-teal-300 text-teal-950 hover:bg-teal-50 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-teal-300 text-teal-950 hover:bg-teal-50 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
             title="Export Site Supplies & GST Details to Excel"
           >
-            <Download className="w-4 h-4 text-teal-600" /> Export Site Supplies (.xlsx)
+            <Download className="w-4 h-4 text-teal-600 shrink-0" /> <span>Export (.xlsx)</span>
           </button>
           <button
             onClick={() => loadData(false)}
             disabled={loading}
-            className="p-2.5 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+            className="p-2.5 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shrink-0"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-teal-700 transition-colors shrink-0 cursor-pointer">
-            <Plus className="w-4 h-4" /> Add Site Supply
+          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-600 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:bg-teal-700 transition-colors shrink-0 cursor-pointer">
+            <Plus className="w-4 h-4 shrink-0" /> <span>Add Site Supply</span>
           </button>
         </div>
       </div>
 
       {/* KPI Stats Banner */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Supplies</div>
-          <div className="text-xl font-black text-slate-800 mt-1">{stats.totalEntries} Records</div>
-          <div className="text-[11px] text-teal-600 font-medium mt-0.5">{formatINR(stats.totalDispatchedQty)} Total Units Dispatched</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider break-words">Total Supplies</div>
+          <div className="text-lg sm:text-xl font-black text-slate-800 mt-1 break-words">{stats.totalEntries} Records</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-0.5 break-words">{formatINR(stats.totalDispatchedQty)} Total Units Dispatched</div>
         </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Subtotal</div>
-          <div className="text-xl font-black text-slate-700 mt-1">₹{formatINR(stats.totalSubtotal)}</div>
-          <div className="text-[11px] text-slate-500 font-medium mt-0.5">Taxable Base Amount</div>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider break-words">Base Subtotal</div>
+          <div className="text-lg sm:text-xl font-black text-slate-700 mt-1 tabular-nums break-all sm:break-words">₹{formatINR(stats.totalSubtotal)}</div>
+          <div className="text-[11px] text-slate-500 font-medium mt-0.5 break-words">Taxable Base Amount</div>
         </div>
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">GST Tax Amount</div>
-          <div className="text-xl font-black text-teal-700 mt-1">₹{formatINR(stats.totalTax)}</div>
-          <div className="text-[11px] text-teal-600 font-medium mt-0.5">Total GST (CGST/SGST)</div>
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider break-words">GST Tax Amount</div>
+          <div className="text-lg sm:text-xl font-black text-teal-700 mt-1 tabular-nums break-all sm:break-words">₹{formatINR(stats.totalTax)}</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-0.5 break-words">Total GST (CGST/SGST)</div>
         </div>
-        <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-200 shadow-sm">
-          <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">Grand Total with GST</div>
-          <div className="text-xl font-black text-teal-900 mt-1">₹{formatINR(stats.grandSupplyValue)}</div>
-          <div className="text-[11px] text-teal-700 font-medium mt-0.5">Deducted from Cat 2 Capital</div>
+        <div className="bg-teal-50/60 p-3.5 rounded-xl border border-teal-200 shadow-sm min-w-0">
+          <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider break-words">Grand Total with GST</div>
+          <div className="text-lg sm:text-xl font-black text-teal-900 mt-1 tabular-nums break-all sm:break-words">₹{formatINR(stats.grandSupplyValue)}</div>
+          <div className="text-[11px] text-teal-700 font-medium mt-0.5 break-words">Deducted from Cat 2 Capital</div>
         </div>
       </div>
 
       {/* Main Records Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-teal-600" />
-            Site Supply Dispatches & GST Details
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-w-0">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
+          <h3 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2 min-w-0">
+            <FileText className="w-4 h-4 text-teal-600 shrink-0" />
+            <span className="break-words">Site Supply Dispatches &amp; GST Details</span>
           </h3>
-          <span className="text-xs text-slate-500 font-semibold">{records.length} records</span>
+          <span className="text-xs text-slate-500 font-semibold shrink-0">{records.length} records</span>
         </div>
         
         {/* Mobile Cards View */}
@@ -350,21 +350,21 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
             const teamName = teams.find(t => t.id === r.teamId)?.name;
 
             return (
-              <div key={`ss-mob-${r.id}`} className="p-4 space-y-3 bg-white hover:bg-slate-50/60 transition-colors">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="px-2 py-0.5 bg-teal-50 border border-teal-100 text-teal-900 rounded text-[11px] font-bold flex items-center gap-1">
+              <div key={`ss-mob-${r.id}`} className="p-3.5 sm:p-4 space-y-3 bg-white hover:bg-slate-50/60 transition-colors min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="px-2 py-0.5 bg-teal-50 border border-teal-100 text-teal-900 rounded text-[11px] font-bold flex items-center gap-1 break-words min-w-0">
                     {locName}
                   </span>
-                  <span className="text-slate-500 text-xs font-medium">{formatDate(r.date)}</span>
+                  <span className="text-slate-500 text-xs font-medium shrink-0">{formatDate(r.date)}</span>
                 </div>
 
-                <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm min-w-0">
                   <HardHat className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span>{teamName || "Direct Site"}</span>
+                  <span className="break-words min-w-0">{teamName || "Direct Site"}</span>
                 </div>
 
                 {r.items && r.items.length > 0 && (
-                  <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100 min-w-0">
                     {r.items.map((item: any, i: number) => {
                       const matName = materials.find(m => m.id === item.materialId)?.name || 'Material #' + item.materialId;
                       const itemQty = parseFloat(item.quantity) || 0;
@@ -372,12 +372,12 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                       const itemTotalAmt = parseFloat(item.totalWithGst || item.amount) || (itemQty * itemRate);
 
                       return (
-                        <div key={i} className="text-xs flex flex-wrap items-center justify-between gap-1 py-1 border-b border-slate-200/60 last:border-none">
-                          <div>
-                            <span className="font-bold text-teal-900">{matName}</span>
+                        <div key={i} className="text-xs flex flex-wrap items-center justify-between gap-1 py-1 border-b border-slate-200/60 last:border-none min-w-0">
+                          <div className="min-w-0">
+                            <span className="font-bold text-teal-900 break-words">{matName}</span>
                             <span className="text-slate-600 text-[11px] ml-1.5 font-semibold">({formatINR(itemQty)} {item.unit || 'Nos'})</span>
                           </div>
-                          <div className="font-extrabold text-slate-800">
+                          <div className="font-extrabold text-slate-800 tabular-nums">
                             ₹{formatINR(itemTotalAmt)}
                           </div>
                         </div>
@@ -387,19 +387,19 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
                 )}
 
                 {r.displayNotes && (
-                  <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                  <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 break-words">
                     {r.displayNotes}
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-100 text-xs">
-                  <div>
+                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-2 bg-teal-50/50 p-2.5 rounded-xl border border-teal-100 text-xs min-w-0">
+                  <div className="min-w-0">
                     <div className="text-[10px] uppercase font-bold text-teal-800">Taxable + GST</div>
-                    <div className="font-semibold text-slate-700">₹{formatINR(subtotalVal)} + ₹{formatINR(taxVal)}</div>
+                    <div className="font-semibold text-slate-700 break-words tabular-nums">₹{formatINR(subtotalVal)} + ₹{formatINR(taxVal)}</div>
                   </div>
-                  <div className="text-right">
+                  <div className="xs:text-right sm:text-right min-w-0">
                     <div className="text-[10px] uppercase font-bold text-teal-800">Grand Total</div>
-                    <div className="font-black text-teal-950 text-sm">₹{formatINR(totalVal)}</div>
+                    <div className="font-black text-teal-950 text-sm break-all sm:break-words tabular-nums">₹{formatINR(totalVal)}</div>
                   </div>
                 </div>
 
@@ -430,7 +430,7 @@ export default function SiteSupplyTab({ locationId }: { locationId: number }) {
         </div>
 
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
               <tr>
                 <th className="p-3">Date</th>

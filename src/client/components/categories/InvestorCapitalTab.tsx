@@ -531,21 +531,21 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0 max-w-full">
       {/* Category Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl border border-emerald-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-2">
-            <Landmark className="w-3.5 h-3.5" />
-            <span>Location Investor Investment Capital</span>
+      <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-xl border border-emerald-900/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3.5 sm:gap-4 min-w-0">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-2 max-w-full">
+            <Landmark className="w-3.5 h-3.5 shrink-0" />
+            <span className="break-words">Location Investor Investment Capital</span>
           </div>
-          <h2 className="text-2xl font-black text-white">Investor Investment Capital</h2>
-          <p className="text-xs text-slate-300 mt-1">
+          <h2 className="text-lg sm:text-2xl font-black text-white break-words">Investor Investment Capital</h2>
+          <p className="text-xs text-slate-300 mt-1 break-words">
             <strong>Admin Capital &rarr; Location Investor Investment Capital</strong> &bull; Site Supply, Labour Attendance &amp; Other Expenses deduct directly from this pool
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto min-w-0">
           {/* Main Action: Add Investor Investment Capital from Admin Capital */}
           <button
             type="button"
@@ -560,16 +560,16 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               });
               setIsAddModalOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer text-center min-w-0"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ Add Investor Investment Capital from Admin</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="break-words">+ Add Investor Investment Capital from Admin</span>
           </button>
 
           <button
             type="button"
             onClick={() => downloadExcelReport(`/reports/export-location/${locationId}?tab=investor_capital`, `${locationName.replace(/\s+/g, '_')}_Investor_Investment_Capital.xlsx`)}
-            className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer"
+            className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer shrink-0"
             title="Download Excel Report"
           >
             <Download className="w-4 h-4" />
@@ -579,7 +579,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             type="button"
             onClick={() => loadData(false)}
             disabled={loading}
-            className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer"
+            className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer shrink-0"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -588,86 +588,86 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Total Investor Investment Capital */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Investor Investment Capital</span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Investor Investment Capital</span>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-700 shrink-0">
               <Landmark className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight tabular-nums">
+          <div className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight tabular-nums break-all sm:break-words">
             +₹{formatINR(totalAllocatedAmount)}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 mt-1 break-words">
             Total allocated from Admin ({allocations.length} allocations)
           </div>
         </div>
 
         {/* Card 2: Site Operational Deductions */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Site Operational Deductions</span>
-            <div className="p-2 rounded-xl bg-rose-50 text-rose-700">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Site Operational Deductions</span>
+            <div className="p-2 rounded-xl bg-rose-50 text-rose-700 shrink-0">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-rose-700 tracking-tight tabular-nums">
+          <div className="text-lg sm:text-xl md:text-2xl font-black text-rose-700 tracking-tight tabular-nums break-all sm:break-words">
             -₹{formatINR(totalDeployedAmount)}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 mt-1 break-words">
             Site Supply: ₹{formatINR(siteSupplyDeduction)} &bull; Labour &amp; Kharch: ₹{formatINR(labourAndKharchDeduction)}
           </div>
         </div>
 
         {/* Card 3: Remaining Investor Investment Capital */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Remaining Investor Investment Capital</span>
-            <div className={`p-2 rounded-xl ${totalAvailableAmount < 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Remaining Investor Investment Capital</span>
+            <div className={`p-2 rounded-xl shrink-0 ${totalAvailableAmount < 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
               <Landmark className="w-4 h-4" />
             </div>
           </div>
-          <div className={`text-2xl font-black tracking-tight tabular-nums ${totalAvailableAmount < 0 ? "text-rose-600" : "text-emerald-700"}`}>
+          <div className={`text-lg sm:text-xl md:text-2xl font-black tracking-tight tabular-nums break-all sm:break-words ${totalAvailableAmount < 0 ? "text-rose-600" : "text-emerald-700"}`}>
             ₹{formatINR(totalAvailableAmount)}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 mt-1 break-words">
             Net remaining balance after site operational expenses
           </div>
         </div>
 
         {/* Card 4: Central Available Admin Capital */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider">Available Admin Capital</span>
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs min-w-0">
+          <div className="flex items-center justify-between gap-2 text-slate-500 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider break-words min-w-0">Available Admin Capital</span>
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 shrink-0">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-indigo-900 tracking-tight tabular-nums">
+          <div className="text-lg sm:text-xl md:text-2xl font-black text-indigo-900 tracking-tight tabular-nums break-all sm:break-words">
             ₹{adminSummary ? formatINR(adminSummary.availableAdminCapital) : "0"}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 mt-1 break-words">
             Central Admin balance ready to allocate
           </div>
         </div>
       </div>
 
       {/* View Mode Navigation Tabs */}
-      <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 gap-2">
+      <div className="flex flex-col sm:flex-row flex-wrap bg-slate-100 p-1.5 rounded-2xl border border-slate-200 gap-1.5 min-w-0">
         <button
           type="button"
           onClick={() => setActiveTabMode("notebook")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-wrap items-center justify-center gap-1.5 cursor-pointer min-w-0 ${
             activeTabMode === "notebook"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          <FileSpreadsheet className="w-4 h-4 text-amber-400" />
-          <span>Capital Passbook Ledger</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-200">
+          <FileSpreadsheet className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="break-words">Capital Passbook Ledger</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-200 shrink-0">
             {locationInvestorNotebook.length} Entries
           </span>
         </button>
@@ -675,15 +675,15 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <button
           type="button"
           onClick={() => setActiveTabMode("cards")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-wrap items-center justify-center gap-1.5 cursor-pointer min-w-0 ${
             activeTabMode === "cards"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          <User className="w-4 h-4" />
-          <span>Investor Summary Cards</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-200">
+          <User className="w-4 h-4 shrink-0" />
+          <span className="break-words">Investor Summary Cards</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-200 shrink-0">
             {investorBreakdown.length}
           </span>
         </button>
@@ -691,15 +691,15 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <button
           type="button"
           onClick={() => setActiveTabMode("allocations")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex flex-wrap items-center justify-center gap-1.5 cursor-pointer min-w-0 ${
             activeTabMode === "allocations"
               ? "bg-[#0B1D3A] text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
-          <Landmark className="w-4 h-4" />
-          <span>Admin Allocations</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-200">
+          <Landmark className="w-4 h-4 shrink-0" />
+          <span className="break-words">Admin Allocations</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-200 shrink-0">
             {allocations.length}
           </span>
         </button>
@@ -707,19 +707,19 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
 
       {/* VIEW MODE 1: Note Book Hisab (Passbook Ledger) */}
       {activeTabMode === "notebook" && (
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* Notebook Header */}
-          <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 p-6 rounded-3xl text-white shadow-xl border border-amber-800/40">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2">
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Location Investor Investment Passbook</span>
+          <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-white shadow-xl border border-amber-800/40 min-w-0">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3.5 sm:gap-4 min-w-0">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2 max-w-full">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="break-words">Location Investor Investment Passbook</span>
                 </div>
-                <h3 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                <h3 className="text-lg sm:text-2xl font-black tracking-tight text-white flex items-center gap-2 break-words">
                   <span>Investor Investment Capital Passbook Ledger</span>
                 </h3>
-                <p className="text-xs text-amber-200/80 mt-1 max-w-2xl font-medium">
+                <p className="text-xs text-amber-200/80 mt-1 max-w-2xl font-medium break-words">
                   Complete ledger of Admin Capital allocations (+ Inflows) and Site Operational Deductions (- Outflows: Site Supply, Labour &amp; Other Expenses) for {locationName}.
                 </p>
               </div>
@@ -737,48 +737,48 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                   });
                   setIsAddModalOpen(true);
                 }}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                className="w-full md:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 shrink-0" />
                 <span>+ Add More from Admin Capital</span>
               </button>
             </div>
 
             {/* Quick Metrics in Notebook */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-5 border-t border-white/10">
-              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-emerald-300 block">Investor Investment Capital</span>
-                <span className="text-xl font-black text-emerald-400 tabular-nums">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-white/10">
+              <div className="bg-white/10 p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
+                <span className="text-[10px] uppercase font-bold text-emerald-300 block break-words">Investor Investment Capital</span>
+                <span className="text-base sm:text-xl font-black text-emerald-400 tabular-nums break-all sm:break-words block mt-0.5">
                   +₹{formatINR(totalAllocatedAmount)}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Allocated from central Admin Capital</span>
+                <span className="text-[10px] text-white/60 block mt-0.5 break-words">Allocated from central Admin Capital</span>
               </div>
 
-              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-rose-300 block">Site Operational Deductions</span>
-                <span className="text-xl font-black text-rose-300 tabular-nums">
+              <div className="bg-white/10 p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
+                <span className="text-[10px] uppercase font-bold text-rose-300 block break-words">Site Operational Deductions</span>
+                <span className="text-base sm:text-xl font-black text-rose-300 tabular-nums break-all sm:break-words block mt-0.5">
                   -₹{formatINR(totalDeployedAmount)}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Site Supply + Labour Attendance + Other Expenses</span>
+                <span className="text-[10px] text-white/60 block mt-0.5 break-words">Site Supply + Labour Attendance + Other Expenses</span>
               </div>
 
-              <div className="bg-white/10 p-3.5 rounded-2xl border border-white/15">
-                <span className="text-[10px] uppercase font-bold text-cyan-300 block">Remaining Investor Investment Capital</span>
-                <span className="text-xl font-black text-white tabular-nums">
+              <div className="bg-white/10 p-3 sm:p-3.5 rounded-2xl border border-white/15 min-w-0">
+                <span className="text-[10px] uppercase font-bold text-cyan-300 block break-words">Remaining Investor Investment Capital</span>
+                <span className="text-base sm:text-xl font-black text-white tabular-nums break-all sm:break-words block mt-0.5">
                   ₹{formatINR(totalAvailableAmount)}
                 </span>
-                <span className="text-[10px] text-white/60 block mt-0.5">Net remaining project capital</span>
+                <span className="text-[10px] text-white/60 block mt-0.5 break-words">Net remaining project capital</span>
               </div>
             </div>
           </div>
 
           {/* Notebook Filter Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto min-w-0">
               <button
                 type="button"
                 onClick={() => setNotebookFilter("ALL")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                   notebookFilter === "ALL"
                     ? "bg-[#0B1D3A] text-white shadow-xs"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -790,7 +790,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <button
                 type="button"
                 onClick={() => setNotebookFilter("ADDED")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   notebookFilter === "ADDED"
                     ? "bg-emerald-600 text-white shadow-xs"
                     : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
@@ -805,7 +805,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               <button
                 type="button"
                 onClick={() => setNotebookFilter("REMOVED")}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   notebookFilter === "REMOVED"
                     ? "bg-rose-600 text-white shadow-xs"
                     : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200"
@@ -818,7 +818,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               </button>
             </div>
 
-            <div className="relative w-full md:w-72">
+            <div className="relative w-full md:w-72 min-w-0">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -831,20 +831,20 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
           </div>
 
           {/* Traditional Notebook Table */}
-          <div className="bg-amber-50/20 rounded-2xl border-2 border-amber-200/90 shadow-sm overflow-hidden">
-            <div className="p-3 bg-amber-100/70 border-b border-amber-200/80 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                <span className="font-black text-amber-950 uppercase tracking-wider">Location Investor Investment Capital Ledger</span>
+          <div className="bg-amber-50/20 rounded-2xl border-2 border-amber-200/90 shadow-sm overflow-hidden min-w-0">
+            <div className="p-3 bg-amber-100/70 border-b border-amber-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+                <span className="font-black text-amber-950 uppercase tracking-wider break-words min-w-0">Location Investor Investment Capital Ledger</span>
               </div>
-              <span className="text-amber-900 font-bold">{filteredLocationNotebook.length} Records</span>
+              <span className="text-amber-900 font-bold shrink-0">{filteredLocationNotebook.length} Records</span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-amber-50 text-amber-900 font-bold border-b border-amber-200">
                   <tr>
-                    <th className="p-3.5 whitespace-nowrap">Date</th>
+                    <th className="p-3.5">Date</th>
                     <th className="p-3.5">Investor / Team / Party</th>
                     <th className="p-3.5">Entry Type</th>
                     <th className="p-3.5">Particulars</th>
@@ -865,7 +865,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                   ) : (
                     filteredLocationNotebook.map((entry) => (
                       <tr key={entry.id} className="hover:bg-amber-50/40 transition-colors">
-                        <td className="p-3.5 font-medium text-slate-600 whitespace-nowrap">
+                        <td className="p-3.5 font-medium text-slate-600">
                           {formatDate(entry.date)}
                         </td>
                         <td className="p-3.5 font-bold text-slate-900">
@@ -881,7 +881,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                           </span>
                         </td>
                         <td className="p-3.5 text-slate-700 max-w-xs">
-                          <div className="font-semibold">{entry.particulars}</div>
+                          <div className="font-semibold break-words">{entry.particulars}</div>
                         </td>
                         <td className="p-3.5 text-center">
                           <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
@@ -940,13 +940,13 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
 
       {/* VIEW MODE 2: Investor-wise Breakdown Cards */}
       {activeTabMode === "cards" && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Landmark className="w-4 h-4 text-emerald-600" />
-              <span>Investor-wise Capital at this Location</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2 min-w-0">
+              <Landmark className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="break-words">Investor-wise Capital at this Location</span>
             </h3>
-            <span className="text-xs font-semibold text-slate-500">
+            <span className="text-xs font-semibold text-slate-500 shrink-0">
               {investorBreakdown.length} Investors
             </span>
           </div>
@@ -960,37 +960,37 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               return (
                 <div 
                   key={inv.id} 
-                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col justify-between gap-3"
+                  className="p-3.5 sm:p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col justify-between gap-3 min-w-0"
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900">{inv.name}</h4>
+                  <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 break-words">{inv.name}</h4>
                         {inv.mobile && (
-                          <p className="text-xs text-slate-500 font-medium">{inv.mobile}</p>
+                          <p className="text-xs text-slate-500 font-medium break-words">{inv.mobile}</p>
                         )}
                       </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 shrink-0">
                         {share}% Share
                       </span>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-3 gap-1.5 p-2 bg-white rounded-lg border border-slate-200/80 text-center">
-                      <div>
+                    <div className="mt-3 grid grid-cols-1 xs:grid-cols-3 sm:grid-cols-3 gap-1.5 p-2 bg-white rounded-lg border border-slate-200/80 text-center min-w-0">
+                      <div className="min-w-0">
                         <span className="text-[9px] font-bold text-slate-400 block uppercase">Allocated</span>
-                        <span className="text-xs font-bold text-slate-800">₹{formatINR(inv.totalAmount)}</span>
+                        <span className="text-xs font-bold text-slate-800 break-all sm:break-words block">₹{formatINR(inv.totalAmount)}</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[9px] font-bold text-purple-500 block uppercase">Deployed (Cat 1)</span>
-                        <span className="text-xs font-bold text-purple-700">₹{formatINR(inv.deployedAmount)}</span>
+                        <span className="text-xs font-bold text-purple-700 break-all sm:break-words block">₹{formatINR(inv.deployedAmount)}</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[9px] font-bold text-emerald-600 block uppercase">Available</span>
-                        <span className="text-xs font-black text-emerald-700">₹{formatINR(inv.availableAmount)}</span>
+                        <span className="text-xs font-black text-emerald-700 break-all sm:break-words block">₹{formatINR(inv.availableAmount)}</span>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-500 mt-2">
+                    <div className="text-[11px] text-slate-500 mt-2 break-words">
                       {inv.count} Allocation{inv.count > 1 ? "s" : ""} &bull; Last: {formatDate(inv.lastDate)}
                     </div>
                   </div>
@@ -1000,7 +1000,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                     onClick={() => handleOpenAddForInvestor(inv.id)}
                     className="w-full py-1.5 px-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
                     <span>+ Add More from Admin Capital</span>
                   </button>
                 </div>
@@ -1012,10 +1012,10 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
 
       {/* VIEW MODE 3: Allocation History Ledger Table */}
       {activeTabMode === "allocations" && (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4 min-w-0">
         {/* Table Filter Bar */}
-        <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative w-full md:w-80">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 min-w-0">
+          <div className="relative w-full md:w-80 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
@@ -1026,11 +1026,11 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto min-w-0">
             <select
               value={selectedInvestorFilter}
               onChange={(e) => setSelectedInvestorFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none"
+              className="w-full md:w-auto px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none"
             >
               <option value="ALL">All Investors ({allocations.length})</option>
               {investorBreakdown.map((inv) => (
@@ -1070,7 +1070,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
               ) : (
                 filteredAllocations.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3 px-4 text-xs font-medium text-slate-600 whitespace-nowrap">
+                    <td className="py-3 px-4 text-xs font-medium text-slate-600">
                       {formatDate(item.date)}
                     </td>
                     <td className="py-3 px-4 font-bold text-slate-900">
@@ -1092,7 +1092,7 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
                     <td className="py-3 px-4 text-xs text-slate-600 font-mono">
                       {item.referenceNumber || "—"}
                     </td>
-                    <td className="py-3 px-4 text-xs text-slate-600 max-w-xs truncate">
+                    <td className="py-3 px-4 text-xs text-slate-600 max-w-xs break-words">
                       {item.notes || "—"}
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -1137,12 +1137,12 @@ export default function InvestorCapitalTab({ locationId, locationName = "This Lo
         <form onSubmit={handleAddAllocation} className="space-y-4">
           {/* Header Info Box */}
           <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
-            <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+            <div className="flex flex-wrap items-center justify-between gap-1 text-xs font-bold text-emerald-900">
               <span className="flex items-center gap-1.5">
-                <Landmark className="w-4 h-4 text-emerald-700" />
+                <Landmark className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span>Tier 1 &rarr; Tier 2 Allocation</span>
               </span>
-              <span>
+              <span className="break-words">
                 Available Admin Capital: ₹
                 {adminSummary
                   ? formatINR(
