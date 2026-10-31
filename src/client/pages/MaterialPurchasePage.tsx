@@ -30,6 +30,7 @@ export default function MaterialPurchasePage() {
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>("ALL");
+  const [selectedRegisterBillDate, setSelectedRegisterBillDate] = useState<string>("ALL");
   const [supplierSearchQuery, setSupplierSearchQuery] = useState<string>("");
   const [supplierModalSearch, setSupplierModalSearch] = useState<string>("");
   
@@ -40,6 +41,8 @@ export default function MaterialPurchasePage() {
   const [isCustomVendorInput, setIsCustomVendorInput] = useState(false);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState<{ name: string; id?: number | null } | null>(null);
   const [selectedSupplierDetail, setSelectedSupplierDetail] = useState<string | null>(null);
+  const [selectedBillDate, setSelectedBillDate] = useState<string | null>(null);
+  const [showAllSupplierItems, setShowAllSupplierItems] = useState<boolean>(false);
   const [detailModalTab, setDetailModalTab] = useState<"all" | "sites" | "customers" | "purchases">("all");
 
   // Form State
@@ -56,13 +59,20 @@ export default function MaterialPurchasePage() {
     notes: ""
   });
 
-  const openAddPurchaseModal = (vendorName?: string) => {
+  const openSupplierPurchasesModal = (supplierName: string, initialBillDate: string | null = null) => {
+    setSelectedSupplierDetail(supplierName);
+    setSelectedBillDate(initialBillDate);
+    setShowAllSupplierItems(false);
+    setSupplierModalSearch("");
+  };
+
+  const openAddPurchaseModal = (vendorName?: string, defaultDate?: string) => {
     const cleanVendor = vendorName ? vendorName.trim() : (selectedSupplierFilter !== "ALL" ? selectedSupplierFilter : "");
     setEditingPurchaseId(null);
     setPreselectedVendor(cleanVendor || null);
     setIsCustomVendorInput(!cleanVendor && supplierSummaries.length === 0);
     setFormData({
-      date: new Date().toISOString().split("T")[0],
+      date: defaultDate || new Date().toISOString().split("T")[0],
       supplierName: cleanVendor,
       materialName: "",
       quantity: "",
@@ -274,10 +284,11 @@ export default function MaterialPurchasePage() {
     }
   };
 
-  // Supplier Summaries Aggregation
+  // Supplier Summaries Aggregation with Date-Wise Bills (Bill 1, Bill 2, ...)
   const supplierSummaries = useMemo(() => {
     const map: { [name: string]: {
       name: string;
+      totalSubtotal: number;
       totalAmount: number;
       totalQty: number;
       totalTax: number;
@@ -285,9 +296,24 @@ export default function MaterialPurchasePage() {
       paidAmount: number;
       pendingAmount: number;
       invoicesCount: number;
+      itemsCount: number;
       lastDate: string;
       materials: { [matName: string]: { name: string; qty: number; unit: string; amount: number; count: number } };
       purchases: any[];
+      bills: {
+        billNumber: number;
+        billLabel: string;
+        date: string;
+        subtotal: number;
+        totalTax: number;
+        totalTransport: number;
+        totalAmount: number;
+        totalQty: number;
+        paidAmount: number;
+        pendingAmount: number;
+        items: any[];
+        materialsList: string[];
+      }[];
     } } = {};
 
     purchases.forEach(p => {
@@ -295,6 +321,7 @@ export default function MaterialPurchasePage() {
       if (!map[sName]) {
         map[sName] = {
           name: sName,
+          totalSubtotal: 0,
           totalAmount: 0,
           totalQty: 0,
           totalTax: 0,
@@ -302,26 +329,30 @@ export default function MaterialPurchasePage() {
           paidAmount: 0,
           pendingAmount: 0,
           invoicesCount: 0,
+          itemsCount: 0,
           lastDate: "",
           materials: {},
-          purchases: []
+          purchases: [],
+          bills: []
         };
       }
       const sup = map[sName];
       const bd = getPurchaseBreakdown(p);
+      const sub = bd.subtotal;
       const amt = bd.totalAmt;
       const qty = bd.qty;
       const tax = bd.gstAmt;
       const trans = bd.transportCost;
       const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
 
+      sup.totalSubtotal += sub;
       sup.totalAmount += amt;
       sup.totalQty += qty;
       sup.totalTax += tax;
       sup.totalTransport += trans;
       if (isPaid) sup.paidAmount += amt;
       else sup.pendingAmount += amt;
-      sup.invoicesCount += 1;
+      sup.itemsCount += 1;
       sup.purchases.push(p);
 
       if (p.date && (!sup.lastDate || p.date > sup.lastDate)) {
@@ -335,6 +366,73 @@ export default function MaterialPurchasePage() {
       sup.materials[mat].qty += qty;
       sup.materials[mat].amount += amt;
       sup.materials[mat].count += 1;
+    });
+
+    // Build Date-Wise Bills (Bill 1, Bill 2, ...) for each supplier
+    Object.values(map).forEach(sup => {
+      const dateGroups: {
+        [dateKey: string]: {
+          date: string;
+          subtotal: number;
+          totalTax: number;
+          totalTransport: number;
+          totalAmount: number;
+          totalQty: number;
+          paidAmount: number;
+          pendingAmount: number;
+          items: any[];
+          materialsSet: Set<string>;
+        };
+      } = {};
+
+      sup.purchases.forEach(p => {
+        const dKey = (p.date || "Unknown").trim();
+        if (!dateGroups[dKey]) {
+          dateGroups[dKey] = {
+            date: dKey,
+            subtotal: 0,
+            totalTax: 0,
+            totalTransport: 0,
+            totalAmount: 0,
+            totalQty: 0,
+            paidAmount: 0,
+            pendingAmount: 0,
+            items: [],
+            materialsSet: new Set<string>()
+          };
+        }
+        const grp = dateGroups[dKey];
+        const bd = getPurchaseBreakdown(p);
+        const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
+
+        grp.subtotal += bd.subtotal;
+        grp.totalTax += bd.gstAmt;
+        grp.totalTransport += bd.transportCost;
+        grp.totalAmount += bd.totalAmt;
+        grp.totalQty += bd.qty;
+        if (isPaid) grp.paidAmount += bd.totalAmt;
+        else grp.pendingAmount += bd.totalAmt;
+        grp.items.push(p);
+        if (p.materialName) grp.materialsSet.add(p.materialName.trim());
+      });
+
+      // Sort chronologically by date so Bill 1 is the 1st date, Bill 2 is the 2nd date, etc.
+      const sortedDates = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
+      sup.bills = sortedDates.map((g, idx) => ({
+        billNumber: idx + 1,
+        billLabel: `Bill ${idx + 1}`,
+        date: g.date,
+        subtotal: g.subtotal,
+        totalTax: g.totalTax,
+        totalTransport: g.totalTransport,
+        totalAmount: g.totalAmount,
+        totalQty: g.totalQty,
+        paidAmount: g.paidAmount,
+        pendingAmount: g.pendingAmount,
+        items: g.items,
+        materialsList: Array.from(g.materialsSet)
+      }));
+      sup.invoicesCount = sup.bills.length;
     });
 
     return Object.values(map).sort((a, b) => b.totalAmount - a.totalAmount);
@@ -376,6 +474,9 @@ export default function MaterialPurchasePage() {
         const sName = (p.supplierName || p.partyName || "General Supplier").trim();
         return sName.toLowerCase() === selectedSupplierFilter.toLowerCase();
       });
+      if (selectedRegisterBillDate !== "ALL") {
+        result = result.filter(p => (p.date || "Unknown").trim() === selectedRegisterBillDate);
+      }
     }
     if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase().trim();
@@ -385,7 +486,7 @@ export default function MaterialPurchasePage() {
       (p.partyName && p.partyName.toLowerCase().includes(q)) ||
       (p.date && p.date.includes(q))
     );
-  }, [purchases, searchQuery, selectedSupplierFilter]);
+  }, [purchases, searchQuery, selectedSupplierFilter, selectedRegisterBillDate]);
 
   const filteredCentralStock = useMemo(() => {
     if (!searchQuery.trim()) return centralStock;
@@ -829,7 +930,10 @@ export default function MaterialPurchasePage() {
                 <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <select
                   value={selectedSupplierFilter}
-                  onChange={(e) => setSelectedSupplierFilter(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedSupplierFilter(e.target.value);
+                    setSelectedRegisterBillDate("ALL");
+                  }}
                   className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
                 >
                   <option value="ALL">Select Vendor / All Suppliers ({supplierSummaries.length})</option>
@@ -854,68 +958,177 @@ export default function MaterialPurchasePage() {
             </div>
           </div>
 
-          {/* Supplier Filter Active Banner */}
+          {/* Supplier Filter Active Banner + Date-Wise Bill Boxes */}
           {selectedSupplierFilter !== "ALL" && (
-            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
-                      Selected Vendor
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">Vendor-Specific Purchase View</span>
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-2xl p-4 space-y-4 shadow-xs">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0">
+                    <Building2 className="w-5 h-5" />
                   </div>
-                  <h3 className="text-base font-black text-slate-900 mt-0.5">{selectedSupplierFilter}</h3>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
+                        Selected Vendor
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">Date-Wise Bills &amp; Purchase View</span>
+                    </div>
+                    <h3 className="text-base font-black text-slate-900 mt-0.5">{selectedSupplierFilter}</h3>
+                  </div>
                 </div>
+
+                {(() => {
+                  const sup = supplierSummaries.find(s => s.name.toLowerCase() === selectedSupplierFilter.toLowerCase());
+                  if (!sup) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Total (With GST)</span>
+                        <span className="text-sm font-black text-emerald-700 tabular-nums whitespace-nowrap">₹{formatINR(sup.totalAmount)}</span>
+                      </div>
+                      <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-amber-200/80 text-xs">
+                        <span className="text-amber-700 block text-[9px] uppercase font-bold">Total GST</span>
+                        <span className="text-sm font-black text-amber-800 tabular-nums whitespace-nowrap">+₹{formatINR(sup.totalTax)}</span>
+                      </div>
+                      <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Date-Wise Bills</span>
+                        <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">{sup.bills.length} Bills</span>
+                      </div>
+                      <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Qty</span>
+                        <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">{formatINR(sup.totalQty)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openAddPurchaseModal(selectedSupplierFilter, selectedRegisterBillDate !== "ALL" ? selectedRegisterBillDate : undefined)}
+                        className="px-3.5 py-2 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap"
+                      >
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span>+ Add Purchase Entry</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openSupplierPurchasesModal(selectedSupplierFilter)}
+                        className="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap"
+                      >
+                        <Eye className="w-3.5 h-3.5 shrink-0" />
+                        <span>View Bills Popup</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSupplierFilter("ALL");
+                          setSelectedRegisterBillDate("ALL");
+                        }}
+                        className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-300 transition-all cursor-pointer whitespace-nowrap"
+                      >
+                        Clear Filter
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
 
+              {/* Date-Wise Bill Boxes inside Purchase Register Filter */}
               {(() => {
                 const sup = supplierSummaries.find(s => s.name.toLowerCase() === selectedSupplierFilter.toLowerCase());
-                if (!sup) return null;
+                if (!sup || sup.bills.length === 0) return null;
                 return (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Purchases</span>
-                      <span className="text-sm font-black text-emerald-700 tabular-nums whitespace-nowrap">₹{formatINR(sup.totalAmount)}</span>
+                  <div className="pt-3 border-t border-emerald-200/70 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                        <Receipt className="w-4 h-4 text-emerald-700" />
+                        <span>Click on a Bill Box to view purchased items of that particular date:</span>
+                      </span>
+                      {selectedRegisterBillDate !== "ALL" && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRegisterBillDate("ALL")}
+                          className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-black cursor-pointer transition-all"
+                        >
+                          Show All {sup.bills.length} Bills Items
+                        </button>
+                      )}
                     </div>
-                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-amber-200/80 text-xs">
-                      <span className="text-amber-700 block text-[9px] uppercase font-bold">Total GST</span>
-                      <span className="text-sm font-black text-amber-800 tabular-nums whitespace-nowrap">₹{formatINR(sup.totalTax)}</span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {sup.bills.map((bill) => {
+                        const isSelected = selectedRegisterBillDate === bill.date;
+                        const isFullyPaid = bill.pendingAmount <= 0;
+                        return (
+                          <div
+                            key={bill.date}
+                            onClick={() => setSelectedRegisterBillDate(isSelected ? "ALL" : bill.date)}
+                            className={`rounded-xl p-3 border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                              isSelected
+                                ? "bg-emerald-900 text-white border-emerald-950 shadow-md ring-2 ring-emerald-500"
+                                : "bg-white/95 hover:bg-white text-slate-800 border-emerald-200/90 hover:border-emerald-400 shadow-2xs"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-md text-xs font-black ${
+                                  isSelected ? "bg-emerald-400 text-slate-950" : "bg-emerald-600 text-white"
+                                }`}>
+                                  {bill.billLabel}
+                                </span>
+                                <span className={`text-xs font-bold flex items-center gap-1 ${
+                                  isSelected ? "text-emerald-100" : "text-slate-700"
+                                }`}>
+                                  <Calendar className="w-3 h-3 shrink-0" />
+                                  {formatDate(bill.date)}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                isSelected
+                                  ? "bg-emerald-800 text-emerald-100 border-emerald-700"
+                                  : isFullyPaid
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-rose-50 text-rose-700 border-rose-200"
+                              }`}>
+                                {bill.items.length} {bill.items.length === 1 ? "Item" : "Items"}
+                              </span>
+                            </div>
+
+                            <div className={`rounded-lg p-2 border grid grid-cols-3 gap-1.5 text-[11px] ${
+                              isSelected ? "bg-emerald-950/70 border-emerald-800" : "bg-slate-50 border-slate-200/70"
+                            }`}>
+                              <div>
+                                <span className={`text-[9px] uppercase font-bold block ${isSelected ? "text-emerald-300" : "text-slate-400"}`}>
+                                  Subtotal
+                                </span>
+                                <span className="font-bold tabular-nums whitespace-nowrap">₹{formatINR(bill.subtotal)}</span>
+                              </div>
+                              <div>
+                                <span className={`text-[9px] uppercase font-bold block ${isSelected ? "text-amber-300" : "text-amber-700"}`}>
+                                  GST
+                                </span>
+                                <span className={`font-bold tabular-nums whitespace-nowrap ${isSelected ? "text-amber-300" : "text-amber-800"}`}>
+                                  +₹{formatINR(bill.totalTax)}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className={`text-[9px] uppercase font-bold block ${isSelected ? "text-emerald-200" : "text-emerald-700"}`}>
+                                  Total (w/ GST)
+                                </span>
+                                <span className={`font-black tabular-nums whitespace-nowrap ${isSelected ? "text-white" : "text-slate-900"}`}>
+                                  ₹{formatINR(bill.totalAmount)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] font-bold pt-0.5">
+                              <span className={`truncate max-w-[65%] ${isSelected ? "text-emerald-200" : "text-slate-500"}`}>
+                                {bill.materialsList.join(", ")}
+                              </span>
+                              <span className={isSelected ? "text-emerald-300 underline" : "text-emerald-700"}>
+                                {isSelected ? "Showing Items ▼" : "View Items →"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Bills</span>
-                      <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">{sup.invoicesCount}</span>
-                    </div>
-                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Qty</span>
-                      <span className="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap">{formatINR(sup.totalQty)}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => openAddPurchaseModal(selectedSupplierFilter)}
-                      className="px-3.5 py-2 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap"
-                    >
-                      <Plus className="w-3.5 h-3.5 shrink-0" />
-                      <span>+ Add Purchase Entry</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSupplierDetail(selectedSupplierFilter)}
-                      className="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap"
-                    >
-                      <Eye className="w-3.5 h-3.5 shrink-0" />
-                      <span>Open Statement</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSupplierFilter("ALL")}
-                      className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-300 transition-all cursor-pointer whitespace-nowrap"
-                    >
-                      Clear Filter
-                    </button>
                   </div>
                 );
               })()}
@@ -949,8 +1162,8 @@ export default function MaterialPurchasePage() {
       {/* TAB 1: PURCHASE REGISTER TABLE */}
       {activeTab === "purchase" && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-bold text-slate-900">Purchase Register</h2>
               <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
                 Central Inventory
@@ -960,8 +1173,25 @@ export default function MaterialPurchasePage() {
                   Supplier: {selectedSupplierFilter}
                 </span>
               )}
+              {selectedSupplierFilter !== "ALL" && selectedRegisterBillDate !== "ALL" && (() => {
+                const sup = supplierSummaries.find(s => s.name.toLowerCase() === selectedSupplierFilter.toLowerCase());
+                const activeBill = sup?.bills.find(b => b.date === selectedRegisterBillDate);
+                return (
+                  <span className="text-[11px] font-black text-white bg-emerald-700 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                    <span>{activeBill?.billLabel || "Bill"} ({formatDate(selectedRegisterBillDate)})</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRegisterBillDate("ALL")}
+                      className="hover:text-emerald-200 cursor-pointer"
+                      title="Show all bills"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })()}
             </div>
-            <span className="text-xs font-semibold text-slate-500">{filteredPurchases.length} Records</span>
+            <span className="text-xs font-semibold text-slate-500">{filteredPurchases.length} Purchased Items</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -1005,9 +1235,9 @@ export default function MaterialPurchasePage() {
                         <td className="p-3.5">
                           <button
                             type="button"
-                            onClick={() => setSelectedSupplierDetail(supName)}
+                            onClick={() => openSupplierPurchasesModal(supName, p.date || null)}
                             className="group text-left inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100/90 text-emerald-900 font-bold transition-all border border-emerald-200/80 shadow-2xs hover:shadow-xs cursor-pointer"
-                            title={`Click to view total purchases and inward ledger for ${supName}`}
+                            title={`Click to view date-wise bills and purchases for ${supName}`}
                           >
                             <Building2 className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform shrink-0" />
                             <span className="group-hover:underline underline-offset-2">{supName}</span>
@@ -1069,7 +1299,7 @@ export default function MaterialPurchasePage() {
                             {/* Quick Add Entry for this Vendor */}
                             <button
                               type="button"
-                              onClick={() => openAddPurchaseModal(supName)}
+                              onClick={() => openAddPurchaseModal(supName, p.date)}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] border border-blue-200 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
                               title={`Add new purchase entry in ${supName}`}
                             >
@@ -1080,12 +1310,12 @@ export default function MaterialPurchasePage() {
                             {/* Supplier Statement Button */}
                             <button
                               type="button"
-                              onClick={() => setSelectedSupplierDetail(supName)}
+                              onClick={() => openSupplierPurchasesModal(supName, p.date || null)}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-200 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
-                              title={`Open ${supName} Total Purchase Statement`}
+                              title={`Open ${supName} Date-Wise Bills & Purchases`}
                             >
                               <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="hidden xl:inline">Supplier</span>
+                              <span className="hidden xl:inline">Bills</span>
                             </button>
 
                             {/* Stock View Button */}
@@ -1173,8 +1403,8 @@ export default function MaterialPurchasePage() {
                 <Building2 className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-sm font-black text-slate-900">Supplier Directory & Purchase Register</h2>
-                <p className="text-[11px] text-slate-500 font-medium">Click on any supplier (e.g. Gurukrupa Traders) to view all purchases and total volume</p>
+                <h2 className="text-sm font-black text-slate-900">Supplier Directory &amp; Date-Wise Bills Register</h2>
+                <p className="text-[11px] text-slate-500 font-medium">Click "View Purchases" on any supplier to see Date-Wise Bill 1, Bill 2 boxes with GST &amp; Total</p>
               </div>
             </div>
 
@@ -1232,7 +1462,7 @@ export default function MaterialPurchasePage() {
                         </div>
 
                         <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 shrink-0">
-                          {sup.invoicesCount} {sup.invoicesCount === 1 ? "Bill" : "Bills"}
+                          {sup.bills.length} {sup.bills.length === 1 ? "Bill" : "Bills"} ({sup.itemsCount} Items)
                         </span>
                       </div>
 
@@ -1240,7 +1470,7 @@ export default function MaterialPurchasePage() {
                       <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100 flex items-center justify-between">
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">
-                            Total Purchase Amount
+                            Total Purchase (With GST)
                           </span>
                           <span className="text-lg font-black text-slate-900 tabular-nums">
                             ₹{formatINR(sup.totalAmount)}
@@ -1260,7 +1490,7 @@ export default function MaterialPurchasePage() {
                       <div className="grid grid-cols-3 gap-2 text-[11px]">
                         <div className="bg-amber-50/70 p-2 rounded-lg border border-amber-100">
                           <span className="text-[10px] font-semibold text-amber-700 block">Total GST</span>
-                          <span className="font-bold text-amber-900 tabular-nums">₹{formatINR(sup.totalTax)}</span>
+                          <span className="font-bold text-amber-900 tabular-nums">+₹{formatINR(sup.totalTax)}</span>
                         </div>
                         <div className="bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
                           <span className="text-[10px] font-semibold text-emerald-700 block">Paid</span>
@@ -1276,12 +1506,36 @@ export default function MaterialPurchasePage() {
                         </div>
                       </div>
 
+                      {/* Date-Wise Bills Preview Chips (Click any Bill to directly view its items) */}
+                      {sup.bills.length > 0 && (
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-800 uppercase block mb-1.5">
+                            Date-Wise Bills ({sup.bills.length}) — Click to open:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                            {sup.bills.map((bill) => (
+                              <button
+                                key={bill.date}
+                                type="button"
+                                onClick={() => openSupplierPurchasesModal(sup.name, bill.date)}
+                                className="text-[10px] font-bold bg-emerald-50 hover:bg-emerald-600 text-emerald-900 hover:text-white border border-emerald-200 px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                title={`Click to view ${bill.billLabel} (${formatDate(bill.date)}) purchased items`}
+                              >
+                                <span className="font-black">{bill.billLabel}</span>
+                                <span className="opacity-75">({formatDate(bill.date)})</span>
+                                <span className="font-black">• ₹{formatINR(bill.totalAmount)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Materials Supplied Badges */}
                       <div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
                           Materials Supplied ({materialsList.length})
                         </span>
-                        <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+                        <div className="flex flex-wrap gap-1.5 max-h-14 overflow-y-auto">
                           {materialsList.map((m, mIdx) => (
                             <span
                               key={mIdx}
@@ -1307,7 +1561,7 @@ export default function MaterialPurchasePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSelectedSupplierDetail(sup.name)}
+                        onClick={() => openSupplierPurchasesModal(sup.name, null)}
                         className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer whitespace-nowrap"
                       >
                         <Eye className="w-3.5 h-3.5 shrink-0" />
@@ -1317,6 +1571,7 @@ export default function MaterialPurchasePage() {
                         type="button"
                         onClick={() => {
                           setSelectedSupplierFilter(sup.name);
+                          setSelectedRegisterBillDate("ALL");
                           setActiveCategory("purchase");
                         }}
                         className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
@@ -1345,7 +1600,7 @@ export default function MaterialPurchasePage() {
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                   <tr>
                     <th className="p-3.5">Supplier Name</th>
-                    <th className="p-3.5 text-center">Invoices</th>
+                    <th className="p-3.5 text-center">Date-Wise Bills</th>
                     <th className="p-3.5">Materials Supplied</th>
                     <th className="p-3.5 text-right">Total Qty</th>
                     <th className="p-3.5 text-right text-amber-700">Total GST (₹)</th>
@@ -1361,7 +1616,7 @@ export default function MaterialPurchasePage() {
                       <td className="p-3.5 font-bold text-slate-900">
                         <button
                           type="button"
-                          onClick={() => setSelectedSupplierDetail(sup.name)}
+                          onClick={() => openSupplierPurchasesModal(sup.name, null)}
                           className="text-left font-black text-emerald-800 hover:text-emerald-900 hover:underline flex items-center gap-1.5 cursor-pointer"
                         >
                           <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1369,7 +1624,9 @@ export default function MaterialPurchasePage() {
                         </button>
                       </td>
                       <td className="p-3.5 text-center font-bold text-slate-700">
-                        <span className="px-2 py-0.5 bg-slate-100 rounded-md">{sup.invoicesCount}</span>
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md">
+                          {sup.bills.length} {sup.bills.length === 1 ? "Bill" : "Bills"}
+                        </span>
                       </td>
                       <td className="p-3.5 text-slate-600 max-w-xs truncate">
                         {Object.keys(sup.materials).join(", ") || "-"}
@@ -1402,10 +1659,11 @@ export default function MaterialPurchasePage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setSelectedSupplierDetail(sup.name)}
-                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                            onClick={() => openSupplierPurchasesModal(sup.name, null)}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1 whitespace-nowrap"
                           >
-                            Open Statement
+                            <Eye className="w-3.5 h-3.5 shrink-0" />
+                            <span>View Purchases</span>
                           </button>
                         </div>
                       </td>
@@ -1876,12 +2134,14 @@ export default function MaterialPurchasePage() {
         </Modal>
       )}
 
-      {/* MODAL: Supplier Purchase Statement & Inward Ledger */}
+      {/* MODAL: Supplier Date-Wise Bills & Purchased Items View */}
       {selectedSupplierDetail && activeSupplierData && (
         <Modal
           isOpen={!!selectedSupplierDetail}
           onClose={() => {
             setSelectedSupplierDetail(null);
+            setSelectedBillDate(null);
+            setShowAllSupplierItems(false);
             setSupplierModalSearch("");
           }}
           maxWidth="5xl"
@@ -1894,9 +2154,9 @@ export default function MaterialPurchasePage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md">
-                      Supplier Statement
+                      Supplier Wise Purchases
                     </span>
-                    <span className="text-xs text-slate-500 font-medium">Purchase Register Inward</span>
+                    <span className="text-xs text-slate-500 font-medium">Date-Wise Bills &amp; Items</span>
                   </div>
                   <h2 className="text-lg font-black text-slate-900 mt-0.5">
                     {activeSupplierData.name}
@@ -1907,7 +2167,7 @@ export default function MaterialPurchasePage() {
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                 <button
                   type="button"
-                  onClick={() => openAddPurchaseModal(activeSupplierData.name)}
+                  onClick={() => openAddPurchaseModal(activeSupplierData.name, selectedBillDate || undefined)}
                   className="px-3.5 py-1.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs cursor-pointer whitespace-nowrap"
                   title={`Add new purchase entry in ${activeSupplierData.name}`}
                 >
@@ -1932,33 +2192,35 @@ export default function MaterialPurchasePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
               <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Total Purchase Value
+                  Total (With GST)
                 </span>
                 <span className="text-lg font-black text-slate-900 tabular-nums whitespace-nowrap">
                   ₹{formatINR(activeSupplierData.totalAmount)}
                 </span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">Across all materials</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">
+                  Subtotal: ₹{formatINR(activeSupplierData.totalSubtotal)}
+                </span>
               </div>
 
               <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200/80 h-full flex flex-col justify-between">
                 <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
-                  Total GST Paid
+                  Total GST Amount
                 </span>
                 <span className="text-lg font-black text-amber-800 tabular-nums whitespace-nowrap">
                   +₹{formatINR(activeSupplierData.totalTax)}
                 </span>
-                <span className="text-[10px] text-amber-700/80 block mt-0.5">GST across bills</span>
+                <span className="text-[10px] text-amber-700/80 block mt-0.5">GST across all bills</span>
               </div>
 
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 h-full flex flex-col justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Invoices / Bills
+              <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200/80 h-full flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                  Date-Wise Bills
                 </span>
-                <span className="text-lg font-black text-slate-900 tabular-nums whitespace-nowrap">
-                  {activeSupplierData.invoicesCount} {activeSupplierData.invoicesCount === 1 ? "Bill" : "Bills"}
+                <span className="text-lg font-black text-emerald-950 tabular-nums whitespace-nowrap">
+                  {activeSupplierData.bills.length} {activeSupplierData.bills.length === 1 ? "Bill" : "Bills"}
                 </span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">
-                  Last: {activeSupplierData.lastDate ? formatDate(activeSupplierData.lastDate) : "-"}
+                <span className="text-[10px] text-emerald-700 block mt-0.5">
+                  {activeSupplierData.itemsCount} Total Items Purchased
                 </span>
               </div>
 
@@ -1991,15 +2253,600 @@ export default function MaterialPurchasePage() {
               </div>
             </div>
 
+            {/* DATE-WISE BILLS (Bill 1, Bill 2, ...) BOXES + CLICK TO VIEW ITEMS */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
+                      Date-Wise Purchase Bills ({activeSupplierData.bills.length} {activeSupplierData.bills.length === 1 ? "Bill" : "Bills"})
+                    </h3>
+                    <p className="text-[11px] text-emerald-800 font-semibold">
+                      Click on any Bill box (Bill 1, Bill 2...) to view purchased items of that particular date
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-emerald-200/90 flex-1 sm:w-56">
+                    <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Search bill, date, item..."
+                      value={supplierModalSearch}
+                      onChange={(e) => setSupplierModalSearch(e.target.value)}
+                      className="w-full text-xs font-semibold text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+                    />
+                    {supplierModalSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setSupplierModalSearch("")}
+                        className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAllSupplierItems(!showAllSupplierItems);
+                      if (!showAllSupplierItems) setSelectedBillDate(null);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border whitespace-nowrap ${
+                      showAllSupplierItems
+                        ? "bg-[#0B1D3A] text-white border-[#0B1D3A]"
+                        : "bg-white hover:bg-slate-100 text-slate-700 border-slate-300"
+                    }`}
+                  >
+                    {showAllSupplierItems ? "Back to Date-Wise Bills" : "View All Items Together"}
+                  </button>
+                </div>
+              </div>
+
+              {(() => {
+                const q = supplierModalSearch.toLowerCase().trim();
+                const filteredBills = activeSupplierData.bills.filter(b => {
+                  if (!q) return true;
+                  const formattedD = formatDate(b.date).toLowerCase();
+                  return (
+                    b.billLabel.toLowerCase().includes(q) ||
+                    b.date.toLowerCase().includes(q) ||
+                    formattedD.includes(q) ||
+                    b.materialsList.some(m => m.toLowerCase().includes(q)) ||
+                    b.items.some(it => (it.notes || "").toLowerCase().includes(q))
+                  );
+                });
+
+                const renderBillItemsPanel = (bill: typeof activeSupplierData.bills[0]) => {
+                  const billItems = bill.items.filter(p => {
+                    if (!q) return true;
+                    return (
+                      (p.materialName && p.materialName.toLowerCase().includes(q)) ||
+                      (p.notes && p.notes.toLowerCase().includes(q)) ||
+                      bMatchesBillQuery(bill, q)
+                    );
+                  });
+
+                  function bMatchesBillQuery(bObj: typeof activeSupplierData.bills[0], query: string) {
+                    return (
+                      bObj.billLabel.toLowerCase().includes(query) ||
+                      bObj.date.toLowerCase().includes(query) ||
+                      formatDate(bObj.date).toLowerCase().includes(query)
+                    );
+                  }
+
+                  return (
+                    <div className="bg-white rounded-2xl border-2 border-emerald-500 shadow-md overflow-hidden">
+                      {/* Selected Bill Header */}
+                      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 text-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="px-3 py-1 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-2xs">
+                            {bill.billLabel}
+                          </span>
+                          <span className="px-3 py-1 rounded-xl bg-white/15 text-white font-bold text-xs flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-emerald-300" />
+                            <span>Date: {formatDate(bill.date)}</span>
+                          </span>
+                          <span className="px-2.5 py-1 rounded-xl bg-white/10 text-emerald-200 font-bold text-xs">
+                            {bill.items.length} {bill.items.length === 1 ? "Purchased Item" : "Purchased Items"}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="bg-white/10 px-3 py-1 rounded-xl border border-white/15 text-xs">
+                            <span className="text-emerald-200 text-[10px] uppercase font-bold mr-1.5">Subtotal:</span>
+                            <span className="font-bold tabular-nums">₹{formatINR(bill.subtotal)}</span>
+                          </div>
+                          <div className="bg-amber-400/20 px-3 py-1 rounded-xl border border-amber-300/30 text-xs">
+                            <span className="text-amber-200 text-[10px] uppercase font-bold mr-1.5">GST:</span>
+                            <span className="font-black text-amber-300 tabular-nums">+₹{formatINR(bill.totalTax)}</span>
+                          </div>
+                          <div className="bg-emerald-400 text-slate-950 px-3.5 py-1 rounded-xl text-xs font-black shadow-2xs">
+                            <span className="text-[10px] uppercase mr-1.5 opacity-80">Total (With GST):</span>
+                            <span className="tabular-nums text-sm">₹{formatINR(bill.totalAmount)}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openAddPurchaseModal(activeSupplierData.name, bill.date)}
+                            className="px-3 py-1.5 bg-[#1E88E5] hover:bg-blue-500 text-white rounded-xl text-xs font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                          >
+                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                            <span>+ Add Item in {bill.billLabel}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBillDate(null)}
+                            className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer"
+                            title="Close Bill Items"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Purchased Items Table for this Particular Date */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-emerald-50/70 text-slate-600 font-bold border-b border-emerald-100">
+                            <tr>
+                              <th className="p-3 w-10 text-center">#</th>
+                              <th className="p-3">Purchased Material / Item</th>
+                              <th className="p-3 text-right">Qty</th>
+                              <th className="p-3 text-right">Rate (₹)</th>
+                              <th className="p-3 text-right">Taxable Subtotal</th>
+                              <th className="p-3 text-right text-amber-700">GST (% &amp; ₹)</th>
+                              <th className="p-3 text-right">Transport</th>
+                              <th className="p-3 text-right font-black text-emerald-900">Total (With GST)</th>
+                              <th className="p-3 text-center">Status</th>
+                              <th className="p-3">Notes</th>
+                              <th className="p-3 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {billItems.map((p, idx) => {
+                              const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
+                              const bd = getPurchaseBreakdown(p);
+                              return (
+                                <tr key={p.id || idx} className="hover:bg-emerald-50/30 transition-colors">
+                                  <td className="p-3 text-center font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="p-3 font-black text-slate-900">
+                                    <div className="flex items-center gap-1.5">
+                                      <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span>{p.materialName}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
+                                    {formatINR(bd.qty)} {p.unit}
+                                  </td>
+                                  <td className="p-3 text-right text-slate-600 tabular-nums whitespace-nowrap">
+                                    ₹{formatINR(bd.rate)}
+                                  </td>
+                                  <td className="p-3 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">
+                                    ₹{formatINR(bd.subtotal)}
+                                  </td>
+                                  <td className="p-3 text-right text-amber-700 font-bold tabular-nums whitespace-nowrap">
+                                    <div>+₹{formatINR(bd.gstAmt)}</div>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800">
+                                      {bd.gstPct}% GST
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-right font-medium tabular-nums whitespace-nowrap">
+                                    {bd.transportCost > 0 ? (
+                                      <span className="text-indigo-700 font-bold">₹{formatINR(bd.transportCost)}</span>
+                                    ) : (
+                                      <span className="text-slate-400">₹0</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-black text-slate-900 tabular-nums whitespace-nowrap text-sm">
+                                    ₹{formatINR(bd.totalAmt)}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                                      isPaid ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
+                                    }`}>
+                                      {isPaid ? "Paid" : "Pending"}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-slate-500 max-w-xs truncate text-[11px]">
+                                    {p.notes || "-"}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditPurchase(p)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
+                                        title="Edit Item"
+                                      >
+                                        <Edit3 size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDelete(p.id)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                        title="Delete Item"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-emerald-50/90 font-black text-slate-900 border-t-2 border-emerald-200">
+                            <tr>
+                              <td colSpan={2} className="p-3 uppercase text-[11px] text-emerald-950">
+                                {bill.billLabel} ({formatDate(bill.date)}) Total ({bill.items.length} Items)
+                              </td>
+                              <td className="p-3 text-right tabular-nums whitespace-nowrap">{formatINR(bill.totalQty)}</td>
+                              <td className="p-3"></td>
+                              <td className="p-3 text-right tabular-nums whitespace-nowrap">₹{formatINR(bill.subtotal)}</td>
+                              <td className="p-3 text-right text-amber-800 tabular-nums whitespace-nowrap">+₹{formatINR(bill.totalTax)}</td>
+                              <td className="p-3 text-right text-indigo-700 tabular-nums whitespace-nowrap">₹{formatINR(bill.totalTransport)}</td>
+                              <td className="p-3 text-right text-emerald-900 text-sm tabular-nums whitespace-nowrap">
+                                ₹{formatINR(bill.totalAmount)}
+                              </td>
+                              <td colSpan={3}></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div className="space-y-4">
+                    {/* Bill 1, Bill 2, ... Boxes Grid */}
+                    {filteredBills.length === 0 ? (
+                      <div className="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs text-slate-400">
+                        No bills matching search for this supplier.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {filteredBills.map((bill) => {
+                          const isSelected = selectedBillDate === bill.date;
+                          const isFullyPaid = bill.pendingAmount <= 0;
+
+                          return (
+                            <React.Fragment key={bill.date}>
+                              <div
+                                onClick={() => {
+                                  setShowAllSupplierItems(false);
+                                  setSelectedBillDate(isSelected ? null : bill.date);
+                                }}
+                                className={`rounded-2xl p-4 border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                                  isSelected
+                                    ? "bg-emerald-900 text-white border-emerald-500 shadow-lg ring-2 ring-emerald-400/50"
+                                    : "bg-white hover:bg-emerald-50/40 text-slate-800 border-slate-200/90 hover:border-emerald-400 shadow-xs hover:shadow-md"
+                                }`}
+                              >
+                                {/* Bill Box Top Row: Bill 1 / Bill 2 Badge + Date + Status */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2.5">
+                                    <span className={`px-3 py-1 rounded-xl text-xs font-black tracking-wide shadow-2xs ${
+                                      isSelected
+                                        ? "bg-emerald-400 text-slate-950"
+                                        : "bg-emerald-600 text-white"
+                                    }`}>
+                                      {bill.billLabel}
+                                    </span>
+                                    <div>
+                                      <div className={`text-xs font-black flex items-center gap-1 ${
+                                        isSelected ? "text-white" : "text-slate-900"
+                                      }`}>
+                                        <Calendar className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-emerald-300" : "text-emerald-600"}`} />
+                                        <span>{formatDate(bill.date)}</span>
+                                      </div>
+                                      <span className={`text-[10px] font-semibold block ${
+                                        isSelected ? "text-emerald-200" : "text-slate-400"
+                                      }`}>
+                                        {bill.items.length} {bill.items.length === 1 ? "Item Purchased" : "Items Purchased"}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase border shrink-0 ${
+                                    isSelected
+                                      ? "bg-emerald-800 text-emerald-100 border-emerald-600"
+                                      : isFullyPaid
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : "bg-rose-50 text-rose-700 border-rose-200"
+                                  }`}>
+                                    {isFullyPaid ? "Paid" : "Pending"}
+                                  </span>
+                                </div>
+
+                                {/* Bill Box Middle Row: Taxable + GST + Grand Total (With GST) */}
+                                <div className={`rounded-xl p-3 border space-y-2 ${
+                                  isSelected
+                                    ? "bg-emerald-950/80 border-emerald-800"
+                                    : "bg-slate-50/90 border-slate-200/80"
+                                }`}>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                      <span className={`text-[10px] font-bold uppercase block ${
+                                        isSelected ? "text-emerald-300" : "text-slate-400"
+                                      }`}>
+                                        Subtotal
+                                      </span>
+                                      <span className={`font-bold tabular-nums whitespace-nowrap ${
+                                        isSelected ? "text-white" : "text-slate-700"
+                                      }`}>
+                                        ₹{formatINR(bill.subtotal)}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className={`text-[10px] font-bold uppercase block ${
+                                        isSelected ? "text-amber-300" : "text-amber-700"
+                                      }`}>
+                                        GST Amount
+                                      </span>
+                                      <span className={`font-black tabular-nums whitespace-nowrap ${
+                                        isSelected ? "text-amber-300" : "text-amber-800"
+                                      }`}>
+                                        +₹{formatINR(bill.totalTax)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {bill.totalTransport > 0 && (
+                                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/40">
+                                      <span className={isSelected ? "text-indigo-200" : "text-indigo-600 font-semibold"}>
+                                        Transport Fee:
+                                      </span>
+                                      <span className={`font-bold tabular-nums ${isSelected ? "text-indigo-200" : "text-indigo-700"}`}>
+                                        +₹{formatINR(bill.totalTransport)}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  <div className={`pt-2 border-t flex items-baseline justify-between gap-2 ${
+                                    isSelected ? "border-emerald-800" : "border-slate-200"
+                                  }`}>
+                                    <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                      isSelected ? "text-emerald-300" : "text-emerald-800"
+                                    }`}>
+                                      Total (With GST)
+                                    </span>
+                                    <span className={`text-base font-black tabular-nums whitespace-nowrap ${
+                                      isSelected ? "text-emerald-300" : "text-slate-900"
+                                    }`}>
+                                      ₹{formatINR(bill.totalAmount)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Bill Box Bottom Row: Material Names & Click Action */}
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {bill.materialsList.map((mName, mIdx) => (
+                                      <span
+                                        key={mIdx}
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                          isSelected
+                                            ? "bg-emerald-800 text-emerald-100"
+                                            : "bg-blue-50 text-blue-700 border border-blue-200/60"
+                                        }`}
+                                      >
+                                        {mName}
+                                      </span>
+                                    ))}
+                                  </div>
+
+                                  <div className={`w-full py-1.5 px-3 rounded-xl text-[11px] font-black flex items-center justify-between transition-all ${
+                                    isSelected
+                                      ? "bg-emerald-400 text-slate-950"
+                                      : "bg-emerald-50 text-emerald-800 group-hover:bg-emerald-100"
+                                  }`}>
+                                    <span>
+                                      {isSelected
+                                        ? `✓ Showing ${bill.billLabel} Items (${bill.items.length})`
+                                        : `Click to View ${bill.billLabel} Items (${bill.items.length})`}
+                                    </span>
+                                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isSelected ? "rotate-90" : ""}`} />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Mobile Inline Expansion right below clicked Bill Box */}
+                              {isSelected && (
+                                <div className="md:hidden col-span-1">
+                                  {renderBillItemsPanel(bill)}
+                                </div>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Desktop Full-Width Purchased Items Panel for Clicked Bill */}
+                    {selectedBillDate && (() => {
+                      const activeBill = activeSupplierData.bills.find(b => b.date === selectedBillDate);
+                      if (!activeBill) return null;
+                      return (
+                        <div className="hidden md:block">
+                          {renderBillItemsPanel(activeBill)}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Prompt if no bill is clicked yet */}
+                    {!selectedBillDate && !showAllSupplierItems && filteredBills.length > 0 && (
+                      <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-4 text-center text-xs font-bold text-slate-500">
+                        👆 Click on any Bill box above (<span className="text-emerald-700 font-black">Bill 1, Bill 2...</span>) to view the purchased items for that particular date.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Optional: View All Items Together Table */}
+              {showAllSupplierItems && (() => {
+                const modalSearchQ = supplierModalSearch.toLowerCase().trim();
+                const displayPurchases = activeSupplierData.purchases.filter(p => {
+                  if (!modalSearchQ) return true;
+                  return (
+                    (p.materialName && p.materialName.toLowerCase().includes(modalSearchQ)) ||
+                    (p.date && p.date.includes(modalSearchQ)) ||
+                    (p.notes && p.notes.toLowerCase().includes(modalSearchQ)) ||
+                    (p.paymentStatus && p.paymentStatus.toLowerCase().includes(modalSearchQ))
+                  );
+                });
+
+                const modalTotQty = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).qty, 0);
+                const modalTotSub = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).subtotal, 0);
+                const modalTotTax = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).gstAmt, 0);
+                const modalTotTrans = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).transportCost, 0);
+                const modalTotVal = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).totalAmt, 0);
+
+                return (
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                    <div className="bg-slate-800 text-white px-4 py-2.5 flex items-center justify-between text-xs font-bold">
+                      <span>All Purchased Items Across All Bills ({displayPurchases.length} Items)</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAllSupplierItems(false)}
+                        className="text-emerald-300 hover:underline cursor-pointer"
+                      >
+                        Close All Items View
+                      </button>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                          <tr>
+                            <th className="p-2.5">Bill #</th>
+                            <th className="p-2.5">Date</th>
+                            <th className="p-2.5">Material</th>
+                            <th className="p-2.5 text-right">Qty</th>
+                            <th className="p-2.5 text-right">Rate</th>
+                            <th className="p-2.5 text-right">Subtotal</th>
+                            <th className="p-2.5 text-right text-amber-700">GST (% &amp; ₹)</th>
+                            <th className="p-2.5 text-right">Transport</th>
+                            <th className="p-2.5 text-right font-black">Total (₹)</th>
+                            <th className="p-2.5 text-center">Payment</th>
+                            <th className="p-2.5">Notes</th>
+                            <th className="p-2.5 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {displayPurchases.map((p, idx) => {
+                            const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
+                            const bd = getPurchaseBreakdown(p);
+                            const transportAmt = bd.transportCost;
+                            const matchingBill = activeSupplierData.bills.find(b => b.date === (p.date || "Unknown").trim());
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="p-2.5">
+                                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-black text-[10px]">
+                                    {matchingBill?.billLabel || "Bill"}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">
+                                  {formatDate(p.date)}
+                                </td>
+                                <td className="p-2.5 font-bold text-slate-900">
+                                  {p.materialName}
+                                </td>
+                                <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
+                                  {formatINR(bd.qty)} {p.unit}
+                                </td>
+                                <td className="p-2.5 text-right text-slate-600 tabular-nums whitespace-nowrap">
+                                  ₹{formatINR(bd.rate)}
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">
+                                  ₹{formatINR(bd.subtotal)}
+                                </td>
+                                <td className="p-2.5 text-right text-amber-700 font-bold tabular-nums whitespace-nowrap">
+                                  +₹{formatINR(bd.gstAmt)} <span className="text-[10px] text-slate-500">({bd.gstPct}%)</span>
+                                </td>
+                                <td className="p-2.5 text-right font-medium tabular-nums whitespace-nowrap">
+                                  {transportAmt > 0 ? (
+                                    <span className="text-indigo-700">₹{formatINR(transportAmt)}</span>
+                                  ) : (
+                                    <span className="text-slate-400">₹0</span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
+                                  ₹{formatINR(bd.totalAmt)}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                                    isPaid ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
+                                  }`}>
+                                    {isPaid ? "Paid" : "Pending"}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-slate-500 max-w-xs truncate text-[11px]">
+                                  {p.notes || "-"}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditPurchase(p)}
+                                      className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
+                                      title="Edit Purchase"
+                                    >
+                                      <Edit3 size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(p.id)}
+                                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                      title="Delete Purchase"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        {displayPurchases.length > 0 && (
+                          <tfoot className="bg-slate-100/90 font-black text-slate-900 border-t border-slate-200 sticky bottom-0">
+                            <tr>
+                              <td colSpan={3} className="p-2.5 uppercase text-[10px]">
+                                Summary Totals ({displayPurchases.length} Items)
+                              </td>
+                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">{formatINR(modalTotQty)}</td>
+                              <td className="p-2.5"></td>
+                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">₹{formatINR(modalTotSub)}</td>
+                              <td className="p-2.5 text-right text-amber-800 tabular-nums whitespace-nowrap">+₹{formatINR(modalTotTax)}</td>
+                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">₹{formatINR(modalTotTrans)}</td>
+                              <td className="p-2.5 text-right text-emerald-800 tabular-nums whitespace-nowrap">
+                                ₹{formatINR(modalTotVal)}
+                              </td>
+                              <td colSpan={3}></td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* Materials Breakdown Purchased from this Supplier */}
-            <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-                <h3 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                  <span>Materials Purchased from {activeSupplierData.name}</span>
+                  <span>Quick Repeat Material Entry for {activeSupplierData.name}</span>
                 </h3>
-                <span className="text-[11px] font-bold text-emerald-800">
-                  {Object.keys(activeSupplierData.materials).length} Distinct Items
+                <span className="text-[11px] font-bold text-slate-600">
+                  {Object.keys(activeSupplierData.materials).length} Distinct Materials
                 </span>
               </div>
 
@@ -2009,12 +2856,12 @@ export default function MaterialPurchasePage() {
                     p => (p.materialName || "").trim().toUpperCase() === mat.name.trim().toUpperCase()
                   );
                   return (
-                    <div key={mIdx} className="bg-white p-3 rounded-xl border border-emerald-200/70 shadow-2xs flex flex-col justify-between gap-2">
+                    <div key={mIdx} className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col justify-between gap-2">
                       <div>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-black text-slate-900 truncate">{mat.name}</span>
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 shrink-0">
-                            {mat.count} {mat.count === 1 ? "Bill" : "Bills"}
+                            {mat.count} {mat.count === 1 ? "Entry" : "Entries"}
                           </span>
                         </div>
                         <div className="mt-1 flex items-baseline justify-between gap-2">
@@ -2039,7 +2886,7 @@ export default function MaterialPurchasePage() {
                               ? String(lastMatchingPurchase.taxPercentage)
                               : "18";
                           setFormData({
-                            date: new Date().toISOString().split("T")[0],
+                            date: selectedBillDate || new Date().toISOString().split("T")[0],
                             supplierName: activeSupplierData.name,
                             materialName: mat.name,
                             quantity: "",
@@ -2063,199 +2910,15 @@ export default function MaterialPurchasePage() {
               </div>
             </div>
 
-            {/* Inward Purchases Table for this Supplier */}
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-slate-600" />
-                  <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                    Itemized Purchases Register
-                  </h3>
-                  <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                    {activeSupplierData.purchases.length} Records
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 flex-1 sm:w-64">
-                    <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Filter by material, notes, date..."
-                      value={supplierModalSearch}
-                      onChange={(e) => setSupplierModalSearch(e.target.value)}
-                      className="w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
-                    />
-                    {supplierModalSearch && (
-                      <button
-                        onClick={() => setSupplierModalSearch("")}
-                        className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openAddPurchaseModal(activeSupplierData.name)}
-                    className="px-3 py-1.5 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5 shrink-0" />
-                    <span>+ New Entry</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Table */}
-              {(() => {
-                const modalSearchQ = supplierModalSearch.toLowerCase().trim();
-                const displayPurchases = activeSupplierData.purchases.filter(p => {
-                  if (!modalSearchQ) return true;
-                  return (
-                    (p.materialName && p.materialName.toLowerCase().includes(modalSearchQ)) ||
-                    (p.date && p.date.includes(modalSearchQ)) ||
-                    (p.notes && p.notes.toLowerCase().includes(modalSearchQ)) ||
-                    (p.paymentStatus && p.paymentStatus.toLowerCase().includes(modalSearchQ))
-                  );
-                });
-
-                const modalTotQty = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).qty, 0);
-                const modalTotSub = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).subtotal, 0);
-                const modalTotTax = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).gstAmt, 0);
-                const modalTotTrans = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).transportCost, 0);
-                const modalTotVal = displayPurchases.reduce((s, p) => s + getPurchaseBreakdown(p).totalAmt, 0);
-
-                return (
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-                    <div className="max-h-80 overflow-y-auto overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
-                          <tr>
-                            <th className="p-2.5">Date</th>
-                            <th className="p-2.5">Material</th>
-                            <th className="p-2.5 text-right">Qty</th>
-                            <th className="p-2.5 text-right">Rate</th>
-                            <th className="p-2.5 text-right">Subtotal</th>
-                            <th className="p-2.5 text-right text-amber-700">GST (% &amp; ₹)</th>
-                            <th className="p-2.5 text-right">Transport</th>
-                            <th className="p-2.5 text-right font-black">Total (₹)</th>
-                            <th className="p-2.5 text-center">Payment</th>
-                            <th className="p-2.5">Notes</th>
-                            <th className="p-2.5 text-center">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {displayPurchases.length === 0 ? (
-                            <tr>
-                              <td colSpan={11} className="p-6 text-center text-slate-400">
-                                No purchases matching search for this supplier.
-                              </td>
-                            </tr>
-                          ) : (
-                            displayPurchases.map((p, idx) => {
-                              const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
-                              const bd = getPurchaseBreakdown(p);
-                              const transportAmt = bd.transportCost;
-
-                              return (
-                                <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">
-                                    {formatDate(p.date)}
-                                  </td>
-                                  <td className="p-2.5 font-bold text-slate-900">
-                                    {p.materialName}
-                                  </td>
-                                  <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums whitespace-nowrap">
-                                    {formatINR(bd.qty)} {p.unit}
-                                  </td>
-                                  <td className="p-2.5 text-right text-slate-600 tabular-nums whitespace-nowrap">
-                                    ₹{formatINR(bd.rate)}
-                                  </td>
-                                  <td className="p-2.5 text-right font-semibold text-slate-700 tabular-nums whitespace-nowrap">
-                                    ₹{formatINR(bd.subtotal)}
-                                  </td>
-                                  <td className="p-2.5 text-right text-amber-700 font-bold tabular-nums whitespace-nowrap">
-                                    +₹{formatINR(bd.gstAmt)} <span className="text-[10px] text-slate-500">({bd.gstPct}%)</span>
-                                  </td>
-                                  <td className="p-2.5 text-right font-medium tabular-nums whitespace-nowrap">
-                                    {transportAmt > 0 ? (
-                                      <span className="text-indigo-700">₹{formatINR(transportAmt)}</span>
-                                    ) : (
-                                      <span className="text-slate-400">₹0</span>
-                                    )}
-                                  </td>
-                                  <td className="p-2.5 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
-                                    ₹{formatINR(bd.totalAmt)}
-                                  </td>
-                                  <td className="p-2.5 text-center">
-                                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
-                                      isPaid ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
-                                    }`}>
-                                      {isPaid ? "Paid" : "Pending"}
-                                    </span>
-                                  </td>
-                                  <td className="p-2.5 text-slate-500 max-w-xs truncate text-[11px]">
-                                    {p.notes || "-"}
-                                  </td>
-                                  <td className="p-2.5 text-center">
-                                    <div className="flex items-center justify-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleEditPurchase(p)}
-                                        className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
-                                        title="Edit Purchase"
-                                      >
-                                        <Edit3 size={13} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDelete(p.id)}
-                                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                        title="Delete Purchase"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                        {displayPurchases.length > 0 && (
-                          <tfoot className="bg-slate-100/90 font-black text-slate-900 border-t border-slate-200 sticky bottom-0">
-                            <tr>
-                              <td colSpan={2} className="p-2.5 uppercase text-[10px]">
-                                Summary Totals ({displayPurchases.length} Bills)
-                              </td>
-                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">{formatINR(modalTotQty)}</td>
-                              <td className="p-2.5"></td>
-                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">₹{formatINR(modalTotSub)}</td>
-                              <td className="p-2.5 text-right text-amber-800 tabular-nums whitespace-nowrap">+₹{formatINR(modalTotTax)}</td>
-                              <td className="p-2.5 text-right tabular-nums whitespace-nowrap">₹{formatINR(modalTotTrans)}</td>
-                              <td className="p-2.5 text-right text-emerald-800 tabular-nums whitespace-nowrap">
-                                ₹{formatINR(modalTotVal)}
-                              </td>
-                              <td colSpan={3}></td>
-                            </tr>
-                          </tfoot>
-                        )}
-                      </table>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
             {/* Modal Footer */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
               <span className="text-xs font-semibold text-slate-500">
-                Supplier Total: <strong className="text-emerald-800 tabular-nums">₹{formatINR(activeSupplierData.totalAmount)}</strong> across {activeSupplierData.invoicesCount} purchase bills
+                Supplier Grand Total (With GST): <strong className="text-emerald-800 tabular-nums">₹{formatINR(activeSupplierData.totalAmount)}</strong> across {activeSupplierData.bills.length} date-wise bills
               </span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => openAddPurchaseModal(activeSupplierData.name)}
+                  onClick={() => openAddPurchaseModal(activeSupplierData.name, selectedBillDate || undefined)}
                   className="px-4 py-2 bg-[#1E88E5] hover:bg-blue-600 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap"
                 >
                   <Plus className="w-3.5 h-3.5 shrink-0" />
@@ -2265,6 +2928,8 @@ export default function MaterialPurchasePage() {
                   type="button"
                   onClick={() => {
                     setSelectedSupplierDetail(null);
+                    setSelectedBillDate(null);
+                    setShowAllSupplierItems(false);
                     setSupplierModalSearch("");
                   }}
                   className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
