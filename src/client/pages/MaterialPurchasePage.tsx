@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { 
   Package, Plus, Search, Building2, Trash2, Edit3, DollarSign, Wallet, CheckCircle2, AlertCircle, 
   ArrowRight, BarChart2, Eye, MapPin, Users, ShoppingBag, Layers, ArrowUpRight, ArrowDownRight,
-  TrendingUp, Calendar, Info, X, Truck, FileSpreadsheet
+  TrendingUp, Calendar, Info, X, Truck, FileSpreadsheet, Download, Filter, ChevronRight, Receipt
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
@@ -11,12 +11,13 @@ import { Modal } from "../components/ui/Modal";
 import { useGoogleSync } from "../contexts/GoogleSyncContext";
 import { formatINR, formatDate } from "../lib/formatters";
 import { DateInput } from "../components/ui/DateInput";
+import { downloadExcelReport } from "../lib/excelExport";
 
 export default function MaterialPurchasePage() {
   const { showToast, confirmAction } = useToast();
   const { isConnected, setIsModalOpen: setGoogleModalOpen, centralSpreadsheetUrl } = useGoogleSync();
   
-  const [activeTab, setActiveCategory] = useState<"purchase" | "stock">("purchase");
+  const [activeTab, setActiveCategory] = useState<"purchase" | "stock" | "supplier">("purchase");
   
   // Data
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -28,11 +29,15 @@ export default function MaterialPurchasePage() {
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>("ALL");
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState<string>("");
+  const [supplierModalSearch, setSupplierModalSearch] = useState<string>("");
   
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPurchaseId, setEditingPurchaseId] = useState<number | null>(null);
   const [selectedMaterialDetail, setSelectedMaterialDetail] = useState<{ name: string; id?: number | null } | null>(null);
+  const [selectedSupplierDetail, setSelectedSupplierDetail] = useState<string | null>(null);
   const [detailModalTab, setDetailModalTab] = useState<"all" | "sites" | "customers" | "purchases">("all");
 
   // Form State
@@ -213,17 +218,117 @@ export default function MaterialPurchasePage() {
     }
   };
 
+  // Supplier Summaries Aggregation
+  const supplierSummaries = useMemo(() => {
+    const map: { [name: string]: {
+      name: string;
+      totalAmount: number;
+      totalQty: number;
+      totalTax: number;
+      totalTransport: number;
+      paidAmount: number;
+      pendingAmount: number;
+      invoicesCount: number;
+      lastDate: string;
+      materials: { [matName: string]: { name: string; qty: number; unit: string; amount: number; count: number } };
+      purchases: any[];
+    } } = {};
+
+    purchases.forEach(p => {
+      const sName = (p.supplierName || p.partyName || "General Supplier").trim();
+      if (!map[sName]) {
+        map[sName] = {
+          name: sName,
+          totalAmount: 0,
+          totalQty: 0,
+          totalTax: 0,
+          totalTransport: 0,
+          paidAmount: 0,
+          pendingAmount: 0,
+          invoicesCount: 0,
+          lastDate: "",
+          materials: {},
+          purchases: []
+        };
+      }
+      const sup = map[sName];
+      const amt = Number(p.totalAmount || 0);
+      const qty = Number(p.quantity || 0);
+      const tax = Number(p.tax || 0);
+      const trans = Number(p.transportCost || 0);
+      const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
+
+      sup.totalAmount += amt;
+      sup.totalQty += qty;
+      sup.totalTax += tax;
+      sup.totalTransport += trans;
+      if (isPaid) sup.paidAmount += amt;
+      else sup.pendingAmount += amt;
+      sup.invoicesCount += 1;
+      sup.purchases.push(p);
+
+      if (p.date && (!sup.lastDate || p.date > sup.lastDate)) {
+        sup.lastDate = p.date;
+      }
+
+      const mat = (p.materialName || "Material").trim();
+      if (!sup.materials[mat]) {
+        sup.materials[mat] = { name: mat, qty: 0, unit: p.unit || "Nos", amount: 0, count: 0 };
+      }
+      sup.materials[mat].qty += qty;
+      sup.materials[mat].amount += amt;
+      sup.materials[mat].count += 1;
+    });
+
+    return Object.values(map).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [purchases]);
+
+  const filteredSupplierSummaries = useMemo(() => {
+    if (!supplierSearchQuery.trim()) return supplierSummaries;
+    const q = supplierSearchQuery.toLowerCase().trim();
+    return supplierSummaries.filter(s => 
+      s.name.toLowerCase().includes(q) ||
+      Object.keys(s.materials).some(m => m.toLowerCase().includes(q))
+    );
+  }, [supplierSummaries, supplierSearchQuery]);
+
+  const activeSupplierData = useMemo(() => {
+    if (!selectedSupplierDetail) return null;
+    const cleanTarget = selectedSupplierDetail.trim().toLowerCase();
+    return supplierSummaries.find(s => s.name.trim().toLowerCase() === cleanTarget) || null;
+  }, [selectedSupplierDetail, supplierSummaries]);
+
+  const handleExportSupplierExcel = async (supplierName: string) => {
+    try {
+      showToast(`Exporting Excel statement for ${supplierName}...`, "info");
+      await downloadExcelReport(
+        `/reports/export-vendor-purchases?partyName=${encodeURIComponent(supplierName)}`,
+        `Purchases_${supplierName.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`
+      );
+      showToast("Excel downloaded successfully", "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to download Excel file", "error");
+    }
+  };
+
   // Filtered lists
   const filteredPurchases = useMemo(() => {
-    if (!searchQuery.trim()) return purchases;
+    let result = purchases;
+    if (selectedSupplierFilter !== "ALL") {
+      result = result.filter(p => {
+        const sName = (p.supplierName || p.partyName || "General Supplier").trim();
+        return sName.toLowerCase() === selectedSupplierFilter.toLowerCase();
+      });
+    }
+    if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase().trim();
-    return purchases.filter(p => 
+    return result.filter(p => 
       (p.materialName && p.materialName.toLowerCase().includes(q)) ||
       (p.supplierName && p.supplierName.toLowerCase().includes(q)) ||
       (p.partyName && p.partyName.toLowerCase().includes(q)) ||
       (p.date && p.date.includes(q))
     );
-  }, [purchases, searchQuery]);
+  }, [purchases, searchQuery, selectedSupplierFilter]);
 
   const filteredCentralStock = useMemo(() => {
     if (!searchQuery.trim()) return centralStock;
@@ -340,10 +445,18 @@ export default function MaterialPurchasePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            {activeTab === "purchase" ? "Material Purchase" : "Material Stock"}
+            {activeTab === "purchase" 
+              ? "Material Purchase (Purchase Register)" 
+              : activeTab === "supplier"
+              ? "Supplier-wise Purchase Register"
+              : "Material Stock Inventory"}
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            {activeTab === "purchase" ? "Purchase materials and add to central stock" : "Track central material inventory for all sites"}
+            {activeTab === "purchase" 
+              ? "Purchase materials and add to central stock" 
+              : activeTab === "supplier"
+              ? "Supplier-wise inward volume, bills, and purchase statements"
+              : "Track central material inventory for all sites"}
           </p>
         </div>
 
@@ -354,16 +467,29 @@ export default function MaterialPurchasePage() {
               type="button"
               onClick={() => setActiveCategory("purchase")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "purchase" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600"
+                activeTab === "purchase" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
               Purchases
             </button>
             <button
               type="button"
+              onClick={() => setActiveCategory("supplier")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "supplier" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Supplier Wise</span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-black">
+                {supplierSummaries.length}
+              </span>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveCategory("stock")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "stock" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600"
+                activeTab === "stock" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
               Stock Inventory
@@ -408,7 +534,7 @@ export default function MaterialPurchasePage() {
       </div>
 
       {/* KPI Cards: PURCHASE VIEW */}
-      {activeTab === "purchase" ? (
+      {activeTab === "purchase" && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
             <div className="p-2.5 bg-[#0B1D3A] text-white rounded-xl">
@@ -482,8 +608,87 @@ export default function MaterialPurchasePage() {
             </div>
           </div>
         </div>
-      ) : (
-        /* KPI Cards: STOCK VIEW */
+      )}
+
+      {/* KPI Cards: SUPPLIER VIEW */}
+      {activeTab === "supplier" && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-600 text-white rounded-xl">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Suppliers</span>
+              <span className="text-sm font-bold text-slate-800 tabular-nums">
+                {supplierSummaries.length}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-2.5 bg-[#0B1D3A] text-white rounded-xl">
+              <DollarSign className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Purchases</span>
+              <span className="text-sm font-bold text-slate-800 tabular-nums">
+                ₹{formatINR(totalPurchaseVal)}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+              <Package className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Top Supplier</span>
+              <span className="text-xs font-bold text-slate-800 truncate max-w-[120px] block" title={supplierSummaries[0]?.name}>
+                {supplierSummaries[0]?.name || "-"}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Receipt className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Bills Inward</span>
+              <span className="text-sm font-bold text-slate-800 tabular-nums">
+                {purchases.length}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Paid Amount</span>
+              <span className="text-sm font-bold text-emerald-700 tabular-nums">
+                ₹{formatINR(totalPurchaseVal - pendingPayments)}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3 col-span-2 sm:col-span-1">
+            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 font-semibold uppercase block">Pending Balance</span>
+              <span className="text-sm font-bold text-rose-700 tabular-nums">
+                ₹{formatINR(pendingPayments)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Cards: STOCK VIEW */}
+      {activeTab === "stock" && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
             <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
@@ -547,28 +752,129 @@ export default function MaterialPurchasePage() {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <Search className="w-4 h-4 text-slate-400 shrink-0" />
-        <input 
-          type="text"
-          placeholder={activeTab === "purchase" ? "Search purchases by material, supplier, date..." : "Search inventory materials by name, category..."}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none"
-        />
-        {searchQuery && (
-          <button 
-            onClick={() => setSearchQuery("")}
-            className="text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer"
-          >
-            Clear
-          </button>
-        )}
-      </div>
+      {/* Search & Filter Bar for Purchase Register */}
+      {activeTab === "purchase" && (
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex-1 flex items-center gap-3 bg-white px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input 
+                type="text"
+                placeholder="Search purchases by material, supplier, date..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery("")}
+                  className="text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
 
-      {/* TABLE SECTION: Purchase Register or Material Inventory */}
-      {activeTab === "purchase" ? (
+            {/* Supplier Filter Dropdown */}
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-slate-200/80 shadow-2xs min-w-[240px]">
+              <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <select
+                value={selectedSupplierFilter}
+                onChange={(e) => setSelectedSupplierFilter(e.target.value)}
+                className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">All Suppliers ({supplierSummaries.length})</option>
+                {supplierSummaries.map((s, idx) => (
+                  <option key={idx} value={s.name}>
+                    {s.name} (₹{formatINR(s.totalAmount)} - {s.invoicesCount} bills)
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Supplier Filter Active Banner */}
+          {selectedSupplierFilter !== "ALL" && (
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
+                      Supplier Filter Active
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">Filtering Purchase Register</span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-0.5">{selectedSupplierFilter}</h3>
+                </div>
+              </div>
+
+              {(() => {
+                const sup = supplierSummaries.find(s => s.name.toLowerCase() === selectedSupplierFilter.toLowerCase());
+                if (!sup) return null;
+                return (
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
+                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Purchases</span>
+                      <span className="text-sm font-black text-emerald-700">₹{formatINR(sup.totalAmount)}</span>
+                    </div>
+                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
+                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Bills</span>
+                      <span className="text-sm font-black text-slate-800">{sup.invoicesCount}</span>
+                    </div>
+                    <div className="bg-white/90 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs">
+                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Qty</span>
+                      <span className="text-sm font-black text-slate-800">{formatINR(sup.totalQty)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSupplierDetail(selectedSupplierFilter)}
+                      className="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Open Supplier Statement</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSupplierFilter("ALL")}
+                      className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-300 transition-all cursor-pointer"
+                    >
+                      Clear Filter
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search Bar for Stock Inventory */}
+      {activeTab === "stock" && (
+        <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <input 
+            type="text"
+            placeholder="Search inventory materials by name, category..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery("")}
+              className="text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* TAB 1: PURCHASE REGISTER TABLE */}
+      {activeTab === "purchase" && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -576,6 +882,11 @@ export default function MaterialPurchasePage() {
               <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
                 Central Inventory
               </span>
+              {selectedSupplierFilter !== "ALL" && (
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Supplier: {selectedSupplierFilter}
+                </span>
+              )}
             </div>
             <span className="text-xs font-semibold text-slate-500">{filteredPurchases.length} Records</span>
           </div>
@@ -585,7 +896,7 @@ export default function MaterialPurchasePage() {
               <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                 <tr>
                   <th className="p-3.5">Date</th>
-                  <th className="p-3.5">Supplier</th>
+                  <th className="p-3.5">Supplier / Vendor (Click to Open)</th>
                   <th className="p-3.5">Material (Click for Supply History)</th>
                   <th className="p-3.5 text-right">Qty</th>
                   <th className="p-3.5 text-right">Rate</th>
@@ -600,20 +911,35 @@ export default function MaterialPurchasePage() {
                 {filteredPurchases.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="p-8 text-center text-slate-400">
-                      {searchQuery ? "No matching purchase records found." : "No purchase records found."}
+                      {searchQuery || selectedSupplierFilter !== "ALL" 
+                        ? "No matching purchase records found." 
+                        : "No purchase records found."}
                     </td>
                   </tr>
                 ) : (
                   filteredPurchases.map((p) => {
                     const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
                     const transportAmt = Number(p.transportCost || 0);
+                    const supName = p.supplierName || p.partyName || "General Supplier";
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="p-3.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(p.date)}</td>
-                        <td className="p-3.5 font-bold text-slate-900">{p.supplierName || p.partyName}</td>
                         
-                        {/* Interactive Clickable Material Name Div */}
+                        {/* Interactive Clickable Supplier Name Button */}
+                        <td className="p-3.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSupplierDetail(supName)}
+                            className="group text-left inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100/90 text-emerald-900 font-bold transition-all border border-emerald-200/80 shadow-2xs hover:shadow-xs cursor-pointer"
+                            title={`Click to view total purchases and inward ledger for ${supName}`}
+                          >
+                            <Building2 className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform shrink-0" />
+                            <span className="group-hover:underline underline-offset-2">{supName}</span>
+                          </button>
+                        </td>
+                        
+                        {/* Interactive Clickable Material Name Button */}
                         <td className="p-3.5">
                           <button
                             type="button"
@@ -656,9 +982,20 @@ export default function MaterialPurchasePage() {
                           </span>
                         </td>
                         
-                        {/* Actions: Stock View, Edit & Delete Button */}
+                        {/* Actions */}
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            {/* Supplier Statement Button */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSupplierDetail(supName)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-200 transition-all cursor-pointer shadow-2xs"
+                              title={`Open ${supName} Total Purchase Statement`}
+                            >
+                              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="hidden xl:inline">Supplier</span>
+                            </button>
+
                             {/* Stock View Button */}
                             <button
                               type="button"
@@ -667,7 +1004,7 @@ export default function MaterialPurchasePage() {
                               title="View Central Stock & Location Supply Details"
                             >
                               <BarChart2 className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Stock View</span>
+                              <span className="hidden xl:inline">Stock</span>
                             </button>
 
                             {/* Edit Button */}
@@ -699,7 +1036,237 @@ export default function MaterialPurchasePage() {
             </table>
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* TAB 2: SUPPLIER-WISE PURCHASE REGISTER DIRECTORY */}
+      {activeTab === "supplier" && (
+        <div className="space-y-4">
+          {/* Top Search & Filter Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-slate-900">Supplier Directory & Purchase Register</h2>
+                <p className="text-[11px] text-slate-500 font-medium">Click on any supplier (e.g. Gurukrupa Traders) to view all purchases and total volume</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search supplier (e.g. Gurukrupa Traders)..."
+                  value={supplierSearchQuery}
+                  onChange={(e) => setSupplierSearchQuery(e.target.value)}
+                  className="w-full text-xs font-semibold text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+                />
+                {supplierSearchQuery && (
+                  <button
+                    onClick={() => setSupplierSearchQuery("")}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Supplier Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredSupplierSummaries.length === 0 ? (
+              <div className="col-span-full bg-white p-10 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
+                No matching suppliers found.
+              </div>
+            ) : (
+              filteredSupplierSummaries.map((sup, idx) => {
+                const materialsList = Object.values(sup.materials);
+                return (
+                  <div
+                    key={idx}
+                    className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                  >
+                    <div className="space-y-3">
+                      {/* Card Header */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200/60 group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition-colors leading-tight">
+                              {sup.name}
+                            </h3>
+                            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                              {sup.lastDate ? `Last Bill: ${formatDate(sup.lastDate)}` : "No bills recorded"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 shrink-0">
+                          {sup.invoicesCount} {sup.invoicesCount === 1 ? "Bill" : "Bills"}
+                        </span>
+                      </div>
+
+                      {/* Total Purchase Amount Highlight */}
+                      <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">
+                            Total Purchase Amount
+                          </span>
+                          <span className="text-lg font-black text-slate-900 tabular-nums">
+                            ₹{formatINR(sup.totalAmount)}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">
+                            Total Quantity
+                          </span>
+                          <span className="text-xs font-black text-slate-700 tabular-nums">
+                            {formatINR(sup.totalQty)} Units
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Payment & Tax Stats */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
+                          <span className="text-[10px] font-semibold text-emerald-700 block">Paid Amount</span>
+                          <span className="font-bold text-emerald-900 tabular-nums">₹{formatINR(sup.paidAmount)}</span>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${sup.pendingAmount > 0 ? "bg-rose-50/60 border-rose-100" : "bg-slate-50 border-slate-100"}`}>
+                          <span className={`text-[10px] font-semibold block ${sup.pendingAmount > 0 ? "text-rose-700" : "text-slate-500"}`}>
+                            Pending Amount
+                          </span>
+                          <span className={`font-bold tabular-nums ${sup.pendingAmount > 0 ? "text-rose-900" : "text-slate-600"}`}>
+                            ₹{formatINR(sup.pendingAmount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Materials Supplied Badges */}
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                          Materials Supplied ({materialsList.length})
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+                          {materialsList.map((m, mIdx) => (
+                            <span
+                              key={mIdx}
+                              className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 px-2 py-0.5 rounded-md"
+                            >
+                              {m.name}: {formatINR(m.qty)} {m.unit}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Actions */}
+                    <div className="pt-3 mt-3 border-t border-slate-100 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSupplierDetail(sup.name)}
+                        className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Open Supplier Purchases</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSupplierFilter(sup.name);
+                          setActiveCategory("purchase");
+                        }}
+                        className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        title="View in Purchase Register"
+                      >
+                        Register
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Supplier Master Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden mt-6">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">All Suppliers Summary</h3>
+                <span className="text-xs text-slate-500 font-semibold">({supplierSummaries.length} Suppliers Total)</span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+                  <tr>
+                    <th className="p-3.5">Supplier Name</th>
+                    <th className="p-3.5 text-center">Invoices</th>
+                    <th className="p-3.5">Materials Supplied</th>
+                    <th className="p-3.5 text-right">Total Qty</th>
+                    <th className="p-3.5 text-right font-black">Total Purchases (₹)</th>
+                    <th className="p-3.5 text-right">Paid (₹)</th>
+                    <th className="p-3.5 text-right">Pending (₹)</th>
+                    <th className="p-3.5 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {supplierSummaries.map((sup, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="p-3.5 font-bold text-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSupplierDetail(sup.name)}
+                          className="text-left font-black text-emerald-800 hover:text-emerald-900 hover:underline flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{sup.name}</span>
+                        </button>
+                      </td>
+                      <td className="p-3.5 text-center font-bold text-slate-700">
+                        <span className="px-2 py-0.5 bg-slate-100 rounded-md">{sup.invoicesCount}</span>
+                      </td>
+                      <td className="p-3.5 text-slate-600 max-w-xs truncate">
+                        {Object.keys(sup.materials).join(", ") || "-"}
+                      </td>
+                      <td className="p-3.5 text-right font-bold text-slate-800 tabular-nums">
+                        {formatINR(sup.totalQty)}
+                      </td>
+                      <td className="p-3.5 text-right font-black text-slate-900 tabular-nums text-sm">
+                        ₹{formatINR(sup.totalAmount)}
+                      </td>
+                      <td className="p-3.5 text-right font-bold text-emerald-700 tabular-nums">
+                        ₹{formatINR(sup.paidAmount)}
+                      </td>
+                      <td className="p-3.5 text-right font-bold text-rose-700 tabular-nums">
+                        ₹{formatINR(sup.pendingAmount)}
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSupplierDetail(sup.name)}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                        >
+                          Open Statement
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: CENTRAL STOCK INVENTORY TABLE */}
+      {activeTab === "stock" && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900">Central Material Inventory (All Sites)</h2>
@@ -1337,6 +1904,326 @@ export default function MaterialPurchasePage() {
               <button
                 type="button"
                 onClick={() => setSelectedMaterialDetail(null)}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL: Supplier Purchase Statement & Inward Ledger */}
+      {selectedSupplierDetail && activeSupplierData && (
+        <Modal
+          isOpen={!!selectedSupplierDetail}
+          onClose={() => {
+            setSelectedSupplierDetail(null);
+            setSupplierModalSearch("");
+          }}
+          maxWidth="5xl"
+          title={
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-3 pr-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md">
+                      Supplier Statement
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">Purchase Register Inward</span>
+                  </div>
+                  <h2 className="text-lg font-black text-slate-900 mt-0.5">
+                    {activeSupplierData.name}
+                  </h2>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleExportSupplierExcel(activeSupplierData.name)}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  title="Download full supplier Excel statement"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export Excel</span>
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-5">
+            {/* 4 Summary Stats Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Purchase Value
+                </span>
+                <span className="text-xl font-black text-slate-900 tabular-nums">
+                  ₹{formatINR(activeSupplierData.totalAmount)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Across all materials</span>
+              </div>
+
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Invoices / Bills
+                </span>
+                <span className="text-xl font-black text-slate-900 tabular-nums">
+                  {activeSupplierData.invoicesCount} {activeSupplierData.invoicesCount === 1 ? "Bill" : "Bills"}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Last: {activeSupplierData.lastDate ? formatDate(activeSupplierData.lastDate) : "-"}
+                </span>
+              </div>
+
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Quantity
+                </span>
+                <span className="text-xl font-black text-slate-900 tabular-nums">
+                  {formatINR(activeSupplierData.totalQty)}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Transport: ₹{formatINR(activeSupplierData.totalTransport)}
+                </span>
+              </div>
+
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Payment Status
+                </span>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="text-sm font-black text-emerald-700">₹{formatINR(activeSupplierData.paidAmount)}</span>
+                  <span className="text-[10px] text-slate-400">Paid</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-xs font-bold ${activeSupplierData.pendingAmount > 0 ? "text-rose-700 font-black" : "text-slate-400"}`}>
+                    ₹{formatINR(activeSupplierData.pendingAmount)}
+                  </span>
+                  <span className="text-[10px] text-slate-400">Pending</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Materials Breakdown Purchased from this Supplier */}
+            <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Materials Purchased from {activeSupplierData.name}</span>
+                </h3>
+                <span className="text-[11px] font-bold text-emerald-800">
+                  {Object.keys(activeSupplierData.materials).length} Distinct Items
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {Object.values(activeSupplierData.materials).map((mat, mIdx) => (
+                  <div key={mIdx} className="bg-white p-3 rounded-xl border border-emerald-200/70 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900">{mat.name}</span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+                        {mat.count} {mat.count === 1 ? "Bill" : "Bills"}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-baseline justify-between">
+                      <span className="text-sm font-black text-slate-800 tabular-nums">
+                        {formatINR(mat.qty)} {mat.unit}
+                      </span>
+                      <span className="text-xs font-bold text-slate-600 tabular-nums">
+                        ₹{formatINR(mat.amount)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Inward Purchases Table for this Supplier */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-slate-600" />
+                  <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    Itemized Purchases Register
+                  </h3>
+                  <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {activeSupplierData.purchases.length} Records
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Filter by material, notes, date..."
+                    value={supplierModalSearch}
+                    onChange={(e) => setSupplierModalSearch(e.target.value)}
+                    className="w-full text-xs font-medium text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+                  />
+                  {supplierModalSearch && (
+                    <button
+                      onClick={() => setSupplierModalSearch("")}
+                      className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Table */}
+              {(() => {
+                const modalSearchQ = supplierModalSearch.toLowerCase().trim();
+                const displayPurchases = activeSupplierData.purchases.filter(p => {
+                  if (!modalSearchQ) return true;
+                  return (
+                    (p.materialName && p.materialName.toLowerCase().includes(modalSearchQ)) ||
+                    (p.date && p.date.includes(modalSearchQ)) ||
+                    (p.notes && p.notes.toLowerCase().includes(modalSearchQ)) ||
+                    (p.paymentStatus && p.paymentStatus.toLowerCase().includes(modalSearchQ))
+                  );
+                });
+
+                const modalTotQty = displayPurchases.reduce((s, p) => s + Number(p.quantity || 0), 0);
+                const modalTotTax = displayPurchases.reduce((s, p) => s + Number(p.tax || 0), 0);
+                const modalTotTrans = displayPurchases.reduce((s, p) => s + Number(p.transportCost || 0), 0);
+                const modalTotVal = displayPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+
+                return (
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                    <div className="max-h-80 overflow-y-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                          <tr>
+                            <th className="p-2.5">Date</th>
+                            <th className="p-2.5">Material</th>
+                            <th className="p-2.5 text-right">Qty</th>
+                            <th className="p-2.5 text-right">Rate</th>
+                            <th className="p-2.5 text-center">GST</th>
+                            <th className="p-2.5 text-right">Transport</th>
+                            <th className="p-2.5 text-right font-black">Total (₹)</th>
+                            <th className="p-2.5 text-center">Payment</th>
+                            <th className="p-2.5">Notes</th>
+                            <th className="p-2.5 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {displayPurchases.length === 0 ? (
+                            <tr>
+                              <td colSpan={10} className="p-6 text-center text-slate-400">
+                                No purchases matching search for this supplier.
+                              </td>
+                            </tr>
+                          ) : (
+                            displayPurchases.map((p, idx) => {
+                              const isPaid = (p.paymentStatus || "PAID").toUpperCase() === "PAID";
+                              const transportAmt = Number(p.transportCost || 0);
+
+                              return (
+                                <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">
+                                    {formatDate(p.date)}
+                                  </td>
+                                  <td className="p-2.5 font-bold text-slate-900">
+                                    {p.materialName}
+                                  </td>
+                                  <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">
+                                    {formatINR(p.quantity)} {p.unit}
+                                  </td>
+                                  <td className="p-2.5 text-right text-slate-600 tabular-nums">
+                                    ₹{formatINR(p.rate)}
+                                  </td>
+                                  <td className="p-2.5 text-center text-slate-600">
+                                    {p.taxPercentage || 18}%
+                                  </td>
+                                  <td className="p-2.5 text-right font-medium tabular-nums">
+                                    {transportAmt > 0 ? (
+                                      <span className="text-indigo-700">₹{formatINR(transportAmt)}</span>
+                                    ) : (
+                                      <span className="text-slate-400">₹0</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">
+                                    ₹{formatINR(p.totalAmount)}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                                      isPaid ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
+                                    }`}>
+                                      {isPaid ? "Paid" : "Pending"}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-slate-500 max-w-xs truncate text-[11px]">
+                                    {p.notes || "-"}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedSupplierDetail(null);
+                                          handleEditPurchase(p);
+                                        }}
+                                        className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                        title="Edit Purchase"
+                                      >
+                                        <Edit3 size={13} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDelete(p.id)}
+                                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                        title="Delete Purchase"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                        {displayPurchases.length > 0 && (
+                          <tfoot className="bg-slate-100/90 font-black text-slate-900 border-t border-slate-200 sticky bottom-0">
+                            <tr>
+                              <td colSpan={2} className="p-2.5 uppercase text-[10px]">
+                                Summary Totals ({displayPurchases.length} Bills)
+                              </td>
+                              <td className="p-2.5 text-right tabular-nums">{formatINR(modalTotQty)}</td>
+                              <td className="p-2.5"></td>
+                              <td className="p-2.5 text-center tabular-nums">₹{formatINR(modalTotTax)}</td>
+                              <td className="p-2.5 text-right tabular-nums">₹{formatINR(modalTotTrans)}</td>
+                              <td className="p-2.5 text-right text-emerald-800 tabular-nums">
+                                ₹{formatINR(modalTotVal)}
+                              </td>
+                              <td colSpan={3}></td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-xs font-semibold text-slate-500">
+                Supplier Total: <strong className="text-emerald-800">₹{formatINR(activeSupplierData.totalAmount)}</strong> across {activeSupplierData.invoicesCount} purchase bills
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSupplierDetail(null);
+                  setSupplierModalSearch("");
+                }}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
               >
                 Close

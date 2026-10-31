@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../../lib/api";
 import { Modal } from "../ui/Modal";
-import { Plus, Trash2, Pencil, Package, ArrowDownRight, ArrowUpRight, Search, RefreshCw, Layers, CheckCircle2, AlertTriangle, Download } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, ArrowDownRight, ArrowUpRight, Search, RefreshCw, Layers, CheckCircle2, AlertTriangle, Download, Building2, Eye, Receipt } from "lucide-react";
 import { PurchaseIcon } from "../icons/PurchaseIcon";
 import { useLiveSync, triggerSync } from "../../hooks/useLiveSync";
 import { ManageMaterialsModal } from "../ui/ManageMaterialsModal";
@@ -22,6 +22,10 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
   const [loading, setLoading] = useState(true);
   const [stockSearch, setStockSearch] = useState("");
   const [showLedgerLogs, setShowLedgerLogs] = useState(false);
+
+  const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>("ALL");
+  const [selectedVendorDetail, setSelectedVendorDetail] = useState<string | null>(null);
+  const [vendorModalSearch, setVendorModalSearch] = useState<string>("");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManageMaterialOpen, setIsManageMaterialOpen] = useState(false);
@@ -245,6 +249,81 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
     }
   };
 
+  // Vendor Summaries for Location
+  const vendorSummaries = useMemo(() => {
+    const map: { [name: string]: {
+      name: string;
+      totalAmount: number;
+      totalQty: number;
+      totalTax: number;
+      totalTransport: number;
+      paidAmount: number;
+      pendingAmount: number;
+      invoicesCount: number;
+      lastDate: string;
+      materials: { [matName: string]: { name: string; qty: number; unit: string; amount: number; count: number } };
+      purchases: any[];
+    } } = {};
+
+    records.forEach(r => {
+      const vName = (r.partyName || r.supplierName || "General Vendor").trim();
+      if (!map[vName]) {
+        map[vName] = {
+          name: vName,
+          totalAmount: 0,
+          totalQty: 0,
+          totalTax: 0,
+          totalTransport: 0,
+          paidAmount: 0,
+          pendingAmount: 0,
+          invoicesCount: 0,
+          lastDate: "",
+          materials: {},
+          purchases: []
+        };
+      }
+      const v = map[vName];
+      const amt = Number(r.totalAmount || 0);
+      const qty = Number(r.quantity || 0);
+      const tax = Number(r.tax || 0);
+      const trans = Number(r.transportCost || 0);
+      const isPaid = (r.paymentStatus || "UNPAID").toUpperCase() === "PAID";
+
+      v.totalAmount += amt;
+      v.totalQty += qty;
+      v.totalTax += tax;
+      v.totalTransport += trans;
+      if (isPaid) v.paidAmount += amt;
+      else v.pendingAmount += amt;
+      v.invoicesCount += 1;
+      v.purchases.push(r);
+
+      if (r.date && (!v.lastDate || r.date > v.lastDate)) {
+        v.lastDate = r.date;
+      }
+
+      const mat = (r.materialName || "Material").trim();
+      if (!v.materials[mat]) {
+        v.materials[mat] = { name: mat, qty: 0, unit: r.unit || "Nos", amount: 0, count: 0 };
+      }
+      v.materials[mat].qty += qty;
+      v.materials[mat].amount += amt;
+      v.materials[mat].count += 1;
+    });
+
+    return Object.values(map).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [records]);
+
+  const filteredRecords = useMemo(() => {
+    if (selectedVendorFilter === "ALL") return records;
+    return records.filter(r => (r.partyName || r.supplierName || "").trim().toLowerCase() === selectedVendorFilter.toLowerCase());
+  }, [records, selectedVendorFilter]);
+
+  const activeVendorData = useMemo(() => {
+    if (!selectedVendorDetail) return null;
+    return vendorSummaries.find(v => v.name.toLowerCase() === selectedVendorDetail.toLowerCase().trim()) || null;
+  }, [selectedVendorDetail, vendorSummaries]);
+
   // Compile Comprehensive Stock Summary from stockLedger array and materials master
   const stockSummary = useMemo(() => {
     const summaryMap = new Map<string, {
@@ -412,12 +491,36 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
 
       {activeSubTab === "purchases" && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h3 className="font-bold text-slate-900">Purchase Invoices</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900">Purchase Invoices</h3>
+                {selectedVendorFilter !== "ALL" && (
+                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Vendor: {selectedVendorFilter}
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-slate-500">Every recorded purchase instantly increases the available inventory stock balance.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {/* Vendor Filter */}
+              <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs shadow-2xs">
+                <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <select
+                  value={selectedVendorFilter}
+                  onChange={(e) => setSelectedVendorFilter(e.target.value)}
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="ALL">All Vendors ({vendorSummaries.length})</option>
+                  {vendorSummaries.map((v, idx) => (
+                    <option key={idx} value={v.name}>
+                      {v.name} (₹{formatINR(v.totalAmount)} - {v.invoicesCount} bills)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button
                 onClick={() => loadData()}
                 title="Refresh purchases and stock"
@@ -430,7 +533,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 title="Export Material Purchases & Vendor Bills to Excel"
               >
-                <Download className="w-3.5 h-3.5" /> Export Purchases (.xlsx)
+                <Download className="w-3.5 h-3.5" /> Export (.xlsx)
               </button>
               <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-rose-700 transition-colors cursor-pointer">
                 <Plus className="w-3.5 h-3.5" /> Add Purchase
@@ -440,7 +543,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
           
           {/* Mobile Cards View */}
           <div className="block md:hidden divide-y divide-slate-100">
-            {records.map(r => {
+            {filteredRecords.map(r => {
               const stockInfo = stockByMaterial.get(r.materialId ? String(r.materialId) : r.materialName?.toLowerCase()?.trim());
               const currentStockVal = stockInfo ? stockInfo.currentStock : null;
 
@@ -474,7 +577,15 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                   </div>
 
                   <div>
-                    <div className="text-sm font-extrabold text-slate-900">{r.partyName}</div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVendorDetail(r.partyName)}
+                      className="text-left font-black text-slate-900 hover:text-emerald-700 flex items-center gap-1.5 group cursor-pointer text-sm"
+                      title={`View ${r.partyName} purchases & inward history`}
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform shrink-0" />
+                      <span className="group-hover:underline underline-offset-2">{r.partyName}</span>
+                    </button>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-xs font-bold text-rose-700">{r.materialName}</span>
                       <span className="text-xs font-extrabold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
@@ -534,7 +645,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <tr>
                   <th className="p-3">Date</th>
-                  <th className="p-3">Vendor / Party</th>
+                  <th className="p-3">Vendor / Party (Click to Open)</th>
                   <th className="p-3">Material</th>
                   <th className="p-3 text-right">Purchased Qty</th>
                   <th className="p-3 text-center">Live Stock</th>
@@ -548,7 +659,7 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {records.map(r => {
+                {filteredRecords.map(r => {
                   const stockInfo = stockByMaterial.get(r.materialId ? String(r.materialId) : r.materialName?.toLowerCase()?.trim());
                   const currentStockVal = stockInfo ? stockInfo.currentStock : null;
 
@@ -568,7 +679,17 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
                   return (
                     <tr key={r.id} className="hover:bg-slate-50">
                       <td className="p-3 text-slate-600">{formatDate(r.date)}</td>
-                      <td className="p-3 font-bold text-slate-900">{r.partyName}</td>
+                      <td className="p-3">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVendorDetail(r.partyName)}
+                          className="group text-left inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100/90 text-emerald-900 font-bold transition-all border border-emerald-200/80 shadow-2xs hover:shadow-xs cursor-pointer"
+                          title={`Click to view total purchases and inward ledger for ${r.partyName}`}
+                        >
+                          <Building2 className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform shrink-0" />
+                          <span className="group-hover:underline underline-offset-2">{r.partyName}</span>
+                        </button>
+                      </td>
                       <td className="p-3">
                         <div className="font-semibold text-rose-700">{r.materialName}</div>
                         {r.description && <div className="text-[10px] text-slate-400">{r.description}</div>}
@@ -1083,6 +1204,134 @@ export default function MaterialPurchaseTab({ locationId }: { locationId: number
           loadData(true);
         }}
       />
+      {/* MODAL: Vendor Purchase Statement */}
+      {selectedVendorDetail && activeVendorData && (
+        <Modal
+          isOpen={!!selectedVendorDetail}
+          onClose={() => {
+            setSelectedVendorDetail(null);
+            setVendorModalSearch("");
+          }}
+          maxWidth="4xl"
+          title={
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-3 pr-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md">
+                      Vendor Statement
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">Site Material Purchases</span>
+                  </div>
+                  <h2 className="text-lg font-black text-slate-900 mt-0.5">
+                    {activeVendorData.name}
+                  </h2>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => downloadExcelReport(`/reports/export-vendor-purchases?locationId=${locationId}&partyName=${encodeURIComponent(activeVendorData.name)}`, `Vendor_${activeVendorData.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_Site_${locationId}.xlsx`)}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                title="Download vendor Excel statement"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export Excel</span>
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {/* Top KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Purchases</span>
+                <span className="text-lg font-black text-slate-900 tabular-nums">₹{formatINR(activeVendorData.totalAmount)}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Invoices</span>
+                <span className="text-lg font-black text-slate-900 tabular-nums">{activeVendorData.invoicesCount} Bills</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Quantity</span>
+                <span className="text-lg font-black text-slate-900 tabular-nums">{formatINR(activeVendorData.totalQty)}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payment</span>
+                <span className="text-xs font-black text-emerald-700 block">₹{formatINR(activeVendorData.paidAmount)} Paid</span>
+                <span className="text-[11px] font-bold text-rose-700 block">₹{formatINR(activeVendorData.pendingAmount)} Pending</span>
+              </div>
+            </div>
+
+            {/* Materials Breakdown */}
+            <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
+              <span className="text-xs font-black text-emerald-950 uppercase tracking-wider block mb-2">
+                Materials Supplied by {activeVendorData.name}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {Object.values(activeVendorData.materials).map((m, mIdx) => (
+                  <div key={mIdx} className="bg-white px-3 py-1.5 rounded-lg border border-emerald-200 shadow-2xs text-xs">
+                    <span className="font-bold text-slate-800">{m.name}: </span>
+                    <span className="font-black text-emerald-800">{formatINR(m.qty)} {m.unit}</span>
+                    <span className="text-slate-500 font-semibold ml-1.5">(₹{formatINR(m.amount)})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Inward Purchases Table */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <div className="max-h-72 overflow-y-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="p-2.5">Date</th>
+                      <th className="p-2.5">Material</th>
+                      <th className="p-2.5 text-right">Qty</th>
+                      <th className="p-2.5 text-right">Rate</th>
+                      <th className="p-2.5 text-center">GST</th>
+                      <th className="p-2.5 text-right font-black">Total (₹)</th>
+                      <th className="p-2.5 text-center">Payment</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {activeVendorData.purchases.map((p, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-2.5 text-slate-600 font-medium whitespace-nowrap">{formatDate(p.date)}</td>
+                        <td className="p-2.5 font-bold text-slate-900">{p.materialName}</td>
+                        <td className="p-2.5 text-right font-bold text-slate-800 tabular-nums">{p.quantity} {p.unit}</td>
+                        <td className="p-2.5 text-right text-slate-600 tabular-nums">₹{Number(p.rate).toLocaleString()}</td>
+                        <td className="p-2.5 text-center text-slate-600">{p.taxPercentage || 0}%</td>
+                        <td className="p-2.5 text-right font-black text-slate-900 tabular-nums">₹{formatINR(p.totalAmount)}</td>
+                        <td className="p-2.5 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            p.paymentStatus === 'PAID' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
+                          }`}>
+                            {p.paymentStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setSelectedVendorDetail(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
